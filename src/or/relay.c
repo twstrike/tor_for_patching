@@ -43,9 +43,6 @@ static edge_connection_t *relay_lookup_conn(circuit_t *circ, cell_t *cell,
                                             cell_direction_t cell_direction,
                                             crypt_path_t *layer_hint);
 
-static int connection_edge_process_relay_cell(cell_t *cell, circuit_t *circ,
-                                              edge_connection_t *conn,
-                                              crypt_path_t *layer_hint);
 static void circuit_consider_sending_sendme(circuit_t *circ,
                                             crypt_path_t *layer_hint);
 static void circuit_resume_edge_reading(circuit_t *circ,
@@ -150,7 +147,7 @@ relay_digest_matches(crypto_digest_t *digest, cell_t *cell)
  *
  * Return -1 if the crypto fails, else return 0.
  */
-static int
+STATIC int
 relay_crypt_one_payload(crypto_cipher_t *cipher, uint8_t *in,
                         int encrypt_mode)
 {
@@ -564,11 +561,11 @@ relay_command_to_string(uint8_t command)
  * If you can't send the cell, mark the circuit for close and return -1. Else
  * return 0.
  */
-int
-relay_send_command_from_edge_(streamid_t stream_id, circuit_t *circ,
-                              uint8_t relay_command, const char *payload,
-                              size_t payload_len, crypt_path_t *cpath_layer,
-                              const char *filename, int lineno)
+MOCK_IMPL(int, relay_send_command_from_edge_,
+          (streamid_t stream_id, circuit_t *circ,
+           uint8_t relay_command, const char *payload,
+           size_t payload_len, crypt_path_t *cpath_layer,
+           const char *filename, int lineno))
 {
   cell_t cell;
   relay_header_t rh;
@@ -1414,7 +1411,7 @@ connection_edge_process_relay_cell_not_open(
  *
  * Return -reason if you want to warn and tear down the circuit, else 0.
  */
-static int
+STATIC int
 connection_edge_process_relay_cell(cell_t *cell, circuit_t *circ,
                                    edge_connection_t *conn,
                                    crypt_path_t *layer_hint)
@@ -1460,7 +1457,6 @@ connection_edge_process_relay_cell(cell_t *cell, circuit_t *circ,
 
   /* either conn is NULL, in which case we've got a control cell, or else
    * conn points to the recognized stream. */
-
   if (conn && !connection_state_is_open(TO_CONN(conn))) {
     if (conn->base_.type == CONN_TYPE_EXIT &&
         (conn->base_.state == EXIT_CONN_STATE_CONNECTING ||
@@ -2330,7 +2326,6 @@ cell_queue_append_packed_copy(circuit_t *circ, cell_queue_t *queue,
   (void)exitward;
   (void)use_stats;
   tor_gettimeofday_cached_monotonic(&now);
-
   copy->inserted_time = (uint32_t)tv_to_msec(&now);
 
   cell_queue_append(queue, copy);
@@ -2963,4 +2958,3 @@ circuit_queue_streams_are_blocked(circuit_t *circ)
     return circ->streams_blocked_on_p_chan;
   }
 }
-

@@ -20,10 +20,10 @@ int circuit_receive_relay_cell(cell_t *cell, circuit_t *circ,
 
 void relay_header_pack(uint8_t *dest, const relay_header_t *src);
 void relay_header_unpack(relay_header_t *dest, const uint8_t *src);
-int relay_send_command_from_edge_(streamid_t stream_id, circuit_t *circ,
-                               uint8_t relay_command, const char *payload,
-                               size_t payload_len, crypt_path_t *cpath_layer,
-                               const char *filename, int lineno);
+MOCK_DECL(int, relay_send_command_from_edge_, (streamid_t stream_id, circuit_t *circ,
+                                               uint8_t relay_command, const char *payload,
+                                               size_t payload_len, crypt_path_t *cpath_layer,
+                                               const char *filename, int lineno));
 #define relay_send_command_from_edge(stream_id, circ, relay_command, payload, \
                                      payload_len, cpath_layer)          \
   relay_send_command_from_edge_((stream_id), (circ), (relay_command),   \
@@ -97,11 +97,14 @@ STATIC int resolved_cell_parse(const cell_t *cell, const relay_header_t *rh,
 STATIC int connection_edge_process_resolved_cell(edge_connection_t *conn,
                                                  const cell_t *cell,
                                                  const relay_header_t *rh);
+STATIC int connection_edge_process_relay_cell(cell_t *cell, circuit_t *circ,
+                                              edge_connection_t *conn,
+                                              crypt_path_t *layer_hint);
 STATIC packed_cell_t *packed_cell_new(void);
 STATIC packed_cell_t *cell_queue_pop(cell_queue_t *queue);
 STATIC size_t cell_queues_get_total_allocation(void);
 STATIC int cell_queues_check_size(void);
+STATIC int relay_crypt_one_payload(crypto_cipher_t *cipher, uint8_t *in, int encrypt_mode);
 #endif
 
 #endif
-

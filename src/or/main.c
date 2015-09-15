@@ -148,7 +148,7 @@ static unsigned newnym_epoch = 0;
 static smartlist_t *connection_array = NULL;
 /** List of connections that have been marked for close and need to be freed
  * and removed from connection_array. */
-static smartlist_t *closeable_connection_lst = NULL;
+STATIC smartlist_t *closeable_connection_lst = NULL;
 /** List of linked connections that are currently reading data into their
  * inbuf from their partner's outbuf. */
 static smartlist_t *active_linked_connection_lst = NULL;
@@ -239,8 +239,8 @@ set_buffer_lengths_to_zero(tor_socket_t s)
 /** Return 1 if we have successfully built a circuit, and nothing has changed
  * to make us think that maybe we can't.
  */
-int
-have_completed_a_circuit(void)
+MOCK_IMPL(int,
+have_completed_a_circuit, (void))
 {
   return can_complete_circuits;
 }
@@ -1227,35 +1227,7 @@ get_signewnym_epoch(void)
   return newnym_epoch;
 }
 
-typedef struct {
-  time_t last_rotated_x509_certificate;
-  time_t check_v3_certificate;
-  time_t check_listeners;
-  time_t download_networkstatus;
-  time_t try_getting_descriptors;
-  time_t reset_descriptor_failures;
-  time_t add_entropy;
-  time_t write_bridge_status_file;
-  time_t downrate_stability;
-  time_t save_stability;
-  time_t clean_caches;
-  time_t recheck_bandwidth;
-  time_t check_for_expired_networkstatus;
-  time_t write_stats_files;
-  time_t write_bridge_stats;
-  time_t check_port_forwarding;
-  time_t launch_reachability_tests;
-  time_t retry_dns_init;
-  time_t next_heartbeat;
-  time_t check_descriptor;
-  /** When do we next launch DNS wildcarding checks? */
-  time_t check_for_correct_dns;
-  /** When do we next make sure our Ed25519 keys aren't about to expire? */
-  time_t check_ed_keys;
-
-} time_to_t;
-
-static time_to_t time_to = {
+STATIC time_to_t time_to = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
@@ -1295,7 +1267,7 @@ reschedule_directory_downloads(void)
 /** Perform regular maintenance tasks.  This function gets run once per
  * second by second_elapsed_callback().
  */
-static void
+STATIC void
 run_scheduled_events(time_t now)
 {
   static int should_init_bridge_stats = 1;
@@ -1559,7 +1531,7 @@ run_scheduled_events(time_t now)
     if (is_server &&
         (have_completed_a_circuit() || !any_predicted_circuits(now)) &&
         !we_are_hibernating()) {
-      if (stats_n_seconds_working < TIMEOUT_UNTIL_UNREACHABILITY_COMPLAINT) {
+      if (get_uptime() < TIMEOUT_UNTIL_UNREACHABILITY_COMPLAINT) {
         consider_testing_reachability(1, dirport_reachability_count==0);
         if (++dirport_reachability_count > 5)
           dirport_reachability_count = 0;
@@ -1916,8 +1888,8 @@ got_libevent_error(void)
 /** Called when our IP address seems to have changed. <b>at_interface</b>
  * should be true if we detected a change in our interface, and false if we
  * detected a change in our published address. */
-void
-ip_address_changed(int at_interface)
+MOCK_IMPL(void,
+ip_address_changed, (int at_interface))
 {
   int server = server_mode(get_options());
 
@@ -2741,8 +2713,8 @@ static tor_lockfile_t *lockfile = NULL;
  * holding the lock, and exit if we can't get it after waiting.  Otherwise,
  * return -1 if we can't get the lockfile.  Return 0 on success.
  */
-int
-try_locking(const or_options_t *options, int err_if_locked)
+MOCK_IMPL(int,
+try_locking,(const or_options_t *options, int err_if_locked))
 {
   if (lockfile)
     return 0;
@@ -2777,8 +2749,8 @@ try_locking(const or_options_t *options, int err_if_locked)
 }
 
 /** Return true iff we've successfully acquired the lock file. */
-int
-have_lockfile(void)
+MOCK_IMPL(int,
+have_lockfile,(void))
 {
   return lockfile != NULL;
 }
@@ -3319,4 +3291,3 @@ tor_main(int argc, char *argv[])
   tor_cleanup();
   return result;
 }
-
