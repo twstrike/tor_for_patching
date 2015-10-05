@@ -44,15 +44,19 @@ test_sandbox_init(void *ignored)
   tt_int_op(mock_saved_log_number(), OP_EQ, 1);
 
 #if defined(__linux__)
-  tt_str_op(mock_saved_log_at(0), OP_EQ, "This version of Tor was built without support for sandboxing. To build with support for sandboxing on Linux, you must have libseccomp and its necessary header files (e.g. seccomp.h).\n");
+  tt_str_op(mock_saved_log_at(0), OP_EQ, "This version of Tor was built "
+            "without support for sandboxing. To build with support for "
+            "sandboxing on Linux, you must have libseccomp and its necessary "
+            "header files (e.g. seccomp.h).\n");
 #else
-  tt_str_op(mock_saved_log_at(0), OP_EQ, "Currently, sandboxing is only implemented on Linux. The feature is disabled on your platform.\n");
+  tt_str_op(mock_saved_log_at(0), OP_EQ, "Currently, sandboxing is only "
+            "implemented on Linux. The feature is disabled on your "
+            "platform.\n");
 #endif
 
  done:
   teardown_capture_of_logs(previous_log);
 }
-
 
 static void
 test_sandbox_cfg_allow_open_filename(void *ignored)
@@ -67,7 +71,6 @@ test_sandbox_cfg_allow_open_filename(void *ignored)
   (void)0;
 }
 
-
 static void
 test_sandbox_cfg_allow_openat_filename(void *ignored)
 {
@@ -80,7 +83,6 @@ test_sandbox_cfg_allow_openat_filename(void *ignored)
  done:
   (void)0;
 }
-
 
 static void
 test_sandbox_cfg_allow_stat_filename(void *ignored)
@@ -125,7 +127,8 @@ static void
 test_sandbox_disable_getaddrinfo_cache(void *ignored)
 {
   (void)ignored;
-  // This test does nothing, but it's good to see that it doesn't blow up at least
+  // This test does nothing, but it's good to see that it doesn't
+  // blow up at least
   sandbox_disable_getaddrinfo_cache();
 }
 
@@ -140,15 +143,20 @@ struct testcase_t sandbox_tests[] = {
 #else // USE_LIBSECCOMP
 
 struct testcase_t sandbox_tests[] = {
-  { "cfg_allow_open_filename", test_sandbox_cfg_allow_open_filename, 0, NULL, NULL },
-  { "cfg_allow_openat_filename", test_sandbox_cfg_allow_openat_filename, 0, NULL, NULL },
-  { "cfg_allow_stat_filename", test_sandbox_cfg_allow_stat_filename, 0, NULL, NULL },
+  { "cfg_allow_open_filename", test_sandbox_cfg_allow_open_filename, 0,
+    NULL, NULL },
+  { "cfg_allow_openat_filename", test_sandbox_cfg_allow_openat_filename, 0,
+    NULL, NULL },
+  { "cfg_allow_stat_filename", test_sandbox_cfg_allow_stat_filename, 0,
+    NULL, NULL },
   { "cfg_allow_rename", test_sandbox_cfg_allow_rename, 0, NULL, NULL },
   { "is_active", test_sandbox_is_active, 0, NULL, NULL },
   { "cfg_new", test_sandbox_cfg_new, 0, NULL, NULL },
   { "init", test_sandbox_init, 0, NULL, NULL },
-  { "disable_getaddrinfo_cache", test_sandbox_disable_getaddrinfo_cache, 0, NULL, NULL },
+  { "disable_getaddrinfo_cache", test_sandbox_disable_getaddrinfo_cache, 0,
+    NULL, NULL },
   END_OF_TESTCASES
 };
 
 #endif // USE_LIBSECCOMP
+
