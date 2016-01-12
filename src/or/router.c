@@ -269,8 +269,8 @@ client_identity_key_is_set(void)
 
 /** Return the key certificate for this v3 (voting) authority, or NULL
  * if we have no such certificate. */
-authority_cert_t *
-get_my_v3_authority_cert(void)
+MOCK_IMPL(authority_cert_t *,
+get_my_v3_authority_cert, (void))
 {
   return authority_key_certificate;
 }
@@ -1026,6 +1026,7 @@ init_keys(void)
     ds = trusted_dir_server_new(options->Nickname, NULL,
                                 router_get_advertised_dir_port(options, 0),
                                 router_get_advertised_or_port(options),
+                                NULL,
                                 digest,
                                 v3_digest,
                                 type, 0.0);
@@ -1098,43 +1099,47 @@ check_whether_dirport_reachable(void)
          can_reach_dir_port;
 }
 
-/** Look at a variety of factors, and return 0 if we don't want to
- * advertise the fact that we have a DirPort open. Else return the
- * DirPort we want to advertise.
- *
- * Log a helpful message if we change our mind about whether to publish
- * a DirPort.
+/** The lower threshold of remaining bandwidth required to advertise (or
+ * automatically provide) directory services */
+/* XXX Should this be increased? */
+#define MIN_BW_TO_ADVERTISE_DIRSERVER 51200
+
+/** Return true iff we have enough configured bandwidth to cache directory
+ * information. */
+static int
+router_has_bandwidth_to_be_dirserver(const or_options_t *options)
+{
+  if (options->BandwidthRate < MIN_BW_TO_ADVERTISE_DIRSERVER) {
+    return 0;
+  }
+  if (options->RelayBandwidthRate > 0 &&
+      options->RelayBandwidthRate < MIN_BW_TO_ADVERTISE_DIRSERVER) {
+    return 0;
+  }
+  return 1;
+}
+
+/** Helper: Return 1 if we have sufficient resources for serving directory
+ * requests, return 0 otherwise.
+ * dir_port is either 0 or the configured DirPort number.
+ * If AccountingMax is set less than our advertised bandwidth, then don't
+ * serve requests. Likewise, if our advertised bandwidth is less than
+ * MIN_BW_TO_ADVERTISE_DIRSERVER, don't bother trying to serve requests.
  */
 static int
-decide_to_advertise_dirport(const or_options_t *options, uint16_t dir_port)
+router_should_be_directory_server(const or_options_t *options, int dir_port)
 {
   static int advertising=1; /* start out assuming we will advertise */
   int new_choice=1;
   const char *reason = NULL;
 
-  /* Section one: reasons to publish or not publish that aren't
-   * worth mentioning to the user, either because they're obvious
-   * or because they're normal behavior. */
-
-  if (!dir_port) /* short circuit the rest of the function */
-    return 0;
-  if (authdir_mode(options)) /* always publish */
-    return dir_port;
-  if (net_is_disabled())
-    return 0;
-  if (!check_whether_dirport_reachable())
-    return 0;
-  if (!router_get_advertised_dir_port(options, dir_port))
-    return 0;
-
-  /* Section two: reasons to publish or not publish that the user
-   * might find surprising. These are generally config options that
-   * make us choose not to publish. */
-
-  if (accounting_is_enabled(options)) {
+  if (accounting_is_enabled(options) &&
+    get_options()->AccountingRule != ACCT_IN) {
     /* Don't spend bytes for directory traffic if we could end up hibernating,
      * but allow DirPort otherwise. Some people set AccountingMax because
-     * they're confused or to get statistics. */
+     * they're confused or to get statistics. Directory traffic has a much
+     * larger effect on output than input so there is no reason to turn it
+     * off if using AccountingRule in. */
     int interval_length = accounting_get_interval_length();
     uint32_t effective_bw = get_effective_bwrate(options);
     uint64_t acc_bytes;
@@ -1157,10 +1162,7 @@ decide_to_advertise_dirport(const or_options_t *options, uint16_t dir_port)
       new_choice = 0;
       reason = "AccountingMax enabled";
     }
-#define MIN_BW_TO_ADVERTISE_DIRPORT 51200
-  } else if (options->BandwidthRate < MIN_BW_TO_ADVERTISE_DIRPORT ||
-             (options->RelayBandwidthRate > 0 &&
-              options->RelayBandwidthRate < MIN_BW_TO_ADVERTISE_DIRPORT)) {
+  } else if (! router_has_bandwidth_to_be_dirserver(options)) {
     /* if we're advertising a small amount */
     new_choice = 0;
     reason = "BandwidthRate under 50KB";
@@ -1168,15 +1170,63 @@ decide_to_advertise_dirport(const or_options_t *options, uint16_t dir_port)
 
   if (advertising != new_choice) {
     if (new_choice == 1) {
-      log_notice(LD_DIR, "Advertising DirPort as %d", dir_port);
+      if (dir_port > 0)
+        log_notice(LD_DIR, "Advertising DirPort as %d", dir_port);
+      else
+        log_notice(LD_DIR, "Advertising directory service support");
     } else {
       tor_assert(reason);
-      log_notice(LD_DIR, "Not advertising DirPort (Reason: %s)", reason);
+      log_notice(LD_DIR, "Not advertising Dir%s (Reason: %s)",
+                 dir_port ? "Port" : "ectory Service support", reason);
     }
     advertising = new_choice;
   }
 
-  return advertising ? dir_port : 0;
+  return advertising;
+}
+
+/** Return 1 if we are configured to accept either relay or directory requests
+ * from clients and we aren't at risk of exceeding our bandwidth limits, thus
+ * we should be a directory server. If not, return 0.
+ */
+int
+dir_server_mode(const or_options_t *options)
+{
+  if (!options->DirCache)
+    return 0;
+  return options->DirPort_set ||
+    (server_mode(options) && router_has_bandwidth_to_be_dirserver(options));
+}
+
+/** Look at a variety of factors, and return 0 if we don't want to
+ * advertise the fact that we have a DirPort open, else return the
+ * DirPort we want to advertise.
+ *
+ * Log a helpful message if we change our mind about whether to publish
+ * a DirPort.
+ */
+static int
+decide_to_advertise_dirport(const or_options_t *options, uint16_t dir_port)
+{
+  /* Part one: reasons to publish or not publish that aren't
+   * worth mentioning to the user, either because they're obvious
+   * or because they're normal behavior. */
+
+  if (!dir_port) /* short circuit the rest of the function */
+    return 0;
+  if (authdir_mode(options)) /* always publish */
+    return dir_port;
+  if (net_is_disabled())
+    return 0;
+  if (!check_whether_dirport_reachable())
+    return 0;
+  if (!router_get_advertised_dir_port(options, dir_port))
+    return 0;
+
+  /* Part two: reasons to publish or not publish that the user
+   * might find surprising. router_should_be_directory_server()
+   * considers config options that make us choose not to publish. */
+  return router_should_be_directory_server(options, dir_port) ? dir_port : 0;
 }
 
 /** Allocate and return a new extend_info_t that can be used to build
@@ -1456,8 +1506,8 @@ static int server_is_advertised=0;
 
 /** Return true iff we have published our descriptor lately.
  */
-int
-advertised_server_mode(void)
+MOCK_IMPL(int,
+advertised_server_mode,(void))
 {
   return server_is_advertised;
 }
@@ -1714,8 +1764,8 @@ router_compare_to_my_exit_policy(const tor_addr_t *addr, uint16_t port)
 
 /** Return true iff my exit policy is reject *:*.  Return -1 if we don't
  * have a descriptor */
-int
-router_my_exit_policy_is_reject_star(void)
+MOCK_IMPL(int,
+router_my_exit_policy_is_reject_star,(void))
 {
   if (!router_get_my_routerinfo()) /* make sure desc_routerinfo exists */
     return -1;
@@ -1781,9 +1831,9 @@ router_get_my_descriptor(void)
   const char *body;
   if (!router_get_my_routerinfo())
     return NULL;
-  /* Make sure this is nul-terminated. */
   tor_assert(desc_routerinfo->cache_info.saved_location == SAVED_NOWHERE);
   body = signed_descriptor_get_body(&desc_routerinfo->cache_info);
+  /* Make sure this is nul-terminated. */
   tor_assert(!body[desc_routerinfo->cache_info.signed_descriptor_len]);
   log_debug(LD_GENERAL,"my desc is '%s'", body);
   return body;
@@ -1819,8 +1869,8 @@ static int router_guess_address_from_dir_headers(uint32_t *guess);
  * it's configured in torrc, or because we've learned it from
  * dirserver headers. Place the answer in *<b>addr</b> and return
  * 0 on success, else return -1 if we have no guess. */
-int
-router_pick_published_address(const or_options_t *options, uint32_t *addr)
+MOCK_IMPL(int,
+router_pick_published_address,(const or_options_t *options, uint32_t *addr))
 {
   *addr = get_last_resolved_addr();
   if (!*addr &&
@@ -1865,6 +1915,8 @@ router_build_fresh_descriptor(routerinfo_t **r, extrainfo_t **e)
   ri->addr = addr;
   ri->or_port = router_get_advertised_or_port(options);
   ri->dir_port = router_get_advertised_dir_port(options, 0);
+  ri->supports_tunnelled_dir_requests = dir_server_mode(options) &&
+    router_should_be_directory_server(options, ri->dir_port);
   ri->cache_info.published_on = time(NULL);
   ri->onion_pkey = crypto_pk_dup_key(get_onion_key()); /* must invoke from
                                                         * main thread */
@@ -1922,7 +1974,7 @@ router_build_fresh_descriptor(routerinfo_t **r, extrainfo_t **e)
     /* DNS is screwed up; don't claim to be an exit. */
     policies_exit_policy_append_reject_star(&ri->exit_policy);
   } else {
-    policies_parse_exit_policy_from_options(options,ri->addr,
+    policies_parse_exit_policy_from_options(options,ri->addr,&ri->ipv6_addr,
                                             &ri->exit_policy);
   }
   ri->policy_is_reject_star =
@@ -2641,6 +2693,10 @@ router_dump_router_to_string(routerinfo_t *router,
     tor_free(p6);
   }
 
+  if (router->supports_tunnelled_dir_requests) {
+    smartlist_add(chunks, tor_strdup("tunnelled-dir-server\n"));
+  }
+
   /* Sign the descriptor with Ed25519 */
   if (emit_ed_sigs)  {
     smartlist_add(chunks, tor_strdup("router-sig-ed25519 "));
@@ -2728,44 +2784,13 @@ router_dump_exit_policy_to_string(const routerinfo_t *router,
                                   int include_ipv4,
                                   int include_ipv6)
 {
-  smartlist_t *exit_policy_strings;
-  char *policy_string = NULL;
-
   if ((!router->exit_policy) || (router->policy_is_reject_star)) {
     return tor_strdup("reject *:*");
   }
 
-  exit_policy_strings = smartlist_new();
-
-  SMARTLIST_FOREACH_BEGIN(router->exit_policy, addr_policy_t *, tmpe) {
-    char *pbuf;
-    int bytes_written_to_pbuf;
-    if ((tor_addr_family(&tmpe->addr) == AF_INET6) && (!include_ipv6)) {
-      continue; /* Don't include IPv6 parts of address policy */
-    }
-    if ((tor_addr_family(&tmpe->addr) == AF_INET) && (!include_ipv4)) {
-      continue; /* Don't include IPv4 parts of address policy */
-    }
-
-    pbuf = tor_malloc(POLICY_BUF_LEN);
-    bytes_written_to_pbuf = policy_write_item(pbuf,POLICY_BUF_LEN, tmpe, 1);
-
-    if (bytes_written_to_pbuf < 0) {
-      log_warn(LD_BUG, "router_dump_exit_policy_to_string ran out of room!");
-      tor_free(pbuf);
-      goto done;
-    }
-
-    smartlist_add(exit_policy_strings,pbuf);
-  } SMARTLIST_FOREACH_END(tmpe);
-
-  policy_string = smartlist_join_strings(exit_policy_strings, "\n", 0, NULL);
-
- done:
-  SMARTLIST_FOREACH(exit_policy_strings, char *, str, tor_free(str));
-  smartlist_free(exit_policy_strings);
-
-  return policy_string;
+  return policy_dump_to_string(router->exit_policy,
+                               include_ipv4,
+                               include_ipv6);
 }
 
 /** Copy the primary (IPv4) OR port (IP address and TCP port) for

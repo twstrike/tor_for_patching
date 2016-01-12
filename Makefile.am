@@ -21,6 +21,13 @@ bin_SCRIPTS=
 AM_CPPFLAGS=
 AM_CFLAGS = @TOR_SYSTEMD_CFLAGS@
 SHELL = @SHELL@
+
+if COVERAGE_ENABLED
+TESTING_TOR_BINARY="$(top_builddir)/src/or/tor-cov"
+else
+TESTING_TOR_BINARY="$(top_builddir)/src/or/tor"
+endif
+
 include src/include.am
 include doc/include.am
 include contrib/include.am
@@ -65,8 +72,6 @@ dist-rpm: dist-gzip
 	rm -rf "$$RPM_BUILD_DIR";						\
 	echo "RPM build finished";						\
 	#end of dist-rpm
-
-dist: check
 
 doxygen:
 	doxygen && cd doc/doxygen/latex && make

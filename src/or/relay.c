@@ -1304,6 +1304,7 @@ connection_edge_process_relay_cell_not_open(
              "Got 'connected' while not in state connect_wait. Dropping.");
       return 0;
     }
+    CONNECTION_AP_EXPECT_NONPENDING(entry_conn);
     conn->base_.state = AP_CONN_STATE_OPEN;
     log_info(LD_APP,"'connected' received for circid %u streamid %d "
              "after %d seconds.",
@@ -2255,7 +2256,7 @@ circuit_consider_sending_sendme(circuit_t *circ, crypt_path_t *layer_hint)
 static size_t total_cells_allocated = 0;
 
 /** Release storage held by <b>cell</b>. */
-static INLINE void
+static inline void
 packed_cell_free_unchecked(packed_cell_t *cell)
 {
   --total_cells_allocated;
@@ -2299,7 +2300,7 @@ dump_cell_pool_usage(int severity)
 }
 
 /** Allocate a new copy of packed <b>cell</b>. */
-static INLINE packed_cell_t *
+static inline packed_cell_t *
 packed_cell_copy(const cell_t *cell, int wide_circ_ids)
 {
   packed_cell_t *c = packed_cell_new();

@@ -915,18 +915,18 @@ typedef enum {
 #define VAR_CELL_MAX_HEADER_SIZE 7
 
 static int get_cell_network_size(int wide_circ_ids);
-static INLINE int get_cell_network_size(int wide_circ_ids)
+static inline int get_cell_network_size(int wide_circ_ids)
 {
   return wide_circ_ids ? CELL_MAX_NETWORK_SIZE : CELL_MAX_NETWORK_SIZE - 2;
 }
 static int get_var_cell_header_size(int wide_circ_ids);
-static INLINE int get_var_cell_header_size(int wide_circ_ids)
+static inline int get_var_cell_header_size(int wide_circ_ids)
 {
   return wide_circ_ids ? VAR_CELL_MAX_HEADER_SIZE :
     VAR_CELL_MAX_HEADER_SIZE - 2;
 }
 static int get_circ_id_size(int wide_circ_ids);
-static INLINE int get_circ_id_size(int wide_circ_ids)
+static inline int get_circ_id_size(int wide_circ_ids)
 {
   return wide_circ_ids ? 4 : 2;
 }
@@ -1646,6 +1646,13 @@ typedef struct entry_connection_t {
    * request that we're going to try to answer.  */
   struct evdns_server_request *dns_server_request;
 
+#define DEBUGGING_17659
+
+#ifdef DEBUGGING_17659
+  uint16_t marked_pending_circ_line;
+  const char *marked_pending_circ_file;
+#endif
+
 #define NUM_CIRCUITS_LAUNCHED_THRESHOLD 10
   /** Number of times we've launched a circuit to handle this stream. If
     * it gets too high, that could indicate an inconsistency between our
@@ -1799,38 +1806,38 @@ static control_connection_t *TO_CONTROL_CONN(connection_t *);
  * invalid. */
 static listener_connection_t *TO_LISTENER_CONN(connection_t *);
 
-static INLINE or_connection_t *TO_OR_CONN(connection_t *c)
+static inline or_connection_t *TO_OR_CONN(connection_t *c)
 {
   tor_assert(c->magic == OR_CONNECTION_MAGIC);
   return DOWNCAST(or_connection_t, c);
 }
-static INLINE dir_connection_t *TO_DIR_CONN(connection_t *c)
+static inline dir_connection_t *TO_DIR_CONN(connection_t *c)
 {
   tor_assert(c->magic == DIR_CONNECTION_MAGIC);
   return DOWNCAST(dir_connection_t, c);
 }
-static INLINE edge_connection_t *TO_EDGE_CONN(connection_t *c)
+static inline edge_connection_t *TO_EDGE_CONN(connection_t *c)
 {
   tor_assert(c->magic == EDGE_CONNECTION_MAGIC ||
              c->magic == ENTRY_CONNECTION_MAGIC);
   return DOWNCAST(edge_connection_t, c);
 }
-static INLINE entry_connection_t *TO_ENTRY_CONN(connection_t *c)
+static inline entry_connection_t *TO_ENTRY_CONN(connection_t *c)
 {
   tor_assert(c->magic == ENTRY_CONNECTION_MAGIC);
   return (entry_connection_t*) SUBTYPE_P(c, entry_connection_t, edge_.base_);
 }
-static INLINE entry_connection_t *EDGE_TO_ENTRY_CONN(edge_connection_t *c)
+static inline entry_connection_t *EDGE_TO_ENTRY_CONN(edge_connection_t *c)
 {
   tor_assert(c->base_.magic == ENTRY_CONNECTION_MAGIC);
   return (entry_connection_t*) SUBTYPE_P(c, entry_connection_t, edge_);
 }
-static INLINE control_connection_t *TO_CONTROL_CONN(connection_t *c)
+static inline control_connection_t *TO_CONTROL_CONN(connection_t *c)
 {
   tor_assert(c->magic == CONTROL_CONNECTION_MAGIC);
   return DOWNCAST(control_connection_t, c);
 }
-static INLINE listener_connection_t *TO_LISTENER_CONN(connection_t *c)
+static inline listener_connection_t *TO_LISTENER_CONN(connection_t *c)
 {
   tor_assert(c->magic == LISTENER_CONNECTION_MAGIC);
   return DOWNCAST(listener_connection_t, c);
@@ -1946,8 +1953,8 @@ typedef enum {
 } saved_location_t;
 #define saved_location_bitfield_t ENUM_BF(saved_location_t)
 
-/** Enumeration: what kind of download schedule are we using for a given
- * object? */
+/** Enumeration: what directory object is being downloaded?
+ * This determines which schedule is selected to perform the download. */
 typedef enum {
   DL_SCHED_GENERIC = 0,
   DL_SCHED_CONSENSUS = 1,
@@ -1955,15 +1962,74 @@ typedef enum {
 } download_schedule_t;
 #define download_schedule_bitfield_t ENUM_BF(download_schedule_t)
 
-/** Information about our plans for retrying downloads for a downloadable
- * object. */
-typedef struct download_status_t {
-  time_t next_attempt_at; /**< When should we try downloading this descriptor
-                           * again? */
-  uint8_t n_download_failures; /**< Number of failures trying to download the
-                                * most recent descriptor. */
-  download_schedule_bitfield_t schedule : 8;
+/** Enumeration: is the download schedule for downloading from an authority,
+ * or from any available directory mirror?
+ * During bootstrap, "any" means a fallback (or an authority, if there
+ * are no fallbacks).
+ * When we have a valid consensus, "any" means any directory server. */
+typedef enum {
+  DL_WANT_ANY_DIRSERVER = 0,
+  DL_WANT_AUTHORITY = 1,
+} download_want_authority_t;
+#define download_want_authority_bitfield_t \
+                                        ENUM_BF(download_want_authority_t)
 
+/** Enumeration: do we want to increment the schedule position each time a
+ * connection is attempted (these attempts can be concurrent), or do we want
+ * to increment the schedule position after a connection fails? */
+typedef enum {
+  DL_SCHED_INCREMENT_FAILURE = 0,
+  DL_SCHED_INCREMENT_ATTEMPT = 1,
+} download_schedule_increment_t;
+#define download_schedule_increment_bitfield_t \
+                                        ENUM_BF(download_schedule_increment_t)
+
+/** Information about our plans for retrying downloads for a downloadable
+ * directory object.
+ * Each type of downloadable directory object has a corresponding retry
+ * <b>schedule</b>, which can be different depending on whether the object is
+ * being downloaded from an authority or a mirror (<b>want_authority</b>).
+ * <b>next_attempt_at</b> contains the next time we will attempt to download
+ * the object.
+ * For schedules that <b>increment_on</b> failure, <b>n_download_failures</b>
+ * is used to determine the position in the schedule. (Each schedule is a
+ * smartlist of integer delays, parsed from a CSV option.) Every time a
+ * connection attempt fails, <b>n_download_failures</b> is incremented,
+ * the new delay value is looked up from the schedule, and
+ * <b>next_attempt_at</b> is set delay seconds from the time the previous
+ * connection failed. Therefore, at most one failure-based connection can be
+ * in progress for each download_status_t.
+ * For schedules that <b>increment_on</b> attempt, <b>n_download_attempts</b>
+ * is used to determine the position in the schedule. Every time a
+ * connection attempt is made, <b>n_download_attempts</b> is incremented,
+ * the new delay value is looked up from the schedule, and
+ * <b>next_attempt_at</b> is set delay seconds from the time the previous
+ * connection was attempted. Therefore, multiple concurrent attempted-based
+ * connections can be in progress for each download_status_t.
+ * After an object is successfully downloaded, any other concurrent connections
+ * are terminated. A new schedule which starts at position 0 is used for
+ * subsequent downloads of the same object.
+ */
+typedef struct download_status_t {
+  time_t next_attempt_at; /**< When should we try downloading this object
+                           * again? */
+  uint8_t n_download_failures; /**< Number of failed downloads of the most
+                                * recent object, since the last success. */
+  uint8_t n_download_attempts; /**< Number of (potentially concurrent) attempts
+                                * to download the most recent object, since
+                                * the last success. */
+  download_schedule_bitfield_t schedule : 8; /**< What kind of object is being
+                                              * downloaded? This determines the
+                                              * schedule used for the download.
+                                              */
+  download_want_authority_bitfield_t want_authority : 1; /**< Is the download
+                                              * happening from an authority
+                                              * or a mirror? This determines
+                                              * the schedule used for the
+                                              * download. */
+  download_schedule_increment_bitfield_t increment_on : 1; /**< does this
+                                        * schedule increment on each attempt,
+                                        * or after each failure? */
 } download_status_t;
 
 /** If n_download_failures is this high, the download can never happen. */
@@ -2081,6 +2147,11 @@ typedef struct {
    * tests for it. */
   unsigned int needs_retest_if_added:1;
 
+  /** True iff this router included "tunnelled-dir-server" in its descriptor,
+   * implying it accepts tunnelled directory requests, or it advertised
+   * dir_port > 0. */
+  unsigned int supports_tunnelled_dir_requests:1;
+
 /** Tor can use this router for general positions in circuits; we got it
  * from a directory server as usual, or we're an authority and a server
  * uploaded it. */
@@ -2158,6 +2229,9 @@ typedef struct routerstatus_t {
                                * an exit node. */
   unsigned int is_hs_dir:1; /**< True iff this router is a v2-or-later hidden
                              * service directory. */
+  unsigned int is_v2_dir:1; /** True iff this router publishes an open DirPort
+                             * or it claims to accept tunnelled dir requests.
+                             */
   /** True iff we know version info for this router. (i.e., a "v" entry was
    * included.)  We'll replace all these with a big tor_version_t or a char[]
    * if the number of traits we care about ever becomes incredibly big. */
@@ -2259,7 +2333,7 @@ typedef struct microdesc_t {
   curve25519_public_key_t *onion_curve25519_pkey;
   /** Ed25519 identity key, if included. */
   ed25519_public_key_t *ed25519_identity_pkey;
-  /** As routerinfo_t.ipv6_add */
+  /** As routerinfo_t.ipv6_addr */
   tor_addr_t ipv6_addr;
   /** As routerinfo_t.ipv6_orport */
   uint16_t ipv6_orport;
@@ -2277,7 +2351,7 @@ typedef struct microdesc_t {
  * Specifically, a node_t is a Tor router as we are using it: a router that
  * we are considering for circuits, connections, and so on.  A node_t is a
  * thin wrapper around the routerstatus, routerinfo, and microdesc for a
- * single wrapper, and provides a consistent interface for all of them.
+ * single router, and provides a consistent interface for all of them.
  *
  * Also, a node_t has mutable state.  While a routerinfo, a routerstatus,
  * and a microdesc have[*] only the information read from a router
@@ -2892,6 +2966,14 @@ typedef struct circuit_t {
                               * where this circuit was marked.) */
   const char *marked_for_close_file; /**< For debugging: in which file was this
                                       * circuit marked for close? */
+  /** For what reason (See END_CIRC_REASON...) is this circuit being closed?
+   * This field is set in circuit_mark_for_close and used later in
+   * circuit_about_to_free. */
+  uint16_t marked_for_close_reason;
+  /** As marked_for_close_reason, but reflects the underlying reason for
+   * closing this circuit.
+   */
+  uint16_t marked_for_close_orig_reason;
 
   /** Unique ID for measuring tunneled network status requests. */
   uint64_t dirreq_id;
@@ -3281,27 +3363,27 @@ static const origin_circuit_t *CONST_TO_ORIGIN_CIRCUIT(const circuit_t *);
 /** Return 1 iff <b>node</b> has Exit flag and no BadExit flag.
  * Otherwise, return 0.
  */
-static INLINE int node_is_good_exit(const node_t *node)
+static inline int node_is_good_exit(const node_t *node)
 {
   return node->is_exit && ! node->is_bad_exit;
 }
 
-static INLINE or_circuit_t *TO_OR_CIRCUIT(circuit_t *x)
+static inline or_circuit_t *TO_OR_CIRCUIT(circuit_t *x)
 {
   tor_assert(x->magic == OR_CIRCUIT_MAGIC);
   return DOWNCAST(or_circuit_t, x);
 }
-static INLINE const or_circuit_t *CONST_TO_OR_CIRCUIT(const circuit_t *x)
+static inline const or_circuit_t *CONST_TO_OR_CIRCUIT(const circuit_t *x)
 {
   tor_assert(x->magic == OR_CIRCUIT_MAGIC);
   return DOWNCAST(or_circuit_t, x);
 }
-static INLINE origin_circuit_t *TO_ORIGIN_CIRCUIT(circuit_t *x)
+static inline origin_circuit_t *TO_ORIGIN_CIRCUIT(circuit_t *x)
 {
   tor_assert(x->magic == ORIGIN_CIRCUIT_MAGIC);
   return DOWNCAST(origin_circuit_t, x);
 }
-static INLINE const origin_circuit_t *CONST_TO_ORIGIN_CIRCUIT(
+static inline const origin_circuit_t *CONST_TO_ORIGIN_CIRCUIT(
     const circuit_t *x)
 {
   tor_assert(x->magic == ORIGIN_CIRCUIT_MAGIC);
@@ -3424,9 +3506,11 @@ typedef struct {
                           * each log message occurs? */
   int TruncateLogFile; /**< Boolean: Should we truncate the log file
                             before we start writing? */
+  char *SyslogIdentityTag; /**< Identity tag to add for syslog logging. */
 
   char *DebugLogFile; /**< Where to send verbose log messages. */
   char *DataDirectory; /**< OR only: where to store long-term data. */
+  int DataDirectoryGroupReadable; /**< Boolean: Is the DataDirectory g+r? */
   char *Nickname; /**< OR only: nickname of this onion router. */
   char *Address; /**< OR only: configured address for this onion router. */
   char *PidFile; /**< Where to store PID of Tor process. */
@@ -3748,6 +3832,8 @@ typedef struct {
 
   /** List of fallback directory servers */
   config_line_t *FallbackDir;
+  /** Whether to use the default hard-coded FallbackDirs */
+  int UseDefaultFallbackDirs;
 
   /** Weight to apply to all directory authority rates if considering them
    * along with fallbackdirs */
@@ -3790,6 +3876,7 @@ typedef struct {
                                      * number of servers per IP address shared
                                      * with an authority. */
   int AuthDirHasIPv6Connectivity; /**< Boolean: are we on IPv6?  */
+  int AuthDirPinKeys; /**< Boolean: Do we enforce key-pinning? */
 
   /** If non-zero, always vote the Fast flag for any relay advertising
    * this amount of capacity or more. */
@@ -3806,9 +3893,11 @@ typedef struct {
                            * hibernate." */
   /** How do we determine when our AccountingMax has been reached?
    * "max" for when in or out reaches AccountingMax
-   * "sum for when in plus out reaches AccountingMax */
+   * "sum" for when in plus out reaches AccountingMax
+   * "in"  for when in reaches AccountingMax
+   * "out" for when out reaches AccountingMax */
   char *AccountingRule_option;
-  enum { ACCT_MAX, ACCT_SUM } AccountingRule;
+  enum { ACCT_MAX, ACCT_SUM, ACCT_IN, ACCT_OUT } AccountingRule;
 
   /** Base64-encoded hash of accepted passwords for the control system. */
   config_line_t *HashedControlPassword;
@@ -3881,6 +3970,10 @@ typedef struct {
 
   /** Should we fetch our dir info at the start of the consensus period? */
   int FetchDirInfoExtraEarly;
+
+  int DirCache; /**< Cache all directory documents and accept requests via
+                 * tunnelled dir conns from clients. If 1, enabled (default);
+                 * If 0, disabled. */
 
   char *VirtualAddrNetworkIPv4; /**< Address and mask to hand out for virtual
                                  * MAPADDRESS requests for IPv4 addresses */
@@ -4013,7 +4106,7 @@ typedef struct {
   char *ConsensusParams;
 
   /** Authority only: minimum number of measured bandwidths we must see
-   * before we only beliee measured bandwidths to assign flags. */
+   * before we only believe measured bandwidths to assign flags. */
   int MinMeasuredBWsForAuthToIgnoreAdvertised;
 
   /** The length of time that we think an initial consensus should be fresh.
@@ -4058,6 +4151,36 @@ typedef struct {
    * on testing networks. */
   smartlist_t *TestingClientConsensusDownloadSchedule;
 
+  /** Schedule for when clients should download consensuses from authorities
+   * if they are bootstrapping (that is, they don't have a usable, reasonably
+   * live consensus).  Only used by clients fetching from a list of fallback
+   * directory mirrors.
+   *
+   * This schedule is incremented by (potentially concurrent) connection
+   * attempts, unlike other schedules, which are incremented by connection
+   * failures.  Only altered on testing networks. */
+  smartlist_t *TestingClientBootstrapConsensusAuthorityDownloadSchedule;
+
+  /** Schedule for when clients should download consensuses from fallback
+   * directory mirrors if they are bootstrapping (that is, they don't have a
+   * usable, reasonably live consensus). Only used by clients fetching from a
+   * list of fallback directory mirrors.
+   *
+   * This schedule is incremented by (potentially concurrent) connection
+   * attempts, unlike other schedules, which are incremented by connection
+   * failures.  Only altered on testing networks. */
+  smartlist_t *TestingClientBootstrapConsensusFallbackDownloadSchedule;
+
+  /** Schedule for when clients should download consensuses from authorities
+   * if they are bootstrapping (that is, they don't have a usable, reasonably
+   * live consensus).  Only used by clients which don't have or won't fetch
+   * from a list of fallback directory mirrors.
+   *
+   * This schedule is incremented by (potentially concurrent) connection
+   * attempts, unlike other schedules, which are incremented by connection
+   * failures.  Only altered on testing networks. */
+  smartlist_t *TestingClientBootstrapConsensusAuthorityOnlyDownloadSchedule;
+
   /** Schedule for when clients should download bridge descriptors.  Only
    * altered on testing networks. */
   smartlist_t *TestingBridgeDownloadSchedule;
@@ -4074,6 +4197,21 @@ typedef struct {
   /** How many times will we try to fetch a consensus before we give
    * up?  Only altered on testing networks. */
   int TestingConsensusMaxDownloadTries;
+
+  /** How many times will a client try to fetch a consensus while
+   * bootstrapping using a list of fallback directories, before it gives up?
+   * Only altered on testing networks. */
+  int TestingClientBootstrapConsensusMaxDownloadTries;
+
+  /** How many times will a client try to fetch a consensus while
+   * bootstrapping using only a list of authorities, before it gives up?
+   * Only altered on testing networks. */
+  int TestingClientBootstrapConsensusAuthorityOnlyMaxDownloadTries;
+
+  /** How many simultaneous in-progress connections will we make when trying
+   * to fetch a consensus before we wait for one to complete, timeout, or
+   * error out?  Only altered on testing networks. */
+  int TestingClientBootstrapConsensusMaxInProgressTries;
 
   /** How many times will we try to download a router's descriptor before
    * giving up?  Only altered on testing networks. */
@@ -4302,6 +4440,10 @@ typedef struct {
   /** How long before auth keys expire will we try to make a new one? */
   int TestingAuthKeySlop;
 
+  /** Force use of offline master key features: never generate a master
+   * ed25519 identity key except from tor --keygen */
+  int OfflineMasterKey;
+
   enum {
     FORCE_PASSPHRASE_AUTO=0,
     FORCE_PASSPHRASE_ON,
@@ -4309,6 +4451,11 @@ typedef struct {
   } keygen_force_passphrase;
   int use_keygen_passphrase_fd;
   int keygen_passphrase_fd;
+  int change_key_passphrase;
+  char *master_key_fname;
+
+  /** Autobool: Do we try to retain capabilities if we can? */
+  int KeepBindCapabilities;
 } or_options_t;
 
 /** Persistent state for an onion router, as saved to disk. */
@@ -4381,7 +4528,7 @@ typedef struct {
 /** Change the next_write time of <b>state</b> to <b>when</b>, unless the
  * state is already scheduled to be written to disk earlier than <b>when</b>.
  */
-static INLINE void or_state_mark_dirty(or_state_t *state, time_t when)
+static inline void or_state_mark_dirty(or_state_t *state, time_t when)
 {
   if (state->next_write > when)
     state->next_write = when;
@@ -4992,9 +5139,11 @@ typedef struct dir_server_t {
   char *description;
   char *nickname;
   char *address; /**< Hostname. */
+  tor_addr_t ipv6_addr; /**< IPv6 address if present; AF_UNSPEC if not */
   uint32_t addr; /**< IPv4 address. */
   uint16_t dir_port; /**< Directory port. */
   uint16_t or_port; /**< OR port: Used for tunneling connections. */
+  uint16_t ipv6_orport; /**< OR port corresponding to ipv6_addr. */
   double weight; /** Weight used when selecting this node at random */
   char digest[DIGEST_LEN]; /**< Digest of identity key. */
   char v3_identity_digest[DIGEST_LEN]; /**< Digest of v3 (authority only,

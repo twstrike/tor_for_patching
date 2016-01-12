@@ -57,13 +57,13 @@ typedef struct nodelist_t {
 
 } nodelist_t;
 
-static INLINE unsigned int
+static inline unsigned int
 node_id_hash(const node_t *node)
 {
   return (unsigned) siphash24g(node->identity, DIGEST_LEN);
 }
 
-static INLINE unsigned int
+static inline unsigned int
 node_id_eq(const node_t *node1, const node_t *node2)
 {
   return tor_memeq(node1->identity, node2->identity, DIGEST_LEN);
@@ -291,7 +291,7 @@ nodelist_set_consensus(networkstatus_t *ns)
 }
 
 /** Helper: return true iff a node has a usable amount of information*/
-static INLINE int
+static inline int
 node_is_usable(const node_t *node)
 {
   return (node->rs) || (node->ri);
@@ -644,12 +644,19 @@ node_is_named(const node_t *node)
 int
 node_is_dir(const node_t *node)
 {
-  if (node->rs)
-    return node->rs->dir_port != 0;
-  else if (node->ri)
-    return node->ri->dir_port != 0;
-  else
+  if (node->rs) {
+    routerstatus_t * rs = node->rs;
+    /* This is true if supports_tunnelled_dir_requests is true which
+     * indicates that we support directory request tunnelled or through the
+     * DirPort. */
+    return rs->is_v2_dir;
+  } else if (node->ri) {
+    routerinfo_t * ri = node->ri;
+    /* Both tunnelled request is supported or DirPort is set. */
+    return ri->supports_tunnelled_dir_requests;
+  } else {
     return 0;
+  }
 }
 
 /** Return true iff <b>node</b> has either kind of usable descriptor -- that
@@ -1021,7 +1028,7 @@ nodelist_refresh_countries(void)
 
 /** Return true iff router1 and router2 have similar enough network addresses
  * that we should treat them as being in the same family */
-static INLINE int
+static inline int
 addrs_in_same_network_family(const tor_addr_t *a1,
                              const tor_addr_t *a2)
 {
@@ -1045,7 +1052,7 @@ node_nickname_matches(const node_t *node, const char *nickname)
 }
 
 /** Return true iff <b>node</b> is named by some nickname in <b>lst</b>. */
-static INLINE int
+static inline int
 node_in_nickname_smartlist(const smartlist_t *lst, const node_t *node)
 {
   if (!lst) return 0;

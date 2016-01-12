@@ -11,6 +11,7 @@
 #include "or.h"
 #include "circuitbuild.h"
 #include "config.h"
+#include "control.h"
 #include "rendclient.h"
 #include "rendcommon.h"
 #include "rendmid.h"
@@ -268,11 +269,7 @@ rend_encrypt_v2_intro_points_basic(char **encrypted_out,
   tor_assert(client_cookies && smartlist_len(client_cookies) > 0);
 
   /* Generate session key. */
-  if (crypto_rand(session_key, CIPHER_KEY_LEN) < 0) {
-    log_warn(LD_REND, "Unable to generate random session key to encrypt "
-                      "introduction point string.");
-    goto done;
-  }
+  crypto_rand(session_key, CIPHER_KEY_LEN);
 
   /* Determine length of encrypted introduction points including session
    * keys. */
@@ -334,11 +331,7 @@ rend_encrypt_v2_intro_points_basic(char **encrypted_out,
            REND_BASIC_AUTH_CLIENT_MULTIPLE;
        i < REND_BASIC_AUTH_CLIENT_MULTIPLE - 1; i++) {
     client_part = tor_malloc_zero(REND_BASIC_AUTH_CLIENT_ENTRY_LEN);
-    if (crypto_rand(client_part, REND_BASIC_AUTH_CLIENT_ENTRY_LEN) < 0) {
-      log_warn(LD_REND, "Unable to generate fake client entry.");
-      tor_free(client_part);
-      goto done;
-    }
+    crypto_rand(client_part, REND_BASIC_AUTH_CLIENT_ENTRY_LEN);
     smartlist_add(encrypted_session_keys, client_part);
   }
   /* Sort smartlist and put elements in result in order. */
@@ -461,6 +454,7 @@ rend_encode_v2_descriptors(smartlist_t *descs_out,
                            smartlist_t *client_cookies)
 {
   char service_id[DIGEST_LEN];
+  char service_id_base32[REND_SERVICE_ID_LEN_BASE32+1];
   uint32_t time_period;
   char *ipos_base64 = NULL, *ipos = NULL, *ipos_encrypted = NULL,
        *descriptor_cookie = NULL;
@@ -655,6 +649,11 @@ rend_encode_v2_descriptors(smartlist_t *descs_out,
       goto err;
     }
     smartlist_add(descs_out, enc);
+    /* Add the uploaded descriptor to the local service's descriptor cache */
+    rend_cache_store_v2_desc_as_service(enc->desc_str);
+    base32_encode(service_id_base32, sizeof(service_id_base32),
+          service_id, REND_SERVICE_ID_LEN);
+    control_event_hs_descriptor_created(service_id_base32, desc_id_base32, k);
   }
 
   log_info(LD_REND, "Successfully encoded a v2 descriptor and "

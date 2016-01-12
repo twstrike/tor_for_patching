@@ -1,169 +1,298 @@
-Changes in version 0.2.7.3-????? - 2015-09-1?
-  XXXX write a blurb
+Changes in version 0.2.7.6 - 2015-12-10
+  Tor version 0.2.7.6 fixes a major bug in entry guard selection, as
+  well as a minor bug in hidden service reliability.
+
+  o Major bugfixes (guard selection):
+    - Actually look at the Guard flag when selecting a new directory
+      guard. When we implemented the directory guard design, we
+      accidentally started treating all relays as if they have the Guard
+      flag during guard selection, leading to weaker anonymity and worse
+      performance. Fixes bug 17772; bugfix on 0.2.4.8-alpha. Discovered
+      by Mohsen Imani.
+
+  o Minor features (geoip):
+    - Update geoip and geoip6 to the December 1 2015 Maxmind GeoLite2
+      Country database.
+
+  o Minor bugfixes (compilation):
+    - When checking for net/pfvar.h, include netinet/in.h if possible.
+      This fixes transparent proxy detection on OpenBSD. Fixes bug
+      17551; bugfix on 0.1.2.1-alpha. Patch from "rubiate".
+    - Fix a compilation warning with Clang 3.6: Do not check the
+      presence of an address which can never be NULL. Fixes bug 17781.
+
+  o Minor bugfixes (correctness):
+    - When displaying an IPv6 exit policy, include the mask bits
+      correctly even when the number is greater than 31. Fixes bug
+      16056; bugfix on 0.2.4.7-alpha. Patch from "gturner".
+    - The wrong list was used when looking up expired intro points in a
+      rend service object, causing what we think could be reachability
+      issues for hidden services, and triggering a BUG log. Fixes bug
+      16702; bugfix on 0.2.7.2-alpha.
+    - Fix undefined behavior in the tor_cert_checksig function. Fixes
+      bug 17722; bugfix on 0.2.7.2-alpha.
+
+
+Changes in version 0.2.7.5 - 2015-11-20
+  The Tor 0.2.7 release series is dedicated to the memory of Tor user
+  and privacy advocate Caspar Bowden (1961-2015). Caspar worked
+  tirelessly to advocate human rights regardless of national borders,
+  and oppose the encroachments of mass surveillance. He opposed national
+  exceptionalism, he brought clarity to legal and policy debates, he
+  understood and predicted the impact of mass surveillance on the world,
+  and he laid the groundwork for resisting it. While serving on the Tor
+  Project's board of directors, he brought us his uncompromising focus
+  on technical excellence in the service of humankind. Caspar was an
+  inimitable force for good and a wonderful friend. He was kind,
+  humorous, generous, gallant, and believed we should protect one
+  another without exception. We honor him here for his ideals, his
+  efforts, and his accomplishments. Please honor his memory with works
+  that would make him proud.
+
+  Tor 0.2.7.5 is the first stable release in the Tor 0.2.7 series.
+
+  The 0.2.7 series adds a more secure identity key type for relays,
+  improves cryptography performance, resolves several longstanding
+  hidden-service performance issues, improves controller support for
+  hidden services, and includes small bugfixes and performance
+  improvements throughout the program. This release series also includes
+  more tests than before, and significant simplifications to which parts
+  of Tor invoke which others.
+
+  (This release contains no code changes since 0.2.7.4-rc.)
+
+
+Changes in version 0.2.7.4-rc - 2015-10-21
+  Tor 0.2.7.4-rc is the second release candidate in the 0.2.7 series. It
+  fixes some important memory leaks, and a scary-looking (but mostly
+  harmless in practice) invalid-read bug. It also has a few small
+  bugfixes, notably fixes for compilation and portability on different
+  platforms. If no further significant bounds are found, the next
+  release will the the official stable release.
+
+  o Major bugfixes (security, correctness):
+    - Fix an error that could cause us to read 4 bytes before the
+      beginning of an openssl string. This bug could be used to cause
+      Tor to crash on systems with unusual malloc implementations, or
+      systems with unusual hardening installed. Fixes bug 17404; bugfix
+      on 0.2.3.6-alpha.
+
+  o Major bugfixes (correctness):
+    - Fix a use-after-free bug in validate_intro_point_failure(). Fixes
+      bug 17401; bugfix on 0.2.7.3-rc.
+
+  o Major bugfixes (memory leaks):
+    - Fix a memory leak in ed25519 batch signature checking. Fixes bug
+      17398; bugfix on 0.2.6.1-alpha.
+    - Fix a memory leak in rend_cache_failure_entry_free(). Fixes bug
+      17402; bugfix on 0.2.7.3-rc.
+    - Fix a memory leak when reading an expired signing key from disk.
+      Fixes bug 17403; bugfix on 0.2.7.2-rc.
+
+  o Minor features (geoIP):
+    - Update geoip and geoip6 to the October 9 2015 Maxmind GeoLite2
+      Country database.
+
+  o Minor bugfixes (compilation):
+    - Repair compilation with the most recent (unreleased, alpha)
+      vesions of OpenSSL 1.1. Fixes part of ticket 17237.
+    - Fix an integer overflow warning in test_crypto_slow.c. Fixes bug
+      17251; bugfix on 0.2.7.2-alpha.
+    - Fix compilation of sandbox.c with musl-libc. Fixes bug 17347;
+      bugfix on 0.2.5.1-alpha. Patch from 'jamestk'.
+
+  o Minor bugfixes (portability):
+    - Use libexecinfo on FreeBSD to enable backtrace support. Fixes
+      part of bug 17151; bugfix on 0.2.5.2-alpha. Patch from
+      Marcin Cieślak.
+
+  o Minor bugfixes (sandbox):
+    - Add the "hidserv-stats" filename to our sandbox filter for the
+      HiddenServiceStatistics option to work properly. Fixes bug 17354;
+      bugfix on tor-0.2.6.2-alpha. Patch from David Goulet.
+
+  o Minor bugfixes (testing):
+    - Add unit tests for get_interface_address* failure cases. Fixes bug
+      17173; bugfix on 0.2.7.3-rc. Patch by fk/teor.
+    - Fix breakage when running 'make check' with BSD make. Fixes bug
+      17154; bugfix on 0.2.7.3-rc. Patch by Marcin Cieślak.
+    - Make the get_ifaddrs_* unit tests more tolerant of different
+      network configurations. (Don't assume every test box has an IPv4
+      address, and don't assume every test box has a non-localhost
+      address.) Fixes bug 17255; bugfix on 0.2.7.3-rc. Patch by "teor".
+    - Skip backtrace tests when backtrace support is not compiled in.
+      Fixes part of bug 17151; bugfix on 0.2.7.1-alpha. Patch from
+      Marcin Cieślak.
+
+  o Documentation:
+    - Fix capitalization of SOCKS in sample torrc. Closes ticket 15609.
+    - Note that HiddenServicePorts can take a unix domain socket. Closes
+      ticket 17364.
+
+
+Changes in version 0.2.7.3-rc - 2015-09-25
+  Tor 0.2.7.3-rc is the first release candidate in the 0.2.7 series. It
+  contains numerous usability fixes for Ed25519 keys, safeguards against
+  several misconfiguration problems, significant simplifications to
+  Tor's callgraph, and numerous bugfixes and small features.
+
+  This is the most tested release of Tor to date. The unit tests cover
+  39.40% of the code, and the integration tests (accessible with "make
+  test-full-online", requiring stem and chutney and a network
+  connection) raise the coverage to 64.49%.
 
   o Major features (security, hidden services):
-    - For an hidden service, it is now prohibited to use one single
-      EntryNodes to avoid a very easy guard discovery attack. For more
-      details, see the ticket description here:
-      https://trac.torproject.org/projects/tor/ticket/14917. Fixes
-      ticket 14917.
+    - Hidden services, if using the EntryNodes option, are required to
+      use more than one EntryNode, in order to avoid a guard discovery
+      attack. (This would only affect people who had configured hidden
+      services and manually specified the EntryNodes option with a
+      single entry-node. The impact was that it would be easy to
+      remotely identify the guard node used by such a hidden service.
+      See ticket for more information.) Fixes ticket 14917.
+
+  o Major features (Ed25519 keys, keypinning):
+    - The key-pinning option on directory authorities is now advisory-
+      only by default. In a future version, or when the AuthDirPinKeys
+      option is set, pins are enforced again. Disabling key-pinning
+      seemed like a good idea so that we can survive the fallout of any
+      usability problems associated with Ed25519 keys. Closes
+      ticket 17135.
+
+  o Major features (Ed25519 performance):
+    - Improve the speed of Ed25519 operations and Curve25519 keypair
+      generation when built targeting 32 bit x86 platforms with SSE2
+      available. Implements ticket 16535.
+    - Improve the runtime speed of Ed25519 signature verification by
+      using Ed25519-donna's batch verification support. Implements
+      ticket 16533.
+
+  o Major features (performance testing):
+    - The test-network.sh script now supports performance testing.
+      Requires corresponding chutney performance testing changes. Patch
+      by "teor". Closes ticket 14175.
 
   o Major features (relay, Ed25519):
-    - Significant improvements to the usability of relay-side Ed25519
-      key management. Log messages are better, and the code can recover
-      from far more failure conditions. Thanks to "s7r" for reporting
-      and diagnosing so many of these!
+    - Significant usability improvements for Ed25519 key management. Log
+      messages are better, and the code can recover from far more
+      failure conditions. Thanks to "s7r" for reporting and diagnosing
+      so many of these!
+    - Add a new OfflineMasterKey option to tell Tor never to try loading
+      or generating a secret Ed25519 identity key. You can use this in
+      combination with tor --keygen to manage offline and/or encrypted
+      Ed25519 keys. Implements ticket 16944.
+    - Add a --newpass option to allow changing or removing the
+      passphrase of an encrypted key with tor --keygen. Implements part
+      of ticket 16769.
+    - On receiving a HUP signal, check to see whether the Ed25519
+      signing key has changed, and reload it if so. Closes ticket 16790.
 
   o Major bugfixes (relay, Ed25519):
     - Avoid crashing on 'tor --keygen'. Fixes bug 16679; bugfix on
       0.2.7.2-alpha. Reported by "s7r".
-    - Improve handling of expired signing keys along with offline master
-      keys. Fixes bug 16685; bugfix on 0.2.7.2-alpha. Reported by "s7r".
-
-  o Major enhancements (performance testing):
-    - Add chutney performance testing support to src/test/test-
-      network.sh The following arguments change how chutney verifies the
-      network: "--bytes n" sends n bytes per test connection;
-      "--connections n" makes n test connections per client; and
-      "--hs-multi-client 1" makes each client connect to each HS.
-      Requires the corresponding chutney performance testing changes.
-      Note: using --connections 7 or greater on a HS will trigger issue
-      15937. Patch by "teor". Closes ticket 14175.
-
-  o Minor features:
-    - Try harder to normalize the exit status of the Tor process to the
-      standard-provided range. Fixes bug 16975; bugfix on every version
-      of Tor ever.
-    - Update geoip and geoip6 to the July 8 2015 Maxmind GeoLite2
-      Country database.
+    - Improve handling of expired signing keys with offline master keys.
+      Fixes bug 16685; bugfix on 0.2.7.2-alpha. Reported by "s7r".
 
   o Minor features (client-side privacy):
-    - Indefinitely extend circuit lifespan by resetting dirtyness, if
-      IsolateSOCKSAuth is in use, the new `KeepAliveIsolateSOCKSAuth`
-      option is set, and streams with SOCKS authentication are attached
-      to the circuit. Implements feature 15482.
+    - New KeepAliveIsolateSOCKSAuth option to indefinitely extend circuit
+      lifespan when IsolateSOCKSAuth and streams with SOCKS
+      authentication are attached to the circuit. This allows
+      applications like TorBrowser to manage circuit lifetime on their
+      own. Implements feature 15482.
+    - When logging malformed hostnames from SOCKS5 requests, respect
+      SafeLogging configuration. Fixes bug 16891; bugfix on 0.1.1.16-rc.
 
   o Minor features (compilation):
     - Give a warning as early as possible when trying to build with an
       unsupported OpenSSL version. Closes ticket 16901.
+    - Fail during configure if we're trying to build against an OpenSSL
+      built without ECC support. Fixes bug 17109, bugfix on 0.2.7.1-alpha
+      which started requiring ECC.
 
-  o Minor features (Hidden service directory):
+  o Minor features (geoip):
+    - Update geoip and geoip6 to the September 3 2015 Maxmind GeoLite2
+      Country database.
+
+  o Minor features (hidden services):
     - Relays need to have the Fast flag to get the HSDir flag. As this
       is being written, we'll go from 2745 HSDirs down to 2342, a ~14%
-      drop. Fixes ticket 15963.
-
-  o Minor features (hidden Service Statistics):
+      drop. This change should make some attacks against the hidden
+      service directory system harder. Fixes ticket 15963.
     - Turn on hidden service statistics collection by setting the torrc
-      option HiddenServiceStatistics to "1" by default. Closes
+      option HiddenServiceStatistics to "1" by default. (This keeps
+      track only of the fraction of traffic used by hidden services, and
+      the total number of hidden services in existence.) Closes
       ticket 15254.
-
-  o Minor features (hidden service):
     - Client now uses an introduction point failure cache to know when
-      to fetch or keep a descriptor in their cache.
-
-      When fetching a descriptor, for every introduction points in it,
-      we look them up in the failure cache to know if we keep the
-      descriptor or not. For this to work, everytime an introduction
-      points is discarded (ex: receiving a NACK), we note it down in our
-      introduction cache. If all introduction points for an onion
-      service are in our failure cache, we discard the descriptor and
-      fetch a new one.
-
-      See rendcache.c for a detailed explanation of the cache's
-      behavior. Closes ticket 16389.
-
-  o Minor features (performance):
-    - Improve the runtime speed of Ed25519 operations and Curve25519
-      keypair generation when built targeting 32 bit x86 platforms with
-      SSE2 available. Implements ticket 16535.
-    - Improve the runtime speed of Ed25519 signature verification by
-      using Ed25519-donna's batch verification support when there are a
-      lot of signatures to verify at once. Implements ticket 16533.
-
-  o Minor features (testing):
-    - Autodetect CHUTNEY_PATH if the chutney and tor sources are side-
-      by-side in the same parent directory. Closes ticket 16903. Patch
-      by "teor".
-
-  o Minor features (testing, authorities):
-    - New TestingDirAuthVote{Exit,Guard,HSDir}IsStrict flags. "A node
-      will never receive the corresponding flag unless that node is
-      specified in the TestingDirAuthVote{Exit,Guard,HSDir} list,
-      regardless of its uptime, bandwidth, exit policy, or DirPort".
-      Closes ticket 14882. Patch by "robgjansen", modified by "teor" as
-      VoteOnHidServDirectoriesV2 is now obsolete. Commit message and
-      changes file by "teor" & "robgjansen".
+      to fetch or keep a descriptor in their cache. Previously, failures
+      were recorded implicitly, but not explicitly remembered. Closes
+      ticket 16389.
 
   o Minor features (testing, authorities, documentation):
-    - Fix an error in the manual page and comments for
-      TestingDirAuthVoteHSDir[IsStrict], which suggested that a HSDir
-      required "ORPort connectivity". While this is true, it is in no
-      way unique to the HSDir flag. Of all the flags, only HSDirs need a
-      DirPort configured in order for the authorities to assign that
-      particular flag. Fixed as part of 14882. Patch by "teor". Bugfix
-      on 0.2.6.3 (f9d57473e1ff on 10 January 2015).
+    - New TestingDirAuthVote{Exit,Guard,HSDir}IsStrict flags to
+      explicitly manage consensus flags in testing networks. Patch by
+      "robgjansen", modified by "teor". Implements part of ticket 14882.
 
-  o Minor features (testing, bridges, hidden services):
-    - Make "bridges+hs" the default test network. This tests almost all
-      tor functionality during make test-network, while allowing tests
-      to succeed on non-IPv6 systems. Requires chutney commit 396da92 in
-      test-network-bridges-hs. Closes tickets 16945 (tor), 16946
-      (chutney) . Patches by "teor".
+  o Minor bugfixes (security, exit policies):
+    - ExitPolicyRejectPrivate now also rejects the relay's published
+      IPv6 address (if any), and any publicly routable IPv4 or IPv6
+      addresses on any local interfaces. ticket 17027. Patch by "teor".
+      Fixes bug 17027; bugfix on 0.2.0.11-alpha.
 
-  o Minor bugfixes:
-    - Check correctly for windows socket errors in the workqueue
-      backend. Fixes bug 16741; bugfix on 0.2.6.3-alpha.
-    - Ensure that worker threads actually exit when a fatal error or
-      shutdown is indicated. This doesn't currently affect the behaviour
-      of Tor, because Tor never indicates fatal error or shutdown except
-      in its unit tests. Fixes bug 16868; bugfix on 0.2.6.3-alpha.
-    - Fix an usage message of tor-resolve(1) so that it no longer lists
-      the removed -F option. Fixes bug 16913; bugfix on
-      Tor 0.2.2.28-beta.
-    - Fix the behavior of crypto_time_t when told to consider times
-      before 1970. (These times were possible when running in a
-      simulated network environment where time()'s output starts at
-      zero.) Fixes bug 16980; bugfix on 0.2.7.1-alpha.
-    - When calling channel_free_list(), avoid calling smartlist_remove()
-      while inside a FOREACH loop. This partially reverts commit
-      17356fe7fd96af where the correct SMARTLIST_DEL_CURRENT was
-      removed. Fixes bug 16924; bugfix on 0.2.4.4-alpha.
-    - When logging malformed hostnames in socks5 requests, respect
-      SafeLogging configuration. Fixes bug 16891; bugfix on 0.1.1.16-rc.
-    - include the TUNING document in our source tarball. It is referred
-      to in the ChangeLog and an error message. Fixes bug 16929; bugfix
-      on 0.2.6.1-alpha.
-
-  o Minor bugfix (open file limit):
-    - Fix set_max_file_descriptors() to set by default the max open file
-      limit to the current limit in case setrlimit() fails so we at
-      least have a usable value; Fixes bug 16274; bugfix on tor-
-      0.2.0.10-alpha. Patch by dgoulet.
+  o Minor bug fixes (torrc exit policies):
+    - In torrc, "accept6 *" and "reject6 *" ExitPolicy lines now only
+      produce IPv6 wildcard addresses. Previously they would produce
+      both IPv4 and IPv6 wildcard addresses. Patch by "teor". Fixes part
+      of bug 16069; bugfix on 0.2.4.7-alpha.
+    - When parsing torrc ExitPolicies, we now warn for a number of cases
+      where the user's intent is likely to differ from Tor's actual
+      behavior. These include: using an IPv4 address with an accept6 or
+      reject6 line; using "private" on an accept6 or reject6 line; and
+      including any ExitPolicy lines after accept *:* or reject *:*.
+      Related to ticket 16069.
+    - When parsing torrc ExitPolicies, we now issue an info-level
+      message when expanding an "accept/reject *" line to include both
+      IPv4 and IPv6 wildcard addresses. Related to ticket 16069.
+    - In each instance above, usage advice is provided to avoid the
+      message. Resolves ticket 16069. Patch by "teor". Fixes part of bug
+      16069; bugfix on 0.2.4.7-alpha.
 
   o Minor bugfixes (authority):
     - Don't assign "HSDir" to a router if it isn't Valid and Running.
       Fixes bug 16524; bugfix on 0.2.7.2-alpha.
-    - Downgrade log messages about Ed25519 key issues, if they are in
-      old cached router descriptors. Fixes part of bug 16286; bugfix
+    - Downgrade log messages about Ed25519 key issues if they are in old
+      cached router descriptors. Fixes part of bug 16286; bugfix
       on 0.2.7.2-alpha.
     - When we find an Ed25519 key issue in a cached descriptor, stop
       saying the descriptor was just "uploaded". Fixes another part of
       bug 16286; bugfix on 0.2.7.2-alpha.
 
   o Minor bugfixes (control port):
-    - Control port was using set_max_file_descriptors() with a limit set
-      to 0 to get the max value. A recent fix made this use case return
-      an error and introduced dead code in that function. This triggered
-      a warning that our limit (ConnLimit) was invalid but in reality it
-      was not.
+    - Repair a warning and a spurious result when getting the maximum
+      number of file descriptors from the controller. Fixes bug 16697;
+      bugfix on 0.2.7.2-alpha.
 
-      Now, to the control port uses a specific getter function to query
-      the value and set_max_file_descriptors() should never be used
-      again for that purpose. Fixes bug 16697; bugfix on 0.2.7.2-alpha.
+  o Minor bugfixes (correctness):
+    - When calling channel_free_list(), avoid calling smartlist_remove()
+      while inside a FOREACH loop. This partially reverts commit
+      17356fe7fd96af where the correct SMARTLIST_DEL_CURRENT was
+      incorrectly removed. Fixes bug 16924; bugfix on 0.2.4.4-alpha.
+
+  o Minor bugfixes (documentation):
+    - Advise users on how to configure separate IPv4 and IPv6 exit
+      policies in the manpage and sample torrcs. Related to ticket 16069.
+    - Fix the usage message of tor-resolve(1) so that it no longer lists
+      the removed -F option. Fixes bug 16913; bugfix on 0.2.2.28-beta.
+    - Fix an error in the manual page and comments for
+      TestingDirAuthVoteHSDir[IsStrict], which suggested that a HSDir
+      required "ORPort connectivity". While this is true, it is in no
+      way unique to the HSDir flag. Of all the flags, only HSDirs need a
+      DirPort configured in order for the authorities to assign that
+      particular flag. Patch by "teor". Fixed as part of 14882; bugfix
+      on 0.2.6.3-alpha.
 
   o Minor bugfixes (Ed25519):
     - Fix a memory leak when reading router descriptors with expired
-      Ed25519 certificate. Fixes bug 16539; bugfix on 0.2.7.2-alpha.
+      Ed25519 certificates. Fixes bug 16539; bugfix on 0.2.7.2-alpha.
 
   o Minor bugfixes (linux seccomp2 sandbox):
     - Allow bridge authorities to run correctly under the seccomp2
@@ -171,9 +300,33 @@ Changes in version 0.2.7.3-????? - 2015-09-1?
     - Allow routers with ed25519 keys to run correctly under the
       seccomp2 sandbox. Fixes bug 16965; bugfix on 0.2.7.2-alpha.
 
+  o Minor bugfixes (open file limit):
+    - Fix set_max_file_descriptors() to set by default the max open file
+      limit to the current limit when setrlimit() fails. Fixes bug
+      16274; bugfix on tor- 0.2.0.10-alpha. Patch by dgoulet.
+
+  o Minor bugfixes (portability):
+    - Try harder to normalize the exit status of the Tor process to the
+      standard-provided range. Fixes bug 16975; bugfix on every version
+      of Tor ever.
+    - Check correctly for Windows socket errors in the workqueue
+      backend. Fixes bug 16741; bugfix on 0.2.6.3-alpha.
+    - Fix the behavior of crypto_rand_time_range() when told to consider
+      times before 1970. (These times were possible when running in a
+      simulated network environment where time()'s output starts at
+      zero.) Fixes bug 16980; bugfix on 0.2.7.1-alpha.
+    - Restore correct operation of TLS client-cipher detection on
+      OpenSSL 1.1. Fixes bug 14047; bugfix on 0.2.7.2-alpha.
+
   o Minor bugfixes (relay):
-    - Unblock threads before releasing the mutex to ensure predictable
-      scheduling behavior. Fixes bug 16644; bugfix on 0.2.6.3-alpha.
+    - Ensure that worker threads actually exit when a fatal error or
+      shutdown is indicated. This fix doesn't currently affect the
+      behavior of Tor, because Tor workers never indicates fatal error
+      or shutdown except in the unit tests. Fixes bug 16868; bugfix
+      on 0.2.6.3-alpha.
+    - Unblock threads before releasing the work queue mutex to ensure
+      predictable scheduling behavior. Fixes bug 16644; bugfix
+      on 0.2.6.3-alpha.
 
   o Code simplification and refactoring:
     - Change the function that's called when we need to retry all
@@ -191,33 +344,32 @@ Changes in version 0.2.7.3-????? - 2015-09-1?
       directory_all_unreachable() into a callback. Closes ticket 16762.
     - Treat the loss of an owning controller as equivalent to a SIGTERM
       signal. This removes a tiny amount of duplicated code, and
-      simplifies our callgraph. Closes ticekt 16788.
+      simplifies our callgraph. Closes ticket 16788.
     - When generating an event to send to the controller, we no longer
       put the event over the network immediately. Instead, we queue
       these events, and use a Libevent callback to deliver them. This
       change simplifies Tor's callgraph by reducing the number of
       functions from which all other Tor functions are reachable. Closes
       ticket 16695.
-    - Wrap windows-only C files inside '#ifdef _WIN32' so that tools
+    - Wrap Windows-only C files inside '#ifdef _WIN32' so that tools
       that try to scan or compile every file on Unix won't decide that
       they are broken.
-
-  o Code simplifications and refactoring:
     - Remove the unused "nulterminate" argument from buf_pullup().
 
   o Documentation:
     - Recommend a 40 GB example AccountingMax in torrc.sample rather
       than a 4 GB max. Closes ticket 16742.
+    - Include the TUNING document in our source tarball. It is referred
+      to in the ChangeLog and an error message. Fixes bug 16929; bugfix
+      on 0.2.6.1-alpha.
 
   o Removed code:
     - The internal pure-C tor-fw-helper tool is now removed from the Tor
       distribution, in favor of the pure-Go clone available from
-      https://github.com/Yawning/tor-fw-helper . The libraries used by
-      the C tor-fw-helper are not, in our opinion, very confidence-
-      inspiring in their secure-proggramming techniques. Closes
-      ticket 13338.
-
-  o Removed features:
+      https://gitweb.torproject.org/tor-fw-helper.git/ . The libraries
+      used by the C tor-fw-helper are not, in our opinion, very
+      confidence- inspiring in their secure-programming techniques.
+      Closes ticket 13338.
     - Remove the code that would try to aggressively flush controller
       connections while writing to them. This code was introduced in
       0.1.2.7-alpha, in order to keep output buffers from exceeding
@@ -226,13 +378,25 @@ Changes in version 0.2.7.3-????? - 2015-09-1?
       in our call graph. Closes ticket 16480.
 
   o Testing:
+    - Make "bridges+hs" the default test network. This tests almost all
+      tor functionality during make test-network, while allowing tests
+      to succeed on non-IPv6 systems. Requires chutney commit 396da92 in
+      test-network-bridges-hs. Closes tickets 16945 (tor) and 16946
+      (chutney). Patches by "teor".
+    - Autodetect CHUTNEY_PATH if the chutney and Tor sources are side-
+      by-side in the same parent directory. Closes ticket 16903. Patch
+      by "teor".
+    - Use environment variables rather than autoconf substitutions to
+      send variables from the build system to the test scripts. This
+      change should be easier to maintain, and cause 'make distcheck' to
+      work better than before. Fixes bug 17148.
     - Add a new set of callgraph analysis scripts that use clang to
       produce a list of which Tor functions are reachable from which
       other Tor functions. We're planning to use these to help simplify
       our code structure by identifying illogical dependencies.
     - Add new 'test-full' and 'test-full-online' targets to run all
       tests, including integration tests with stem and chutney.
-    - Make the test-workqueue test work on windows by initializing the
+    - Make the test-workqueue test work on Windows by initializing the
       network before we begin.
     - New make target (make test-network-all) to run multiple applicable
       chutney test cases. Patch from Teor; closes 16953.

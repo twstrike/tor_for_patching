@@ -50,6 +50,7 @@ const routerstatus_t *router_pick_directory_server(dirinfo_type_t type,
 dir_server_t *router_get_trusteddirserver_by_digest(const char *d);
 dir_server_t *router_get_fallback_dirserver_by_digest(
                                                    const char *digest);
+int router_digest_is_fallback_dir(const char *digest);
 dir_server_t *trusteddirserver_get_by_v3_auth_digest(const char *d);
 const routerstatus_t *router_pick_trusteddirserver(dirinfo_type_t type,
                                                    int flags);
@@ -109,7 +110,7 @@ static int WRA_NEVER_DOWNLOADABLE(was_router_added_t s);
  * was added. It might still be necessary to check whether the descriptor
  * generator should be notified.
  */
-static INLINE int
+static inline int
 WRA_WAS_ADDED(was_router_added_t s) {
   return s == ROUTER_ADDED_SUCCESSFULLY || s == ROUTER_ADDED_NOTIFY_GENERATOR;
 }
@@ -120,7 +121,7 @@ WRA_WAS_ADDED(was_router_added_t s) {
  * - it was outdated.
  * - its certificates were expired.
  */
-static INLINE int WRA_WAS_OUTDATED(was_router_added_t s)
+static inline int WRA_WAS_OUTDATED(was_router_added_t s)
 {
   return (s == ROUTER_WAS_TOO_OLD ||
           s == ROUTER_IS_ALREADY_KNOWN ||
@@ -130,13 +131,13 @@ static INLINE int WRA_WAS_OUTDATED(was_router_added_t s)
 }
 /** Return true iff the outcome code in <b>s</b> indicates that the descriptor
  * was flat-out rejected. */
-static INLINE int WRA_WAS_REJECTED(was_router_added_t s)
+static inline int WRA_WAS_REJECTED(was_router_added_t s)
 {
   return (s == ROUTER_AUTHDIR_REJECTS);
 }
 /** Return true iff the outcome code in <b>s</b> indicates that the descriptor
  * was flat-out rejected. */
-static INLINE int WRA_NEVER_DOWNLOADABLE(was_router_added_t s)
+static inline int WRA_NEVER_DOWNLOADABLE(was_router_added_t s)
 {
   return (s == ROUTER_AUTHDIR_REJECTS ||
           s == ROUTER_BAD_EI ||
@@ -170,10 +171,12 @@ int router_exit_policy_rejects_all(const routerinfo_t *router);
 
 dir_server_t *trusted_dir_server_new(const char *nickname, const char *address,
                        uint16_t dir_port, uint16_t or_port,
+                       const tor_addr_port_t *addrport_ipv6,
                        const char *digest, const char *v3_auth_digest,
                        dirinfo_type_t type, double weight);
 dir_server_t *fallback_dir_server_new(const tor_addr_t *addr,
                                       uint16_t dir_port, uint16_t or_port,
+                                      const tor_addr_port_t *addrport_ipv6,
                                       const char *id_digest, double weight);
 void dir_server_add(dir_server_t *ent);
 
@@ -201,7 +204,7 @@ void refresh_all_country_info(void);
 int hid_serv_get_responsible_directories(smartlist_t *responsible_dirs,
                                          const char *id);
 int hid_serv_acting_as_directory(void);
-int hid_serv_responsible_for_desc_id(const char *id);
+MOCK_DECL(int, hid_serv_responsible_for_desc_id, (const char *id));
 
 void list_pending_microdesc_downloads(digest256map_t *result);
 void launch_descriptor_downloads(int purpose,
@@ -230,6 +233,9 @@ STATIC int choose_array_element_by_weight(const u64_dbl_t *entries,
                                           int n_entries);
 STATIC void scale_array_elements_to_u64(u64_dbl_t *entries, int n_entries,
                                         uint64_t *total_out);
+STATIC const routerstatus_t *router_pick_directory_server_impl(
+                                           dirinfo_type_t auth, int flags,
+                                           int *n_busy_out);
 
 MOCK_DECL(int, router_descriptor_is_older_than, (const routerinfo_t *router,
                                                  int seconds));

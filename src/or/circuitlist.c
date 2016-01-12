@@ -44,11 +44,16 @@ static smartlist_t *global_circuitlist = NULL;
 /** A list of all the circuits in CIRCUIT_STATE_CHAN_WAIT. */
 static smartlist_t *circuits_pending_chans = NULL;
 
+/** A list of all the circuits that have been marked with
+ * circuit_mark_for_close and which are waiting for circuit_about_to_free. */
+static smartlist_t *circuits_pending_close = NULL;
+
 static void circuit_free_cpath_node(crypt_path_t *victim);
 static void cpath_ref_decref(crypt_path_reference_t *cpath_ref);
 //static void circuit_set_rend_token(or_circuit_t *circ, int is_rend_circ,
 //                                   const uint8_t *token);
 static void circuit_clear_rend_token(or_circuit_t *circ);
+static void circuit_about_to_free(circuit_t *circ);
 
 /********* END VARIABLES ************/
 
@@ -66,7 +71,7 @@ typedef struct chan_circid_circuit_map_t {
 /** Helper for hash tables: compare the channel and circuit ID for a and
  * b, and return less than, equal to, or greater than zero appropriately.
  */
-static INLINE int
+static inline int
 chan_circid_entries_eq_(chan_circid_circuit_map_t *a,
                         chan_circid_circuit_map_t *b)
 {
@@ -75,7 +80,7 @@ chan_circid_entries_eq_(chan_circid_circuit_map_t *a,
 
 /** Helper: return a hash based on circuit ID and the pointer value of
  * chan in <b>a</b>. */
-static INLINE unsigned int
+static inline unsigned int
 chan_circid_entry_hash_(chan_circid_circuit_map_t *a)
 {
   /* Try to squeze the siphash input into 8 bytes to save any extra siphash
@@ -451,16 +456,27 @@ circuit_count_pending_on_channel(channel_t *chan)
 void
 circuit_close_all_marked(void)
 {
+  if (circuits_pending_close == NULL)
+    return;
+
   smartlist_t *lst = circuit_get_global_list();
-  SMARTLIST_FOREACH_BEGIN(lst, circuit_t *, circ) {
-    /* Fix up index if SMARTLIST_DEL_CURRENT just moved this one. */
-    circ->global_circuitlist_idx = circ_sl_idx;
-    if (circ->marked_for_close) {
-      circ->global_circuitlist_idx = -1;
-      circuit_free(circ);
-      SMARTLIST_DEL_CURRENT(lst, circ);
+  SMARTLIST_FOREACH_BEGIN(circuits_pending_close, circuit_t *, circ) {
+    tor_assert(circ->marked_for_close);
+
+    /* Remove it from the circuit list. */
+    int idx = circ->global_circuitlist_idx;
+    smartlist_del(lst, idx);
+    if (idx < smartlist_len(lst)) {
+      circuit_t *replacement = smartlist_get(lst, idx);
+      replacement->global_circuitlist_idx = idx;
     }
+    circ->global_circuitlist_idx = -1;
+
+    circuit_about_to_free(circ);
+    circuit_free(circ);
   } SMARTLIST_FOREACH_END(circ);
+
+  smartlist_clear(circuits_pending_close);
 }
 
 /** Return the head of the global linked list of circuits. */
@@ -895,6 +911,9 @@ circuit_free_all(void)
   smartlist_free(circuits_pending_chans);
   circuits_pending_chans = NULL;
 
+  smartlist_free(circuits_pending_close);
+  circuits_pending_close = NULL;
+
   {
     chan_circid_circuit_map_t **elt, **next, *c;
     for (elt = HT_START(chan_circid_map, &chan_circid_map);
@@ -1030,7 +1049,7 @@ circuit_get_by_global_id(uint32_t id)
  * If <b>found_entry_out</b> is provided, set it to true if we have a
  * placeholder entry for circid/chan, and leave it unset otherwise.
  */
-static INLINE circuit_t *
+static inline circuit_t *
 circuit_get_by_circid_channel_impl(circid_t circ_id, channel_t *chan,
                                    int *found_entry_out)
 {
@@ -1703,6 +1722,39 @@ circuit_mark_for_close_, (circuit_t *circ, int reason, int line,
     reason = END_CIRC_REASON_NONE;
   }
 
+  circ->marked_for_close = line;
+  circ->marked_for_close_file = file;
+  circ->marked_for_close_reason = reason;
+  circ->marked_for_close_orig_reason = orig_reason;
+
+  if (!CIRCUIT_IS_ORIGIN(circ)) {
+    or_circuit_t *or_circ = TO_OR_CIRCUIT(circ);
+    if (or_circ->rend_splice) {
+      if (!or_circ->rend_splice->base_.marked_for_close) {
+        /* do this after marking this circuit, to avoid infinite recursion. */
+        circuit_mark_for_close(TO_CIRCUIT(or_circ->rend_splice), reason);
+      }
+      or_circ->rend_splice = NULL;
+    }
+  }
+
+  if (circuits_pending_close == NULL)
+    circuits_pending_close = smartlist_new();
+
+  smartlist_add(circuits_pending_close, circ);
+}
+
+/** Called immediately before freeing a marked circuit <b>circ</b>.
+ * Disconnects the circuit from other data structures, launches events
+ * as appropriate, and performs other housekeeping.
+ */
+static void
+circuit_about_to_free(circuit_t *circ)
+{
+
+  int reason = circ->marked_for_close_reason;
+  int orig_reason = circ->marked_for_close_orig_reason;
+
   if (circ->state == CIRCUIT_STATE_ONIONSKIN_PENDING) {
     onion_pending_remove(TO_OR_CIRCUIT(circ));
   }
@@ -1726,6 +1778,7 @@ circuit_mark_for_close_, (circuit_t *circ, int reason, int line,
      (circ->state == CIRCUIT_STATE_OPEN)?CIRC_EVENT_CLOSED:CIRC_EVENT_FAILED,
      orig_reason);
   }
+
   if (circ->purpose == CIRCUIT_PURPOSE_C_INTRODUCE_ACK_WAIT) {
     origin_circuit_t *ocirc = TO_ORIGIN_CIRCUIT(circ);
     int timed_out = (reason == END_CIRC_REASON_TIMEOUT);
@@ -1809,20 +1862,6 @@ circuit_mark_for_close_, (circuit_t *circ, int reason, int line,
     for (conn=ocirc->p_streams; conn; conn=conn->next_stream)
       connection_edge_destroy(circ->n_circ_id, conn);
     ocirc->p_streams = NULL;
-  }
-
-  circ->marked_for_close = line;
-  circ->marked_for_close_file = file;
-
-  if (!CIRCUIT_IS_ORIGIN(circ)) {
-    or_circuit_t *or_circ = TO_OR_CIRCUIT(circ);
-    if (or_circ->rend_splice) {
-      if (!or_circ->rend_splice->base_.marked_for_close) {
-        /* do this after marking this circuit, to avoid infinite recursion. */
-        circuit_mark_for_close(TO_CIRCUIT(or_circ->rend_splice), reason);
-      }
-      or_circ->rend_splice = NULL;
-    }
   }
 }
 

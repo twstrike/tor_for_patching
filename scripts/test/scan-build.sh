@@ -3,12 +3,9 @@
 # See LICENSE for licensing information
 #
 # This script is used for running a bunch of clang scan-build checkers
-# on Tor.  
-#
-# It has hardwired paths for Nick's desktop at the moment.
+# on Tor.
 
 CHECKERS="\
-    --use-analyzer=/opt/clang-3.4/bin/clang \
     -disable-checker deadcode.DeadStores \
     -enable-checker alpha.core.CastSize \
     -enable-checker alpha.core.CastToStruct \
@@ -22,7 +19,10 @@ CHECKERS="\
     -enable-checker alpha.unix.cstring.NotNullTerminated \
     -enable-checker alpha.unix.cstring.OutOfBounds \
     -enable-checker alpha.core.FixedAddr \
-    -enable-checker security.insecureAPI.strcpy
+    -enable-checker security.insecureAPI.strcpy \
+    -enable-checker alpha.unix.PthreadLock \
+    -enable-checker alpha.core.PointerArithm \
+    -enable-checker alpha.core.TestAfterDivZero \
 "
 
 scan-build \
@@ -34,14 +34,8 @@ scan-build \
     make -j2 -k
 
 
-# Haven't tried this yet.
-#    -enable-checker alpha.unix.PthreadLock
-
 # This one gives a false positive on every strcmp.
 #    -enable-checker alpha.core.PointerSub
 
-# This one hates it when we stick a nonzero const in a pointer.
-#    -enable-checker alpha.core.FixedAddr
-
-# This one crashes sometimes for me.
-#    -enable-checker alpha.deadcode.IdempotentOperations
+# Needs work
+#  alpha.unix.MallocWithAnnotations ??

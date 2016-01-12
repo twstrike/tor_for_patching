@@ -136,8 +136,10 @@ int dirvote_add_signatures(const char *detached_signatures_body,
                            const char **msg_out);
 
 /* Item access */
-const char *dirvote_get_pending_consensus(consensus_flavor_t flav);
-const char *dirvote_get_pending_detached_signatures(void);
+MOCK_DECL(const char*, dirvote_get_pending_consensus,
+          (consensus_flavor_t flav));
+MOCK_DECL(const char*, dirvote_get_pending_detached_signatures, (void));
+
 #define DGV_BY_ID 1
 #define DGV_INCLUDE_PENDING 2
 #define DGV_INCLUDE_PREVIOUS 4
@@ -175,6 +177,7 @@ STATIC char *format_networkstatus_vote(crypto_pk_t *private_key,
 STATIC char *dirvote_compute_params(smartlist_t *votes, int method,
                              int total_authorities);
 STATIC char *compute_consensus_package_lines(smartlist_t *votes);
+STATIC char *make_consensus_method_list(int low, int high, const char *sep);
 #endif
 
 #endif

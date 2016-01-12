@@ -55,11 +55,12 @@ smartlist_free,(smartlist_t *sl))
 void
 smartlist_clear(smartlist_t *sl)
 {
+  memset(sl->list, 0, sizeof(void *) * sl->num_used);
   sl->num_used = 0;
 }
 
 /** Make sure that <b>sl</b> can hold at least <b>size</b> entries. */
-static INLINE void
+static inline void
 smartlist_ensure_capacity(smartlist_t *sl, int size)
 {
 #if SIZEOF_SIZE_T > SIZEOF_INT
@@ -82,9 +83,11 @@ smartlist_ensure_capacity(smartlist_t *sl, int size)
       while (size > higher)
         higher *= 2;
     }
-    sl->capacity = higher;
     sl->list = tor_reallocarray(sl->list, sizeof(void *),
-                                ((size_t)sl->capacity));
+                                ((size_t)higher));
+    memset(sl->list + sl->capacity, 0,
+           sizeof(void *) * (higher - sl->capacity));
+    sl->capacity = higher;
   }
 #undef ASSERT_CAPACITY
 #undef MAX_CAPACITY
@@ -123,6 +126,7 @@ smartlist_remove(smartlist_t *sl, const void *element)
     if (sl->list[i] == element) {
       sl->list[i] = sl->list[--sl->num_used]; /* swap with the end */
       i--; /* so we process the new i'th element */
+      sl->list[sl->num_used] = NULL;
     }
 }
 
@@ -132,9 +136,11 @@ void *
 smartlist_pop_last(smartlist_t *sl)
 {
   tor_assert(sl);
-  if (sl->num_used)
-    return sl->list[--sl->num_used];
-  else
+  if (sl->num_used) {
+    void *tmp = sl->list[--sl->num_used];
+    sl->list[sl->num_used] = NULL;
+    return tmp;
+  } else
     return NULL;
 }
 
@@ -165,6 +171,7 @@ smartlist_string_remove(smartlist_t *sl, const char *element)
       tor_free(sl->list[i]);
       sl->list[i] = sl->list[--sl->num_used]; /* swap with the end */
       i--; /* so we process the new i'th element */
+      sl->list[sl->num_used] = NULL;
     }
   }
 }
@@ -321,6 +328,7 @@ smartlist_intersect(smartlist_t *sl1, const smartlist_t *sl2)
     if (!smartlist_contains(sl2, sl1->list[i])) {
       sl1->list[i] = sl1->list[--sl1->num_used]; /* swap with the end */
       i--; /* so we process the new i'th element */
+      sl1->list[sl1->num_used] = NULL;
     }
 }
 
@@ -345,6 +353,7 @@ smartlist_del(smartlist_t *sl, int idx)
   tor_assert(idx>=0);
   tor_assert(idx < sl->num_used);
   sl->list[idx] = sl->list[--sl->num_used];
+  sl->list[sl->num_used] = NULL;
 }
 
 /** Remove the <b>idx</b>th element of sl; if idx is not the last element,
@@ -360,6 +369,7 @@ smartlist_del_keeporder(smartlist_t *sl, int idx)
   --sl->num_used;
   if (idx < sl->num_used)
     memmove(sl->list+idx, sl->list+idx+1, sizeof(void*)*(sl->num_used-idx));
+  sl->list[sl->num_used] = NULL;
 }
 
 /** Insert the value <b>val</b> as the new <b>idx</b>th element of
@@ -857,7 +867,7 @@ smartlist_sort_pointers(smartlist_t *sl)
 /** Helper. <b>sl</b> may have at most one violation of the heap property:
  * the item at <b>idx</b> may be greater than one or both of its children.
  * Restore the heap property. */
-static INLINE void
+static inline void
 smartlist_heapify(smartlist_t *sl,
                   int (*compare)(const void *a, const void *b),
                   int idx_field_offset,
@@ -937,9 +947,11 @@ smartlist_pqueue_pop(smartlist_t *sl,
   *IDXP(top)=-1;
   if (--sl->num_used) {
     sl->list[0] = sl->list[sl->num_used];
+    sl->list[sl->num_used] = NULL;
     UPDATE_IDX(0);
     smartlist_heapify(sl, compare, idx_field_offset, 0);
   }
+  sl->list[sl->num_used] = NULL;
   return top;
 }
 
@@ -959,9 +971,11 @@ smartlist_pqueue_remove(smartlist_t *sl,
   --sl->num_used;
   *IDXP(item) = -1;
   if (idx == sl->num_used) {
+    sl->list[sl->num_used] = NULL;
     return;
   } else {
     sl->list[idx] = sl->list[sl->num_used];
+    sl->list[sl->num_used] = NULL;
     UPDATE_IDX(idx);
     smartlist_heapify(sl, compare, idx_field_offset, idx);
   }
@@ -1054,35 +1068,35 @@ DEFINE_MAP_STRUCTS(digestmap_t, char key[DIGEST_LEN], digestmap_);
 DEFINE_MAP_STRUCTS(digest256map_t, uint8_t key[DIGEST256_LEN], digest256map_);
 
 /** Helper: compare strmap_entry_t objects by key value. */
-static INLINE int
+static inline int
 strmap_entries_eq(const strmap_entry_t *a, const strmap_entry_t *b)
 {
   return !strcmp(a->key, b->key);
 }
 
 /** Helper: return a hash value for a strmap_entry_t. */
-static INLINE unsigned int
+static inline unsigned int
 strmap_entry_hash(const strmap_entry_t *a)
 {
   return (unsigned) siphash24g(a->key, strlen(a->key));
 }
 
 /** Helper: compare digestmap_entry_t objects by key value. */
-static INLINE int
+static inline int
 digestmap_entries_eq(const digestmap_entry_t *a, const digestmap_entry_t *b)
 {
   return tor_memeq(a->key, b->key, DIGEST_LEN);
 }
 
 /** Helper: return a hash value for a digest_map_t. */
-static INLINE unsigned int
+static inline unsigned int
 digestmap_entry_hash(const digestmap_entry_t *a)
 {
   return (unsigned) siphash24g(a->key, DIGEST_LEN);
 }
 
 /** Helper: compare digestmap_entry_t objects by key value. */
-static INLINE int
+static inline int
 digest256map_entries_eq(const digest256map_entry_t *a,
                         const digest256map_entry_t *b)
 {
@@ -1090,7 +1104,7 @@ digest256map_entries_eq(const digest256map_entry_t *a,
 }
 
 /** Helper: return a hash value for a digest_map_t. */
-static INLINE unsigned int
+static inline unsigned int
 digest256map_entry_hash(const digest256map_entry_t *a)
 {
   return (unsigned) siphash24g(a->key, DIGEST256_LEN);
@@ -1113,49 +1127,49 @@ HT_GENERATE2(digest256map_impl, digest256map_entry_t, node,
              digest256map_entry_hash,
              digest256map_entries_eq, 0.6, tor_reallocarray_, tor_free_)
 
-static INLINE void
+static inline void
 strmap_entry_free(strmap_entry_t *ent)
 {
   tor_free(ent->key);
   tor_free(ent);
 }
-static INLINE void
+static inline void
 digestmap_entry_free(digestmap_entry_t *ent)
 {
   tor_free(ent);
 }
-static INLINE void
+static inline void
 digest256map_entry_free(digest256map_entry_t *ent)
 {
   tor_free(ent);
 }
 
-static INLINE void
+static inline void
 strmap_assign_tmp_key(strmap_entry_t *ent, const char *key)
 {
   ent->key = (char*)key;
 }
-static INLINE void
+static inline void
 digestmap_assign_tmp_key(digestmap_entry_t *ent, const char *key)
 {
   memcpy(ent->key, key, DIGEST_LEN);
 }
-static INLINE void
+static inline void
 digest256map_assign_tmp_key(digest256map_entry_t *ent, const uint8_t *key)
 {
   memcpy(ent->key, key, DIGEST256_LEN);
 }
-static INLINE void
+static inline void
 strmap_assign_key(strmap_entry_t *ent, const char *key)
 {
   ent->key = tor_strdup(key);
 }
-static INLINE void
+static inline void
 digestmap_assign_key(digestmap_entry_t *ent, const char *key)
 {
   memcpy(ent->key, key, DIGEST_LEN);
 }
-static INLINE void
+static inline void
 digest256map_assign_key(digest256map_entry_t *ent, const uint8_t *key)
 {
   memcpy(ent->key, key, DIGEST256_LEN);

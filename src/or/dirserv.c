@@ -248,6 +248,7 @@ dirserv_router_get_status(const routerinfo_t *router, const char **msg,
                           int severity)
 {
   char d[DIGEST_LEN];
+  const int key_pinning = get_options()->AuthDirPinKeys;
 
   if (crypto_pk_get_digest(router->identity_pkey, d)) {
     log_warn(LD_BUG,"Error computing fingerprint");
@@ -261,14 +262,16 @@ dirserv_router_get_status(const routerinfo_t *router, const char **msg,
     if (KEYPIN_MISMATCH ==
         keypin_check((const uint8_t*)router->cache_info.identity_digest,
                      router->signing_key_cert->signing_key.pubkey)) {
-      if (msg) {
-        *msg = "Ed25519 identity key or RSA identity key has changed.";
-      }
       log_fn(severity, LD_DIR,
              "Descriptor from router %s has an Ed25519 key, "
                "but the <rsa,ed25519> keys don't match what they were before.",
                router_describe(router));
-      return FP_REJECT;
+      if (key_pinning) {
+        if (msg) {
+          *msg = "Ed25519 identity key or RSA identity key has changed.";
+        }
+        return FP_REJECT;
+      }
     }
   } else {
     /* No ed25519 key */
@@ -277,13 +280,15 @@ dirserv_router_get_status(const routerinfo_t *router, const char **msg,
       log_fn(severity, LD_DIR,
                "Descriptor from router %s has no Ed25519 key, "
                "when we previously knew an Ed25519 for it. Ignoring for now, "
-               "since Tor 0.2.6 is under development.",
+               "since Ed25519 keys are fairly new.",
                router_describe(router));
 #ifdef DISABLE_DISABLING_ED25519
-      if (msg) {
-        *msg = "Ed25519 identity key has disappeared.";
+      if (key_pinning) {
+        if (msg) {
+          *msg = "Ed25519 identity key has disappeared.";
+        }
+        return FP_REJECT;
       }
-      return FP_REJECT;
 #endif
     }
   }
@@ -582,6 +587,7 @@ dirserv_add_descriptor(routerinfo_t *ri, const char **msg, const char *source)
   char *desc, *nickname;
   const size_t desclen = ri->cache_info.signed_descriptor_len +
       ri->cache_info.annotations_len;
+  const int key_pinning = get_options()->AuthDirPinKeys;
   *msg = NULL;
 
   /* If it's too big, refuse it now. Otherwise we'll cache it all over the
@@ -626,7 +632,8 @@ dirserv_add_descriptor(routerinfo_t *ri, const char **msg, const char *source)
   if (ri->signing_key_cert) {
     keypin_status = keypin_check_and_add(
       (const uint8_t*)ri->cache_info.identity_digest,
-      ri->signing_key_cert->signing_key.pubkey);
+      ri->signing_key_cert->signing_key.pubkey,
+      ! key_pinning);
   } else {
     keypin_status = keypin_check_lone_rsa(
       (const uint8_t*)ri->cache_info.identity_digest);
@@ -635,7 +642,7 @@ dirserv_add_descriptor(routerinfo_t *ri, const char **msg, const char *source)
       keypin_status = KEYPIN_NOT_FOUND;
 #endif
   }
-  if (keypin_status == KEYPIN_MISMATCH) {
+  if (keypin_status == KEYPIN_MISMATCH && key_pinning) {
     log_info(LD_DIRSERV, "Dropping descriptor from %s (source: %s) because "
              "its key did not match an older RSA/Ed25519 keypair",
              router_describe(ri), source);
@@ -790,7 +797,7 @@ list_single_server_status(const routerinfo_t *desc, int is_live)
 }
 
 /* DOCDOC running_long_enough_to_decide_unreachable */
-static INLINE int
+static inline int
 running_long_enough_to_decide_unreachable(void)
 {
   return time_of_process_start
@@ -1084,13 +1091,13 @@ directory_fetches_from_authorities(const or_options_t *options)
     return 1; /* we don't know our IP address; ask an authority. */
   refuseunknown = ! router_my_exit_policy_is_reject_star() &&
     should_refuse_unknown_exits(options);
-  if (!options->DirPort_set && !refuseunknown)
+  if (!dir_server_mode(options) && !refuseunknown)
     return 0;
   if (!server_mode(options) || !advertised_server_mode())
     return 0;
   me = router_get_my_routerinfo();
-  if (!me || (!me->dir_port && !refuseunknown))
-    return 0; /* if dirport not advertised, return 0 too */
+  if (!me || (!me->supports_tunnelled_dir_requests && !refuseunknown))
+    return 0; /* if we don't service directory requests, return 0 too */
   return 1;
 }
 
@@ -1121,7 +1128,7 @@ directory_fetches_dir_info_later(const or_options_t *options)
 int
 directory_caches_unknown_auth_certs(const or_options_t *options)
 {
-  return options->DirPort_set || options->BridgeRelay;
+  return dir_server_mode(options) || options->BridgeRelay;
 }
 
 /** Return 1 if we want to keep descriptors, networkstatuses, etc around
@@ -1130,7 +1137,7 @@ directory_caches_unknown_auth_certs(const or_options_t *options)
 int
 directory_caches_dir_info(const or_options_t *options)
 {
-  if (options->BridgeRelay || options->DirPort_set)
+  if (options->BridgeRelay || dir_server_mode(options))
     return 1;
   if (!server_mode(options) || !advertised_server_mode())
     return 0;
@@ -1146,7 +1153,7 @@ directory_caches_dir_info(const or_options_t *options)
 int
 directory_permits_begindir_requests(const or_options_t *options)
 {
-  return options->BridgeRelay != 0 || options->DirPort_set;
+  return options->BridgeRelay != 0 || dir_server_mode(options);
 }
 
 /** Return 1 if we have no need to fetch new descriptors. This generally
@@ -1295,7 +1302,7 @@ static uint32_t guard_bandwidth_excluding_exits_kb = 0;
 
 /** Helper: estimate the uptime of a router given its stated uptime and the
  * amount of time since it last stated its stated uptime. */
-static INLINE long
+static inline long
 real_uptime(const routerinfo_t *router, time_t now)
 {
   if (now < router->cache_info.published_on)
@@ -1343,8 +1350,9 @@ dirserv_thinks_router_is_unreliable(time_t now,
 }
 
 /** Return true iff <b>router</b> should be assigned the "HSDir" flag.
+ *
  * Right now this means it advertises support for it, it has a high uptime,
- * it has a DirPort open, it has the Stable and Fast flag and it's currently
+ * it's a directory cache, it has the Stable and Fast flags, and it's currently
  * considered Running.
  *
  * This function needs to be called after router-\>is_running has
@@ -1371,7 +1379,8 @@ dirserv_thinks_router_is_hs_dir(const routerinfo_t *router,
   else
     uptime = real_uptime(router, now);
 
-  return (router->wants_to_be_hs_dir && router->dir_port &&
+  return (router->wants_to_be_hs_dir &&
+          router->supports_tunnelled_dir_requests &&
           node->is_stable && node->is_fast &&
           uptime >= get_options()->MinUptimeHidServDirectoryV2 &&
           router_is_active(router, node, now));
@@ -1914,7 +1923,7 @@ routerstatus_format_entry(const routerstatus_t *rs, const char *version,
                    rs->is_hs_dir?" HSDir":"",
                    rs->is_flagged_running?" Running":"",
                    rs->is_stable?" Stable":"",
-                   (rs->dir_port!=0)?" V2Dir":"",
+                   rs->is_v2_dir?" V2Dir":"",
                    rs->is_valid?" Valid":"");
 
   /* length of "opt v \n" */
@@ -2178,6 +2187,7 @@ set_routerstatus_from_routerinfo(routerstatus_t *rs,
   strlcpy(rs->nickname, ri->nickname, sizeof(rs->nickname));
   rs->or_port = ri->or_port;
   rs->dir_port = ri->dir_port;
+  rs->is_v2_dir = ri->supports_tunnelled_dir_requests;
   if (options->AuthDirHasIPv6Connectivity == 1 &&
       !tor_addr_is_null(&ri->ipv6_addr) &&
       node->last_reachable6 >= now - REACHABLE_TIMEOUT) {

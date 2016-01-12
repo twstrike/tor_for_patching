@@ -52,7 +52,7 @@ rend_client_introcirc_has_opened(origin_circuit_t *circ)
   tor_assert(circ->cpath);
 
   log_info(LD_REND,"introcirc is open");
-  connection_ap_attach_pending();
+  connection_ap_attach_pending(1);
 }
 
 /** Send the establish-rendezvous cell along a rendezvous circuit. if
@@ -65,11 +65,7 @@ rend_client_send_establish_rendezvous(origin_circuit_t *circ)
   tor_assert(circ->rend_data);
   log_info(LD_REND, "Sending an ESTABLISH_RENDEZVOUS cell");
 
-  if (crypto_rand(circ->rend_data->rend_cookie, REND_COOKIE_LEN) < 0) {
-    log_warn(LD_BUG, "Internal error: Couldn't produce random cookie.");
-    circuit_mark_for_close(TO_CIRCUIT(circ), END_CIRC_REASON_INTERNAL);
-    return -1;
-  }
+  crypto_rand(circ->rend_data->rend_cookie, REND_COOKIE_LEN);
 
   /* Set timestamp_dirty, because circuit_expire_building expects it,
    * and the rend cookie also means we've used the circ. */
@@ -177,6 +173,7 @@ rend_client_send_introduction(origin_circuit_t *introcirc,
       while ((conn = connection_get_by_type_state_rendquery(CONN_TYPE_AP,
                        AP_CONN_STATE_CIRCUIT_WAIT,
                        introcirc->rend_data->onion_address))) {
+        connection_ap_mark_as_non_pending_circuit(TO_ENTRY_CONN(conn));
         conn->state = AP_CONN_STATE_RENDDESC_WAIT;
       }
     }
@@ -1059,9 +1056,11 @@ rend_client_report_intro_point_failure(extend_info_t *failed_intro,
     rend_client_refetch_v2_renddesc(rend_query);
 
     /* move all pending streams back to renddesc_wait */
+    /* NOTE: We can now do this faster, if we use pending_entry_connections */
     while ((conn = connection_get_by_type_state_rendquery(CONN_TYPE_AP,
                                    AP_CONN_STATE_CIRCUIT_WAIT,
                                    rend_query->onion_address))) {
+      connection_ap_mark_as_non_pending_circuit(TO_ENTRY_CONN(conn));
       conn->state = AP_CONN_STATE_RENDDESC_WAIT;
     }
 
@@ -1107,7 +1106,7 @@ rend_client_rendezvous_acked(origin_circuit_t *circ, const uint8_t *request,
    * than trying to attach them all. See comments bug 743. */
   /* If we already have the introduction circuit built, make sure we send
    * the INTRODUCE cell _now_ */
-  connection_ap_attach_pending();
+  connection_ap_attach_pending(1);
   return 0;
 }
 
@@ -1226,12 +1225,7 @@ rend_client_desc_trynow(const char *query)
       base_conn->timestamp_lastread = now;
       base_conn->timestamp_lastwritten = now;
 
-      if (connection_ap_handshake_attach_circuit(conn) < 0) {
-        /* it will never work */
-        log_warn(LD_REND,"Rendezvous attempt failed. Closing.");
-        if (!base_conn->marked_for_close)
-          connection_mark_unattached_ap(conn, END_STREAM_REASON_CANT_ATTACH);
-      }
+      connection_ap_mark_as_pending_circuit(conn);
     } else { /* 404, or fetch didn't get that far */
       log_notice(LD_REND,"Closing stream for '%s.onion': hidden service is "
                  "unavailable (try again later).",

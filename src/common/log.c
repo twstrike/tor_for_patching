@@ -64,7 +64,7 @@ typedef struct logfile_t {
 static void log_free(logfile_t *victim);
 
 /** Helper: map a log severity to descriptive string. */
-static INLINE const char *
+static inline const char *
 sev_to_string(int severity)
 {
   switch (severity) {
@@ -80,7 +80,7 @@ sev_to_string(int severity)
 }
 
 /** Helper: decide whether to include the function name in the log message. */
-static INLINE int
+static inline int
 should_log_function_name(log_domain_mask_t domain, int severity)
 {
   switch (severity) {
@@ -163,7 +163,7 @@ static void close_log(logfile_t *victim);
 
 static char *domain_to_string(log_domain_mask_t domain,
                              char *buf, size_t buflen);
-static INLINE char *format_msg(char *buf, size_t buf_len,
+static inline char *format_msg(char *buf, size_t buf_len,
            log_domain_mask_t domain, int severity, const char *funcname,
            const char *suffix,
            const char *format, va_list ap, size_t *msg_len_out)
@@ -199,7 +199,7 @@ set_log_time_granularity(int granularity_msec)
 /** Helper: Write the standard prefix for log lines to a
  * <b>buf_len</b> character buffer in <b>buf</b>.
  */
-static INLINE size_t
+static inline size_t
 log_prefix_(char *buf, size_t buf_len, int severity)
 {
   time_t t;
@@ -278,7 +278,7 @@ const char bug_suffix[] = " (on Tor " VERSION
  * than once.)  Return a pointer to the first character of the message
  * portion of the formatted string.
  */
-static INLINE char *
+static inline char *
 format_msg(char *buf, size_t buf_len,
            log_domain_mask_t domain, int severity, const char *funcname,
            const char *suffix,
@@ -393,7 +393,7 @@ pending_log_message_free(pending_log_message_t *msg)
 /** Return true iff <b>lf</b> would like to receive a message with the
  * specified <b>severity</b> in the specified <b>domain</b>.
  */
-static INLINE int
+static inline int
 logfile_wants_message(const logfile_t *lf, int severity,
                       log_domain_mask_t domain)
 {
@@ -416,7 +416,7 @@ logfile_wants_message(const logfile_t *lf, int severity,
  * we already deferred this message for pending callbacks and don't need to do
  * it again.  Otherwise, if we need to do it, do it, and set
  * <b>callbacks_deferred</b> to 1. */
-static INLINE void
+static inline void
 logfile_deliver(logfile_t *lf, const char *buf, size_t msg_len,
                 const char *msg_after_prefix, log_domain_mask_t domain,
                 int severity, int *callbacks_deferred)
@@ -1097,14 +1097,25 @@ add_file_log(const log_severity_list_t *severity, const char *filename,
 #ifdef HAVE_SYSLOG_H
 /**
  * Add a log handler to send messages to they system log facility.
+ *
+ * If this is the first log handler, opens syslog with ident Tor or
+ * Tor-<syslog_identity_tag> if that is not NULL.
  */
 int
-add_syslog_log(const log_severity_list_t *severity)
+add_syslog_log(const log_severity_list_t *severity,
+               const char* syslog_identity_tag)
 {
   logfile_t *lf;
-  if (syslog_count++ == 0)
+  if (syslog_count++ == 0) {
     /* This is the first syslog. */
-    openlog("Tor", LOG_PID | LOG_NDELAY, LOGFACILITY);
+    static char buf[256];
+    if (syslog_identity_tag) {
+      tor_snprintf(buf, sizeof(buf), "Tor-%s", syslog_identity_tag);
+    } else {
+      tor_snprintf(buf, sizeof(buf), "Tor");
+    }
+    openlog(buf, LOG_PID | LOG_NDELAY, LOGFACILITY);
+  }
 
   lf = tor_malloc_zero(sizeof(logfile_t));
   lf->fd = -1;

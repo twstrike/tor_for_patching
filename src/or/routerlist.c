@@ -67,8 +67,6 @@ typedef struct cert_list_t cert_list_t;
 static int compute_weighted_bandwidths(const smartlist_t *sl,
                                        bandwidth_weight_rule_t rule,
                                        u64_dbl_t **bandwidths_out);
-static const routerstatus_t *router_pick_directory_server_impl(
-                              dirinfo_type_t auth, int flags, int *n_busy_out);
 static const routerstatus_t *router_pick_trusteddirserver_impl(
                 const smartlist_t *sourcelist, dirinfo_type_t auth,
                 int flags, int *n_busy_out);
@@ -278,7 +276,7 @@ trusted_dirs_reload_certs(void)
 
 /** Helper: return true iff we already have loaded the exact cert
  * <b>cert</b>. */
-static INLINE int
+static inline int
 already_have_cert(authority_cert_t *cert)
 {
   cert_list_t *cl = get_cert_list(cert->cache_info.identity_digest);
@@ -897,8 +895,10 @@ authority_certs_fetch_missing(networkstatus_t *status, time_t now)
 
     if (smartlist_len(fps) > 1) {
       resource = smartlist_join_strings(fps, "", 0, NULL);
+      /* XXX - do we want certs from authorities or mirrors? - teor */
       directory_get_from_dirserver(DIR_PURPOSE_FETCH_CERTIFICATE, 0,
-                                   resource, PDS_RETRY_IF_NO_SERVERS);
+                                   resource, PDS_RETRY_IF_NO_SERVERS,
+                                   DL_WANT_ANY_DIRSERVER);
       tor_free(resource);
     }
     /* else we didn't add any: they were all pending */
@@ -941,8 +941,10 @@ authority_certs_fetch_missing(networkstatus_t *status, time_t now)
 
     if (smartlist_len(fp_pairs) > 1) {
       resource = smartlist_join_strings(fp_pairs, "", 0, NULL);
+      /* XXX - do we want certs from authorities or mirrors? - teor */
       directory_get_from_dirserver(DIR_PURPOSE_FETCH_CERTIFICATE, 0,
-                                   resource, PDS_RETRY_IF_NO_SERVERS);
+                                   resource, PDS_RETRY_IF_NO_SERVERS,
+                                   DL_WANT_ANY_DIRSERVER);
       tor_free(resource);
     }
     /* else they were all pending */
@@ -985,7 +987,7 @@ router_should_rebuild_store(desc_store_t *store)
 
 /** Return the desc_store_t in <b>rl</b> that should be used to store
  * <b>sd</b>. */
-static INLINE desc_store_t *
+static inline desc_store_t *
 desc_get_store(routerlist_t *rl, const signed_descriptor_t *sd)
 {
   if (sd->is_extrainfo)
@@ -1295,8 +1297,8 @@ router_get_fallback_dir_servers(void)
 /** Try to find a running dirserver that supports operations of <b>type</b>.
  *
  * If there are no running dirservers in our routerlist and the
- * <b>PDS_RETRY_IF_NO_SERVERS</b> flag is set, set all the authoritative ones
- * as running again, and pick one.
+ * <b>PDS_RETRY_IF_NO_SERVERS</b> flag is set, set all the fallback ones
+ * (including authorities) as running again, and pick one.
  *
  * If the <b>PDS_IGNORE_FASCISTFIREWALL</b> flag is set, then include
  * dirservers that we can't reach.
@@ -1304,8 +1306,9 @@ router_get_fallback_dir_servers(void)
  * If the <b>PDS_ALLOW_SELF</b> flag is not set, then don't include ourself
  * (if we're a dirserver).
  *
- * Don't pick an authority if any non-authority is viable; try to avoid using
- * servers that have returned 503 recently.
+ * Don't pick a fallback directory mirror if any non-fallback is viable;
+ * (the fallback directory mirrors include the authorities)
+ * try to avoid using servers that have returned 503 recently.
  */
 const routerstatus_t *
 router_pick_directory_server(dirinfo_type_t type, int flags)
@@ -1332,7 +1335,7 @@ router_pick_directory_server(dirinfo_type_t type, int flags)
   log_info(LD_DIR,
            "No reachable router entries for dirservers. "
            "Trying them all again.");
-  /* mark all authdirservers as up again */
+  /* mark all fallback directory mirrors as up again */
   mark_all_dirservers_up(fallback_dir_servers);
   /* try again */
   choice = router_pick_directory_server_impl(type, flags, NULL);
@@ -1358,21 +1361,37 @@ router_get_trusteddirserver_by_digest(const char *digest)
 }
 
 /** Return the dir_server_t for the fallback dirserver whose identity
- * key hashes to <b>digest</b>, or NULL if no such authority is known.
+ * key hashes to <b>digest</b>, or NULL if no such fallback is in the list of
+ * fallback_dir_servers. (fallback_dir_servers is affected by the FallbackDir
+ * and UseDefaultFallbackDirs torrc options.)
  */
 dir_server_t *
 router_get_fallback_dirserver_by_digest(const char *digest)
 {
-  if (!trusted_dir_servers)
+  if (!fallback_dir_servers)
     return NULL;
 
-  SMARTLIST_FOREACH(trusted_dir_servers, dir_server_t *, ds,
+  if (!digest)
+    return NULL;
+
+  SMARTLIST_FOREACH(fallback_dir_servers, dir_server_t *, ds,
      {
        if (tor_memeq(ds->digest, digest, DIGEST_LEN))
          return ds;
      });
 
   return NULL;
+}
+
+/** Return 1 if any fallback dirserver's identity key hashes to <b>digest</b>,
+ * or 0 if no such fallback is in the list of fallback_dir_servers.
+ * (fallback_dir_servers is affected by the FallbackDir and
+ * UseDefaultFallbackDirs torrc options.)
+ */
+int
+router_digest_is_fallback_dir(const char *digest)
+{
+  return (router_get_fallback_dirserver_by_digest(digest) != NULL);
 }
 
 /** Return the dir_server_t for the directory authority whose
@@ -1451,7 +1470,7 @@ router_pick_dirserver_generic(smartlist_t *sourcelist,
  * directories that we excluded for no other reason than
  * PDS_NO_EXISTING_SERVERDESC_FETCH or PDS_NO_EXISTING_MICRODESC_FETCH.
  */
-static const routerstatus_t *
+STATIC const routerstatus_t *
 router_pick_directory_server_impl(dirinfo_type_t type, int flags,
                                   int *n_busy_out)
 {
@@ -1491,7 +1510,7 @@ router_pick_directory_server_impl(dirinfo_type_t type, int flags,
     if (!status)
       continue;
 
-    if (!node->is_running || !status->dir_port || !node->is_valid)
+    if (!node->is_running || !node_is_dir(node) || !node->is_valid)
       continue;
     if (requireother && router_digest_is_me(node->identity))
       continue;
@@ -1501,8 +1520,14 @@ router_pick_directory_server_impl(dirinfo_type_t type, int flags,
     if ((type & EXTRAINFO_DIRINFO) &&
         !router_supports_extrainfo(node->identity, is_trusted_extrainfo))
       continue;
-    if (for_guard && node->using_as_guard)
-      continue; /* Don't make the same node a guard twice. */
+    /* Don't make the same node a guard twice */
+    if (for_guard && node->using_as_guard) {
+      continue;
+    }
+    /* Ensure that a directory guard is actually a guard node. */
+    if (for_guard && !node->is_possible_guard) {
+      continue;
+    }
     if (try_excluding &&
         routerset_contains_routerstatus(options->ExcludeNodes, status,
                                         country)) {
@@ -1712,21 +1737,23 @@ router_pick_trusteddirserver_impl(const smartlist_t *sourcelist,
       result = &selection->fake_status;
   }
 
-  if (n_busy_out)
-    *n_busy_out = n_busy;
-
   smartlist_free(direct);
   smartlist_free(tunnel);
   smartlist_free(overloaded_direct);
   smartlist_free(overloaded_tunnel);
 
-  if (result == NULL && try_excluding && !options->StrictNodes && n_excluded) {
+  if (result == NULL && try_excluding && !options->StrictNodes && n_excluded
+      && !n_busy) {
     /* If we got no result, and we are excluding nodes, and StrictNodes is
      * not set, try again without excluding nodes. */
     try_excluding = 0;
     n_excluded = 0;
+    n_busy = 0;
     goto retry_without_exclude;
   }
+
+  if (n_busy_out)
+    *n_busy_out = n_busy;
 
   return result;
 }
@@ -1891,7 +1918,7 @@ scale_array_elements_to_u64(u64_dbl_t *entries, int n_entries,
 #if SIZEOF_VOID_P == 8
 #define gt_i64_timei(a,b) ((a) > (b))
 #else
-static INLINE int
+static inline int
 gt_i64_timei(uint64_t a, uint64_t b)
 {
   int64_t diff = (int64_t) (b - a);
@@ -1969,7 +1996,7 @@ bridge_get_advertised_bandwidth_bounded(routerinfo_t *router)
 
 /** Return bw*1000, unless bw*1000 would overflow, in which case return
  * INT32_MAX. */
-static INLINE int32_t
+static inline int32_t
 kb_to_bytes(uint32_t bw)
 {
   return (bw > (INT32_MAX/1000)) ? INT32_MAX : bw*1000;
@@ -2784,7 +2811,7 @@ dump_routerlist_mem_usage(int severity)
  * in <b>sl</b> at position <b>idx</b>. Otherwise, search <b>sl</b> for
  * <b>ri</b>.  Return the index of <b>ri</b> in <b>sl</b>, or -1 if <b>ri</b>
  * is not in <b>sl</b>. */
-static INLINE int
+static inline int
 routerlist_find_elt_(smartlist_t *sl, void *ri, int idx)
 {
   if (idx < 0) {
@@ -3209,7 +3236,11 @@ routerlist_reparse_old(routerlist_t *rl, signed_descriptor_t *sd)
   return ri;
 }
 
-/** Free all memory held by the routerlist module. */
+/** Free all memory held by the routerlist module.
+ * Note: Calling routerlist_free_all() should always be paired with
+ * a call to nodelist_free_all(). These should only be called during
+ * cleanup.
+ */
 void
 routerlist_free_all(void)
 {
@@ -4028,15 +4059,16 @@ router_exit_policy_rejects_all(const routerinfo_t *router)
 }
 
 /** Create an directory server at <b>address</b>:<b>port</b>, with OR identity
- * key <b>digest</b>.  If <b>address</b> is NULL, add ourself.  If
- * <b>is_authority</b>, this is a directory authority.  Return the new
- * directory server entry on success or NULL on failure. */
+ * key <b>digest</b> which has DIGEST_LEN bytes.  If <b>address</b> is NULL,
+ * add ourself.  If <b>is_authority</b>, this is a directory authority.  Return
+ * the new directory server entry on success or NULL on failure. */
 static dir_server_t *
 dir_server_new(int is_authority,
                const char *nickname,
                const tor_addr_t *addr,
                const char *hostname,
                uint16_t dir_port, uint16_t or_port,
+               const tor_addr_port_t *addrport_ipv6,
                const char *digest, const char *v3_auth_digest,
                dirinfo_type_t type,
                double weight)
@@ -4045,13 +4077,15 @@ dir_server_new(int is_authority,
   uint32_t a;
   char *hostname_ = NULL;
 
+  tor_assert(digest);
+
   if (weight < 0)
     return NULL;
 
   if (tor_addr_family(addr) == AF_INET)
     a = tor_addr_to_ipv4h(addr);
   else
-    return NULL; /*XXXX Support IPv6 */
+    return NULL;
 
   if (!hostname)
     hostname_ = tor_dup_addr(addr);
@@ -4068,6 +4102,18 @@ dir_server_new(int is_authority,
   ent->is_authority = is_authority;
   ent->type = type;
   ent->weight = weight;
+  if (addrport_ipv6) {
+    if (tor_addr_family(&addrport_ipv6->addr) != AF_INET6) {
+      log_warn(LD_BUG, "Hey, I got a non-ipv6 addr as addrport_ipv6.");
+      tor_addr_make_unspec(&ent->ipv6_addr);
+    } else {
+      tor_addr_copy(&ent->ipv6_addr, &addrport_ipv6->addr);
+      ent->ipv6_orport = addrport_ipv6->port;
+    }
+  } else {
+    tor_addr_make_unspec(&ent->ipv6_addr);
+  }
+
   memcpy(ent->digest, digest, DIGEST_LEN);
   if (v3_auth_digest && (type & V3_DIRINFO))
     memcpy(ent->v3_identity_digest, v3_auth_digest, DIGEST_LEN);
@@ -4080,6 +4126,7 @@ dir_server_new(int is_authority,
                  hostname, (int)dir_port);
 
   ent->fake_status.addr = ent->addr;
+  tor_addr_copy(&ent->fake_status.ipv6_addr, &ent->ipv6_addr);
   memcpy(ent->fake_status.identity_digest, digest, DIGEST_LEN);
   if (nickname)
     strlcpy(ent->fake_status.nickname, nickname,
@@ -4088,6 +4135,7 @@ dir_server_new(int is_authority,
     ent->fake_status.nickname[0] = '\0';
   ent->fake_status.dir_port = ent->dir_port;
   ent->fake_status.or_port = ent->or_port;
+  ent->fake_status.ipv6_orport = ent->ipv6_orport;
 
   return ent;
 }
@@ -4099,6 +4147,7 @@ dir_server_new(int is_authority,
 dir_server_t *
 trusted_dir_server_new(const char *nickname, const char *address,
                        uint16_t dir_port, uint16_t or_port,
+                       const tor_addr_port_t *ipv6_addrport,
                        const char *digest, const char *v3_auth_digest,
                        dirinfo_type_t type, double weight)
 {
@@ -4129,7 +4178,9 @@ trusted_dir_server_new(const char *nickname, const char *address,
   tor_addr_from_ipv4h(&addr, a);
 
   result = dir_server_new(1, nickname, &addr, hostname,
-                          dir_port, or_port, digest,
+                          dir_port, or_port,
+                          ipv6_addrport,
+                          digest,
                           v3_auth_digest, type, weight);
   tor_free(hostname);
   return result;
@@ -4141,9 +4192,12 @@ trusted_dir_server_new(const char *nickname, const char *address,
 dir_server_t *
 fallback_dir_server_new(const tor_addr_t *addr,
                         uint16_t dir_port, uint16_t or_port,
+                        const tor_addr_port_t *addrport_ipv6,
                         const char *id_digest, double weight)
 {
-  return dir_server_new(0, NULL, addr, NULL, dir_port, or_port, id_digest,
+  return dir_server_new(0, NULL, addr, NULL, dir_port, or_port,
+                        addrport_ipv6,
+                        id_digest,
                         NULL, ALL_DIRINFO, weight);
 }
 
@@ -4368,14 +4422,14 @@ MOCK_IMPL(STATIC void, initiate_descriptor_downloads,
   tor_free(cp);
 
   if (source) {
-    /* We know which authority we want. */
+    /* We know which authority or directory mirror we want. */
     directory_initiate_command_routerstatus(source, purpose,
                                             ROUTER_PURPOSE_GENERAL,
                                             DIRIND_ONEHOP,
                                             resource, NULL, 0, 0);
   } else {
     directory_get_from_dirserver(purpose, ROUTER_PURPOSE_GENERAL, resource,
-                                 pds_flags);
+                                 pds_flags, DL_WANT_ANY_DIRSERVER);
   }
   tor_free(resource);
 }
@@ -4657,9 +4711,14 @@ launch_dummy_descriptor_download_as_needed(time_t now,
       last_descriptor_download_attempted + DUMMY_DOWNLOAD_INTERVAL < now &&
       last_dummy_download + DUMMY_DOWNLOAD_INTERVAL < now) {
     last_dummy_download = now;
+    /* XX/teor - do we want an authority here, because they are less likely
+     * to give us the wrong address? (See #17782)
+     * I'm leaving the previous behaviour intact, because I don't like
+     * the idea of some relays contacting an authority every 20 minutes. */
     directory_get_from_dirserver(DIR_PURPOSE_FETCH_SERVERDESC,
                                  ROUTER_PURPOSE_GENERAL, "authority.z",
-                                 PDS_RETRY_IF_NO_SERVERS);
+                                 PDS_RETRY_IF_NO_SERVERS,
+                                 DL_WANT_ANY_DIRSERVER);
   }
 }
 
@@ -4845,7 +4904,9 @@ router_differences_are_cosmetic(const routerinfo_t *r1, const routerinfo_t *r2)
       (r1->contact_info && r2->contact_info &&
        strcasecmp(r1->contact_info, r2->contact_info)) ||
       r1->is_hibernating != r2->is_hibernating ||
-      cmp_addr_policies(r1->exit_policy, r2->exit_policy))
+      cmp_addr_policies(r1->exit_policy, r2->exit_policy) ||
+      (r1->supports_tunnelled_dir_requests !=
+       r2->supports_tunnelled_dir_requests))
     return 0;
   if ((r1->declared_family == NULL) != (r2->declared_family == NULL))
     return 0;
@@ -4961,6 +5022,12 @@ routerinfo_incompatible_with_extrainfo(const routerinfo_t *ri,
   } else if (ei->cache_info.published_on > sd->published_on) {
     if (msg) *msg = "Extrainfo published time did not match routerdesc";
     r = -1;
+    goto err;
+  }
+
+  if (!digest256_matches && !digest_matches) {
+    if (msg) *msg = "Neither digest256 or digest matched "
+               "digest from routerdesc";
     goto err;
   }
 
@@ -5184,8 +5251,8 @@ hid_serv_acting_as_directory(void)
 
 /** Return true if this node is responsible for storing the descriptor ID
  * in <b>query</b> and false otherwise. */
-int
-hid_serv_responsible_for_desc_id(const char *query)
+MOCK_IMPL(int, hid_serv_responsible_for_desc_id,
+          (const char *query))
 {
   const routerinfo_t *me;
   routerstatus_t *last_rs;

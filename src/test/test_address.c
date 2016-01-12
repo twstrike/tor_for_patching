@@ -74,35 +74,94 @@ sockaddr_in_from_string(const char *ip_str, struct sockaddr_in *out)
 }
 
 /** Return 1 iff <b>smartlist</b> contains a tor_addr_t structure
- * that points to 127.0.0.1. Otherwise, return 0.
+ * that is an IPv4 or IPv6 localhost address. Otherwise, return 0.
  */
 static int
 smartlist_contains_localhost_tor_addr(smartlist_t *smartlist)
 {
-  int found_localhost = 0;
-
-  struct sockaddr_in *sockaddr_localhost;
-  struct sockaddr_storage *sockaddr_to_check;
-
-  sockaddr_localhost = sockaddr_in_from_string("127.0.0.1",NULL);
-
-  sockaddr_to_check = tor_malloc(sizeof(struct sockaddr_in));
-
   SMARTLIST_FOREACH_BEGIN(smartlist, tor_addr_t *, tor_addr) {
-    tor_addr_to_sockaddr(tor_addr,0,(struct sockaddr *)sockaddr_to_check,
-                         sizeof(struct sockaddr_in));
-
-    if (sockaddr_in_are_equal((struct sockaddr_in *)sockaddr_to_check,
-                              sockaddr_localhost)) {
-      found_localhost = 1;
-      break;
+    if (tor_addr_is_loopback(tor_addr)) {
+      return 1;
     }
   } SMARTLIST_FOREACH_END(tor_addr);
 
-  tor_free(sockaddr_localhost);
-  tor_free(sockaddr_to_check);
+  return 0;
+}
 
-  return found_localhost;
+/** Return 1 iff <b>smartlist</b> contains a tor_addr_t structure
+ * that is an IPv4 or IPv6 multicast address. Otherwise, return 0.
+ */
+static int
+smartlist_contains_multicast_tor_addr(smartlist_t *smartlist)
+{
+  SMARTLIST_FOREACH_BEGIN(smartlist, tor_addr_t *, tor_addr) {
+    if (tor_addr_is_multicast(tor_addr)) {
+      return 1;
+    }
+  } SMARTLIST_FOREACH_END(tor_addr);
+
+  return 0;
+}
+
+/** Return 1 iff <b>smartlist</b> contains a tor_addr_t structure
+ * that is an IPv4 or IPv6 internal address. Otherwise, return 0.
+ */
+static int
+smartlist_contains_internal_tor_addr(smartlist_t *smartlist)
+{
+  SMARTLIST_FOREACH_BEGIN(smartlist, tor_addr_t *, tor_addr) {
+    if (tor_addr_is_internal(tor_addr, 0)) {
+      return 1;
+    }
+  } SMARTLIST_FOREACH_END(tor_addr);
+
+  return 0;
+}
+
+/** Return 1 iff <b>smartlist</b> contains a tor_addr_t structure
+ * that is NULL or the null tor_addr_t. Otherwise, return 0.
+ */
+static int
+smartlist_contains_null_tor_addr(smartlist_t *smartlist)
+{
+  SMARTLIST_FOREACH_BEGIN(smartlist, tor_addr_t *, tor_addr) {
+    if (tor_addr == NULL || tor_addr_is_null(tor_addr)) {
+      return 1;
+    }
+  } SMARTLIST_FOREACH_END(tor_addr);
+
+  return 0;
+}
+
+/** Return 1 iff <b>smartlist</b> contains a tor_addr_t structure
+ * that is an IPv4 address. Otherwise, return 0.
+ */
+static int
+smartlist_contains_ipv4_tor_addr(smartlist_t *smartlist)
+{
+  SMARTLIST_FOREACH_BEGIN(smartlist, tor_addr_t *, tor_addr) {
+    if (tor_addr_is_v4(tor_addr)) {
+      return 1;
+    }
+  } SMARTLIST_FOREACH_END(tor_addr);
+
+  return 0;
+}
+
+/** Return 1 iff <b>smartlist</b> contains a tor_addr_t structure
+ * that is an IPv6 address. Otherwise, return 0.
+ */
+static int
+smartlist_contains_ipv6_tor_addr(smartlist_t *smartlist)
+{
+  SMARTLIST_FOREACH_BEGIN(smartlist, tor_addr_t *, tor_addr) {
+    /* Since there's no tor_addr_is_v6, assume all non-v4s are v6 */
+    if (!tor_addr_is_v4(tor_addr)) {
+      return 1;
+    }
+  } SMARTLIST_FOREACH_END(tor_addr);
+
+  return 0;
 }
 
 #ifdef HAVE_IFADDRS_TO_SMARTLIST
@@ -161,7 +220,7 @@ test_address_ifaddrs_to_smartlist(void *arg)
    ifa_ipv6->ifa_dstaddr = NULL;
    ifa_ipv6->ifa_data = NULL;
 
-   smartlist = ifaddrs_to_smartlist(ifa);
+   smartlist = ifaddrs_to_smartlist(ifa, AF_UNSPEC);
 
    tt_assert(smartlist);
    tt_assert(smartlist_len(smartlist) == 3);
@@ -222,10 +281,20 @@ test_address_get_if_addrs_ifaddrs(void *arg)
 
   (void)arg;
 
-  results = get_interface_addresses_ifaddrs(LOG_ERR);
+  results = get_interface_addresses_ifaddrs(LOG_ERR, AF_UNSPEC);
 
-  tt_int_op(smartlist_len(results),>=,1);
-  tt_assert(smartlist_contains_localhost_tor_addr(results));
+  tt_assert(results);
+  /* Some FreeBSD jails don't have localhost IP address. Instead, they only
+   * have the address assigned to the jail (whatever that may be).
+   * And a jail without a network connection might not have any addresses at
+   * all. */
+  tt_assert(!smartlist_contains_null_tor_addr(results));
+
+  /* If there are addresses, they must be IPv4 or IPv6 */
+  if (smartlist_len(results) > 0) {
+    tt_assert(smartlist_contains_ipv4_tor_addr(results)
+              || smartlist_contains_ipv6_tor_addr(results));
+  }
 
   done:
   SMARTLIST_FOREACH(results, tor_addr_t *, t, tor_free(t));
@@ -245,10 +314,17 @@ test_address_get_if_addrs_win32(void *arg)
 
   (void)arg;
 
-  results = get_interface_addresses_win32(LOG_ERR);
+  results = get_interface_addresses_win32(LOG_ERR, AF_UNSPEC);
 
   tt_int_op(smartlist_len(results),>=,1);
   tt_assert(smartlist_contains_localhost_tor_addr(results));
+  tt_assert(!smartlist_contains_null_tor_addr(results));
+
+  /* If there are addresses, they must be IPv4 or IPv6 */
+  if (smartlist_len(results) > 0) {
+    tt_assert(smartlist_contains_ipv4_tor_addr(results)
+              || smartlist_contains_ipv6_tor_addr(results));
+  }
 
   done:
   SMARTLIST_FOREACH(results, tor_addr_t *, t, tor_free(t));
@@ -435,12 +511,26 @@ test_address_get_if_addrs_ioctl(void *arg)
 
   (void)arg;
 
-  result = get_interface_addresses_ioctl(LOG_ERR);
+  result = get_interface_addresses_ioctl(LOG_ERR, AF_INET);
 
+  /* On an IPv6-only system, this will fail and return NULL
   tt_assert(result);
-  tt_int_op(smartlist_len(result),>=,1);
+  */
 
-  tt_assert(smartlist_contains_localhost_tor_addr(result));
+  /* Some FreeBSD jails don't have localhost IP address. Instead, they only
+   * have the address assigned to the jail (whatever that may be).
+   * And a jail without a network connection might not have any addresses at
+   * all. */
+  if (result) {
+    tt_assert(!smartlist_contains_null_tor_addr(result));
+
+    /* If there are addresses, they must be IPv4 or IPv6.
+     * (AIX supports IPv6 from SIOCGIFCONF.) */
+    if (smartlist_len(result) > 0) {
+      tt_assert(smartlist_contains_ipv4_tor_addr(result)
+                || smartlist_contains_ipv6_tor_addr(result));
+    }
+  }
 
   done:
   if (result) {
@@ -634,12 +724,395 @@ test_address_udp_socket_trick_blackbox(void *arg)
   return;
 }
 
+static void
+test_address_get_if_addrs_list_internal(void *arg)
+{
+  smartlist_t *results = NULL;
+
+  (void)arg;
+
+  results = get_interface_address_list(LOG_ERR, 1);
+
+  tt_assert(results != NULL);
+  /* When the network is down, a system might not have any non-local
+   * non-multicast addresseses, not even internal ones.
+   * Unit tests shouldn't fail because of this. */
+  tt_int_op(smartlist_len(results),>=,0);
+
+  tt_assert(!smartlist_contains_localhost_tor_addr(results));
+  tt_assert(!smartlist_contains_multicast_tor_addr(results));
+  /* The list may or may not contain internal addresses */
+  tt_assert(!smartlist_contains_null_tor_addr(results));
+
+  /* if there are any addresses, they must be IPv4 */
+  if (smartlist_len(results) > 0) {
+    tt_assert(smartlist_contains_ipv4_tor_addr(results));
+  }
+  tt_assert(!smartlist_contains_ipv6_tor_addr(results));
+
+ done:
+  free_interface_address_list(results);
+  return;
+}
+
+static void
+test_address_get_if_addrs_list_no_internal(void *arg)
+{
+  smartlist_t *results = NULL;
+
+  (void)arg;
+
+  results = get_interface_address_list(LOG_ERR, 0);
+
+  tt_assert(results != NULL);
+  /* Work even on systems with only internal IPv4 addresses */
+  tt_int_op(smartlist_len(results),>=,0);
+
+  tt_assert(!smartlist_contains_localhost_tor_addr(results));
+  tt_assert(!smartlist_contains_multicast_tor_addr(results));
+  tt_assert(!smartlist_contains_internal_tor_addr(results));
+  tt_assert(!smartlist_contains_null_tor_addr(results));
+
+  /* if there are any addresses, they must be IPv4 */
+  if (smartlist_len(results) > 0) {
+    tt_assert(smartlist_contains_ipv4_tor_addr(results));
+  }
+  tt_assert(!smartlist_contains_ipv6_tor_addr(results));
+
+ done:
+  free_interface_address_list(results);
+  return;
+}
+
+static void
+test_address_get_if_addrs6_list_internal(void *arg)
+{
+  smartlist_t *results = NULL;
+
+  (void)arg;
+
+  results = get_interface_address6_list(LOG_ERR, AF_INET6, 1);
+
+  tt_assert(results != NULL);
+  /* Work even on systems without IPv6 interfaces */
+  tt_int_op(smartlist_len(results),>=,0);
+
+  tt_assert(!smartlist_contains_localhost_tor_addr(results));
+  tt_assert(!smartlist_contains_multicast_tor_addr(results));
+  /* The list may or may not contain internal addresses */
+  tt_assert(!smartlist_contains_null_tor_addr(results));
+
+  /* if there are any addresses, they must be IPv6 */
+  tt_assert(!smartlist_contains_ipv4_tor_addr(results));
+  if (smartlist_len(results) > 0) {
+    tt_assert(smartlist_contains_ipv6_tor_addr(results));
+  }
+
+ done:
+  free_interface_address6_list(results);
+  return;
+}
+
+static void
+test_address_get_if_addrs6_list_no_internal(void *arg)
+{
+  smartlist_t *results = NULL;
+
+  (void)arg;
+
+  results = get_interface_address6_list(LOG_ERR, AF_INET6, 0);
+
+  tt_assert(results != NULL);
+  /* Work even on systems without IPv6 interfaces */
+  tt_int_op(smartlist_len(results),>=,0);
+
+  tt_assert(!smartlist_contains_localhost_tor_addr(results));
+  tt_assert(!smartlist_contains_multicast_tor_addr(results));
+  tt_assert(!smartlist_contains_internal_tor_addr(results));
+  tt_assert(!smartlist_contains_null_tor_addr(results));
+
+  /* if there are any addresses, they must be IPv6 */
+  tt_assert(!smartlist_contains_ipv4_tor_addr(results));
+  if (smartlist_len(results) > 0) {
+    tt_assert(smartlist_contains_ipv6_tor_addr(results));
+  }
+
+ done:
+  free_interface_address6_list(results);
+  return;
+}
+
+static int called_get_interface_addresses_raw = 0;
+
+static smartlist_t *
+mock_get_interface_addresses_raw_fail(int severity, sa_family_t family)
+{
+  (void)severity;
+  (void)family;
+
+  called_get_interface_addresses_raw++;
+  return smartlist_new();
+}
+
+static int called_get_interface_address6_via_udp_socket_hack = 0;
+
+static int
+mock_get_interface_address6_via_udp_socket_hack_fail(int severity,
+                                                     sa_family_t family,
+                                                     tor_addr_t *addr)
+{
+  (void)severity;
+  (void)family;
+  (void)addr;
+
+  called_get_interface_address6_via_udp_socket_hack++;
+  return -1;
+}
+
+static void
+test_address_get_if_addrs_internal_fail(void *arg)
+{
+  smartlist_t *results1 = NULL, *results2 = NULL;
+  int rv = 0;
+  uint32_t ipv4h_addr = 0;
+  tor_addr_t ipv6_addr;
+
+  memset(&ipv6_addr, 0, sizeof(tor_addr_t));
+
+  (void)arg;
+
+  MOCK(get_interface_addresses_raw,
+       mock_get_interface_addresses_raw_fail);
+  MOCK(get_interface_address6_via_udp_socket_hack,
+       mock_get_interface_address6_via_udp_socket_hack_fail);
+
+  results1 = get_interface_address6_list(LOG_ERR, AF_INET6, 1);
+  tt_assert(results1 != NULL);
+  tt_int_op(smartlist_len(results1),==,0);
+
+  results2 = get_interface_address_list(LOG_ERR, 1);
+  tt_assert(results2 != NULL);
+  tt_int_op(smartlist_len(results2),==,0);
+
+  rv = get_interface_address6(LOG_ERR, AF_INET6, &ipv6_addr);
+  tt_assert(rv == -1);
+
+  rv = get_interface_address(LOG_ERR, &ipv4h_addr);
+  tt_assert(rv == -1);
+
+ done:
+  UNMOCK(get_interface_addresses_raw);
+  UNMOCK(get_interface_address6_via_udp_socket_hack);
+  free_interface_address6_list(results1);
+  free_interface_address6_list(results2);
+  return;
+}
+
+static void
+test_address_get_if_addrs_no_internal_fail(void *arg)
+{
+  smartlist_t *results1 = NULL, *results2 = NULL;
+
+  (void)arg;
+
+  MOCK(get_interface_addresses_raw,
+       mock_get_interface_addresses_raw_fail);
+  MOCK(get_interface_address6_via_udp_socket_hack,
+       mock_get_interface_address6_via_udp_socket_hack_fail);
+
+  results1 = get_interface_address6_list(LOG_ERR, AF_INET6, 0);
+  tt_assert(results1 != NULL);
+  tt_int_op(smartlist_len(results1),==,0);
+
+  results2 = get_interface_address_list(LOG_ERR, 0);
+  tt_assert(results2 != NULL);
+  tt_int_op(smartlist_len(results2),==,0);
+
+ done:
+  UNMOCK(get_interface_addresses_raw);
+  UNMOCK(get_interface_address6_via_udp_socket_hack);
+  free_interface_address6_list(results1);
+  free_interface_address6_list(results2);
+  return;
+}
+
+static void
+test_address_get_if_addrs(void *arg)
+{
+  int rv;
+  uint32_t addr_h = 0;
+  tor_addr_t tor_addr;
+
+  (void)arg;
+
+  rv = get_interface_address(LOG_ERR, &addr_h);
+
+  /* When the network is down, a system might not have any non-local
+   * non-multicast IPv4 addresses, not even internal ones.
+   * Unit tests shouldn't fail because of this. */
+  if (rv == 0) {
+    tor_addr_from_ipv4h(&tor_addr, addr_h);
+
+    tt_assert(!tor_addr_is_loopback(&tor_addr));
+    tt_assert(!tor_addr_is_multicast(&tor_addr));
+    /* The address may or may not be an internal address */
+
+    tt_assert(tor_addr_is_v4(&tor_addr));
+  }
+
+ done:
+  return;
+}
+
+static void
+test_address_get_if_addrs6(void *arg)
+{
+  int rv;
+  tor_addr_t tor_addr;
+
+  (void)arg;
+
+  rv = get_interface_address6(LOG_ERR, AF_INET6, &tor_addr);
+
+  /* Work even on systems without IPv6 interfaces */
+  if (rv == 0) {
+    tt_assert(!tor_addr_is_loopback(&tor_addr));
+    tt_assert(!tor_addr_is_multicast(&tor_addr));
+    /* The address may or may not be an internal address */
+
+    tt_assert(!tor_addr_is_v4(&tor_addr));
+  }
+
+ done:
+  return;
+}
+
+static void
+test_address_tor_addr_to_in6(void *ignored)
+{
+  (void)ignored;
+  tor_addr_t *a = tor_malloc_zero(sizeof(tor_addr_t));
+  const struct in6_addr *res;
+  uint8_t expected[16] = {42, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                          10, 11, 12, 13, 14, 15};
+
+  a->family = AF_INET;
+  res = tor_addr_to_in6(a);
+  tt_assert(!res);
+
+  a->family = AF_INET6;
+  memcpy(a->addr.in6_addr.s6_addr, expected, 16);
+  res = tor_addr_to_in6(a);
+  tt_assert(res);
+  tt_mem_op(res->s6_addr, OP_EQ, expected, 16);
+
+ done:
+  tor_free(a);
+}
+
+static void
+test_address_tor_addr_to_in(void *ignored)
+{
+  (void)ignored;
+  tor_addr_t *a = tor_malloc_zero(sizeof(tor_addr_t));
+  const struct in_addr *res;
+
+  a->family = AF_INET6;
+  res = tor_addr_to_in(a);
+  tt_assert(!res);
+
+  a->family = AF_INET;
+  a->addr.in_addr.s_addr = 44;
+  res = tor_addr_to_in(a);
+  tt_assert(res);
+  tt_int_op(res->s_addr, OP_EQ, 44);
+
+ done:
+  tor_free(a);
+}
+
+static void
+test_address_tor_addr_to_ipv4n(void *ignored)
+{
+  (void)ignored;
+  tor_addr_t *a = tor_malloc_zero(sizeof(tor_addr_t));
+  uint32_t res;
+
+  a->family = AF_INET6;
+  res = tor_addr_to_ipv4n(a);
+  tt_assert(!res);
+
+  a->family = AF_INET;
+  a->addr.in_addr.s_addr = 43;
+  res = tor_addr_to_ipv4n(a);
+  tt_assert(res);
+  tt_int_op(res, OP_EQ, 43);
+
+ done:
+  tor_free(a);
+}
+
+static void
+test_address_tor_addr_to_mapped_ipv4h(void *ignored)
+{
+  (void)ignored;
+  tor_addr_t *a = tor_malloc_zero(sizeof(tor_addr_t));
+  uint32_t res;
+  uint8_t toset[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 0, 42};
+
+  a->family = AF_INET;
+  res = tor_addr_to_mapped_ipv4h(a);
+  tt_assert(!res);
+
+  a->family = AF_INET6;
+
+  memcpy(a->addr.in6_addr.s6_addr, toset, 16);
+  res = tor_addr_to_mapped_ipv4h(a);
+  tt_assert(res);
+  tt_int_op(res, OP_EQ, 42);
+
+ done:
+  tor_free(a);
+}
+
+static void
+test_address_tor_addr_eq_ipv4h(void *ignored)
+{
+  (void)ignored;
+  tor_addr_t *a = tor_malloc_zero(sizeof(tor_addr_t));
+  int res;
+
+  a->family = AF_INET6;
+  res = tor_addr_eq_ipv4h(a, 42);
+  tt_assert(!res);
+
+  a->family = AF_INET;
+  a->addr.in_addr.s_addr = 52;
+  res = tor_addr_eq_ipv4h(a, 42);
+  tt_assert(!res);
+
+  a->addr.in_addr.s_addr = 52;
+  res = tor_addr_eq_ipv4h(a, ntohl(52));
+  tt_assert(res);
+
+ done:
+  tor_free(a);
+}
+
 #define ADDRESS_TEST(name, flags) \
   { #name, test_address_ ## name, flags, NULL, NULL }
 
 struct testcase_t address_tests[] = {
   ADDRESS_TEST(udp_socket_trick_whitebox, TT_FORK),
   ADDRESS_TEST(udp_socket_trick_blackbox, TT_FORK),
+  ADDRESS_TEST(get_if_addrs_list_internal, 0),
+  ADDRESS_TEST(get_if_addrs_list_no_internal, 0),
+  ADDRESS_TEST(get_if_addrs6_list_internal, 0),
+  ADDRESS_TEST(get_if_addrs6_list_no_internal, 0),
+  ADDRESS_TEST(get_if_addrs_internal_fail, 0),
+  ADDRESS_TEST(get_if_addrs_no_internal_fail, 0),
+  ADDRESS_TEST(get_if_addrs, 0),
+  ADDRESS_TEST(get_if_addrs6, 0),
 #ifdef HAVE_IFADDRS_TO_SMARTLIST
   ADDRESS_TEST(get_if_addrs_ifaddrs, TT_FORK),
   ADDRESS_TEST(ifaddrs_to_smartlist, 0),
@@ -652,6 +1125,11 @@ struct testcase_t address_tests[] = {
   ADDRESS_TEST(get_if_addrs_ioctl, TT_FORK),
   ADDRESS_TEST(ifreq_to_smartlist, 0),
 #endif
+  ADDRESS_TEST(tor_addr_to_in6, 0),
+  ADDRESS_TEST(tor_addr_to_in, 0),
+  ADDRESS_TEST(tor_addr_to_ipv4n, 0),
+  ADDRESS_TEST(tor_addr_to_mapped_ipv4h, 0),
+  ADDRESS_TEST(tor_addr_eq_ipv4h, 0),
   END_OF_TESTCASES
 };
 

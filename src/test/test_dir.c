@@ -26,6 +26,7 @@
 #include "routerparse.h"
 #include "routerset.h"
 #include "test.h"
+#include "test_dir_common.h"
 #include "torcert.h"
 
 static void
@@ -110,6 +111,7 @@ test_dir_formats(void *arg)
   r1->cache_info.published_on = 0;
   r1->or_port = 9000;
   r1->dir_port = 9003;
+  r1->supports_tunnelled_dir_requests = 1;
   tor_addr_parse(&r1->ipv6_addr, "1:2:3:4::");
   r1->ipv6_orport = 9999;
   r1->onion_pkey = crypto_pk_dup_key(pk1);
@@ -154,6 +156,7 @@ test_dir_formats(void *arg)
   r2->cache_info.published_on = 5;
   r2->or_port = 9005;
   r2->dir_port = 0;
+  r2->supports_tunnelled_dir_requests = 1;
   r2->onion_pkey = crypto_pk_dup_key(pk2);
   curve25519_keypair_t r2_onion_keypair;
   curve25519_keypair_generate(&r2_onion_keypair, 0);
@@ -174,7 +177,9 @@ test_dir_formats(void *arg)
   /* XXXX025 router_dump_to_string should really take this from ri.*/
   options->ContactInfo = tor_strdup("Magri White "
                                     "<magri@elsewhere.example.com>");
+
   buf = router_dump_router_to_string(r1, pk2, NULL, NULL, NULL);
+
   tor_free(options->ContactInfo);
   tt_assert(buf);
 
@@ -200,7 +205,8 @@ test_dir_formats(void *arg)
   strlcat(buf2, "hidden-service-dir\n", sizeof(buf2));
   strlcat(buf2, "contact Magri White <magri@elsewhere.example.com>\n",
           sizeof(buf2));
-  strlcat(buf2, "reject *:*\nrouter-signature\n", sizeof(buf2));
+  strlcat(buf2, "reject *:*\n", sizeof(buf2));
+  strlcat(buf2, "tunnelled-dir-server\nrouter-signature\n", sizeof(buf2));
   buf[strlen(buf2)] = '\0'; /* Don't compare the sig; it's never the same
                              * twice */
 
@@ -214,12 +220,13 @@ test_dir_formats(void *arg)
   tt_assert(rp1);
   tt_int_op(rp1->addr,OP_EQ, r1->addr);
   tt_int_op(rp1->or_port,OP_EQ, r1->or_port);
-  //test_eq(rp1->dir_port, r1->dir_port);
+  tt_int_op(rp1->dir_port,OP_EQ, r1->dir_port);
   tt_int_op(rp1->bandwidthrate,OP_EQ, r1->bandwidthrate);
   tt_int_op(rp1->bandwidthburst,OP_EQ, r1->bandwidthburst);
   tt_int_op(rp1->bandwidthcapacity,OP_EQ, r1->bandwidthcapacity);
   tt_assert(crypto_pk_cmp_keys(rp1->onion_pkey, pk1) == 0);
   tt_assert(crypto_pk_cmp_keys(rp1->identity_pkey, pk2) == 0);
+  tt_assert(rp1->supports_tunnelled_dir_requests);
   //tt_assert(rp1->exit_policy == NULL);
   tor_free(buf);
 
@@ -290,6 +297,7 @@ test_dir_formats(void *arg)
                 BASE64_ENCODE_MULTILINE);
   strlcat(buf2, cert_buf, sizeof(buf2));
   strlcat(buf2, "accept *:80\nreject 18.0.0.0/8:24\n", sizeof(buf2));
+  strlcat(buf2, "tunnelled-dir-server\n", sizeof(buf2));
   strlcat(buf2, "router-sig-ed25519 ", sizeof(buf2));
 
   buf = router_dump_router_to_string(r2, pk1, pk2, &r2_onion_keypair, &kp2);
@@ -301,6 +309,8 @@ test_dir_formats(void *arg)
   tor_free(buf);
 
   buf = router_dump_router_to_string(r2, pk1, NULL, NULL, NULL);
+
+  /* Reset for later */
   cp = buf;
   rp2 = router_parse_entry_from_string((const char*)cp,NULL,1,0,NULL,NULL);
   tt_assert(rp2);
@@ -315,6 +325,7 @@ test_dir_formats(void *arg)
              CURVE25519_PUBKEY_LEN);
   tt_assert(crypto_pk_cmp_keys(rp2->onion_pkey, pk2) == 0);
   tt_assert(crypto_pk_cmp_keys(rp2->identity_pkey, pk1) == 0);
+  tt_assert(rp2->supports_tunnelled_dir_requests);
 
   tt_int_op(smartlist_len(rp2->exit_policy),OP_EQ, 2);
 
@@ -1477,13 +1488,6 @@ test_dir_param_voting(void *arg)
   return;
 }
 
-extern const char AUTHORITY_CERT_1[];
-extern const char AUTHORITY_SIGNKEY_1[];
-extern const char AUTHORITY_CERT_2[];
-extern const char AUTHORITY_SIGNKEY_2[];
-extern const char AUTHORITY_CERT_3[];
-extern const char AUTHORITY_SIGNKEY_3[];
-
 /** Helper: Test that two networkstatus_voter_info_t do in fact represent the
  * same voting authority, and that they do in fact have all the same
  * information. */
@@ -1503,42 +1507,6 @@ test_same_voter(networkstatus_voter_info_t *v1,
   ;
 }
 
-/** Helper: Make a new routerinfo containing the right information for a
- * given vote_routerstatus_t. */
-static routerinfo_t *
-generate_ri_from_rs(const vote_routerstatus_t *vrs)
-{
-  routerinfo_t *r;
-  const routerstatus_t *rs = &vrs->status;
-  static time_t published = 0;
-
-  r = tor_malloc_zero(sizeof(routerinfo_t));
-  r->cert_expiration_time = TIME_MAX;
-  memcpy(r->cache_info.identity_digest, rs->identity_digest, DIGEST_LEN);
-  memcpy(r->cache_info.signed_descriptor_digest, rs->descriptor_digest,
-         DIGEST_LEN);
-  r->cache_info.do_not_cache = 1;
-  r->cache_info.routerlist_index = -1;
-  r->cache_info.signed_descriptor_body =
-    tor_strdup("123456789012345678901234567890123");
-  r->cache_info.signed_descriptor_len =
-    strlen(r->cache_info.signed_descriptor_body);
-  r->exit_policy = smartlist_new();
-  r->cache_info.published_on = ++published + time(NULL);
-  if (rs->has_bandwidth) {
-    /*
-     * Multiply by 1000 because the routerinfo_t and the routerstatus_t
-     * seem to use different units (*sigh*) and because we seem stuck on
-     * icky and perverse decimal kilobytes (*double sigh*) - see
-     * router_get_advertised_bandwidth_capped() of routerlist.c and
-     * routerstatus_format_entry() of dirserv.c.
-     */
-    r->bandwidthrate = rs->bandwidth_kb * 1000;
-    r->bandwidthcapacity = rs->bandwidth_kb * 1000;
-  }
-  return r;
-}
-
 /** Helper: get a detached signatures document for one or two
  * consensuses. */
 static char *
@@ -1554,100 +1522,6 @@ get_detached_sigs(networkstatus_t *ns, networkstatus_t *ns2)
   r = networkstatus_get_detached_signatures(sl);
   smartlist_free(sl);
   return r;
-}
-
-/**
- * Generate a routerstatus for v3_networkstatus test
- */
-static vote_routerstatus_t *
-gen_routerstatus_for_v3ns(int idx, time_t now)
-{
-  vote_routerstatus_t *vrs=NULL;
-  routerstatus_t *rs;
-  tor_addr_t addr_ipv6;
-
-  switch (idx) {
-    case 0:
-      /* Generate the first routerstatus. */
-      vrs = tor_malloc_zero(sizeof(vote_routerstatus_t));
-      rs = &vrs->status;
-      vrs->version = tor_strdup("0.1.2.14");
-      rs->published_on = now-1500;
-      strlcpy(rs->nickname, "router2", sizeof(rs->nickname));
-      memset(rs->identity_digest, 3, DIGEST_LEN);
-      memset(rs->descriptor_digest, 78, DIGEST_LEN);
-      rs->addr = 0x99008801;
-      rs->or_port = 443;
-      rs->dir_port = 8000;
-      /* all flags but running cleared */
-      rs->is_flagged_running = 1;
-      break;
-    case 1:
-      /* Generate the second routerstatus. */
-      vrs = tor_malloc_zero(sizeof(vote_routerstatus_t));
-      rs = &vrs->status;
-      vrs->version = tor_strdup("0.2.0.5");
-      rs->published_on = now-1000;
-      strlcpy(rs->nickname, "router1", sizeof(rs->nickname));
-      memset(rs->identity_digest, 5, DIGEST_LEN);
-      memset(rs->descriptor_digest, 77, DIGEST_LEN);
-      rs->addr = 0x99009901;
-      rs->or_port = 443;
-      rs->dir_port = 0;
-      tor_addr_parse(&addr_ipv6, "[1:2:3::4]");
-      tor_addr_copy(&rs->ipv6_addr, &addr_ipv6);
-      rs->ipv6_orport = 4711;
-      rs->is_exit = rs->is_stable = rs->is_fast = rs->is_flagged_running =
-        rs->is_valid = rs->is_possible_guard = 1;
-      break;
-    case 2:
-      /* Generate the third routerstatus. */
-      vrs = tor_malloc_zero(sizeof(vote_routerstatus_t));
-      rs = &vrs->status;
-      vrs->version = tor_strdup("0.1.0.3");
-      rs->published_on = now-1000;
-      strlcpy(rs->nickname, "router3", sizeof(rs->nickname));
-      memset(rs->identity_digest, 33, DIGEST_LEN);
-      memset(rs->descriptor_digest, 79, DIGEST_LEN);
-      rs->addr = 0xAA009901;
-      rs->or_port = 400;
-      rs->dir_port = 9999;
-      rs->is_authority = rs->is_exit = rs->is_stable = rs->is_fast =
-        rs->is_flagged_running = rs->is_valid =
-        rs->is_possible_guard = 1;
-      break;
-    case 3:
-      /* Generate a fourth routerstatus that is not running. */
-      vrs = tor_malloc_zero(sizeof(vote_routerstatus_t));
-      rs = &vrs->status;
-      vrs->version = tor_strdup("0.1.6.3");
-      rs->published_on = now-1000;
-      strlcpy(rs->nickname, "router4", sizeof(rs->nickname));
-      memset(rs->identity_digest, 34, DIGEST_LEN);
-      memset(rs->descriptor_digest, 47, DIGEST_LEN);
-      rs->addr = 0xC0000203;
-      rs->or_port = 500;
-      rs->dir_port = 1999;
-      /* Running flag (and others) cleared */
-      break;
-    case 4:
-      /* No more for this test; return NULL */
-      vrs = NULL;
-      break;
-    default:
-      /* Shouldn't happen */
-      tt_assert(0);
-  }
-  if (vrs) {
-    vrs->microdesc = tor_malloc_zero(sizeof(vote_microdesc_hash_t));
-    tor_asprintf(&vrs->microdesc->microdesc_hash_line,
-                 "m 9,10,11,12,13,14,15,16,17 "
-                 "sha256=xyzajkldsdsajdadlsdjaslsdksdjlsdjsdaskdaaa%d\n",
-                 idx);
-  }
-
- done:
-  return vrs;
 }
 
 /** Apply tweaks to the vote list for each voter */
@@ -1681,7 +1555,7 @@ vote_tweaks_for_v3ns(networkstatus_t *v, int voter, time_t now)
       vrs = smartlist_get(v->routerstatus_list, 0);
       memset(vrs->status.descriptor_digest, (int)'Z', DIGEST_LEN);
       tt_assert(router_add_to_routerlist(
-                  generate_ri_from_rs(vrs), &msg,0,0) >= 0);
+                  dir_common_generate_ri_from_rs(vrs), &msg,0,0) >= 0);
     }
   }
 
@@ -1746,11 +1620,11 @@ test_vrs_for_v3ns(vote_routerstatus_t *vrs, int voter, time_t now)
     tt_assert(tor_addr_eq(&rs->ipv6_addr, &addr_ipv6));
     tt_int_op(rs->ipv6_orport,OP_EQ, 4711);
     if (voter == 1) {
-      /* all except "authority" (1) and "v2dir" (64) */
-      tt_u64_op(vrs->flags, OP_EQ, U64_LITERAL(190));
+      /* all except "authority" (1) */
+      tt_u64_op(vrs->flags, OP_EQ, U64_LITERAL(254));
     } else {
-      /* 1023 - authority(1) - madeofcheese(16) - madeoftin(32) - v2dir(256) */
-      tt_u64_op(vrs->flags, OP_EQ, U64_LITERAL(718));
+      /* 1023 - authority(1) - madeofcheese(16) - madeoftin(32) */
+      tt_u64_op(vrs->flags, OP_EQ, U64_LITERAL(974));
     }
   } else if (tor_memeq(rs->identity_digest,
                        "\x33\x33\x33\x33\x33\x33\x33\x33\x33\x33"
@@ -1820,6 +1694,7 @@ test_routerstatus_for_v3ns(routerstatus_t *rs, time_t now)
     tt_assert(rs->is_flagged_running);
     tt_assert(!rs->is_valid);
     tt_assert(!rs->is_named);
+    tt_assert(rs->is_v2_dir);
     /* XXXX check version */
   } else if (tor_memeq(rs->identity_digest,
                        "\x5\x5\x5\x5\x5\x5\x5\x5\x5\x5\x5\x5\x5\x5\x5\x5"
@@ -1845,6 +1720,7 @@ test_routerstatus_for_v3ns(routerstatus_t *rs, time_t now)
     tt_assert(rs->is_stable);
     tt_assert(rs->is_flagged_running);
     tt_assert(rs->is_valid);
+    tt_assert(rs->is_v2_dir);
     tt_assert(!rs->is_named);
     /* XXXX check version */
   } else {
@@ -1869,7 +1745,6 @@ test_a_networkstatus(
   authority_cert_t *cert1=NULL, *cert2=NULL, *cert3=NULL;
   crypto_pk_t *sign_skey_1=NULL, *sign_skey_2=NULL, *sign_skey_3=NULL;
   crypto_pk_t *sign_skey_leg1=NULL;
-  const char *msg=NULL;
   /*
    * Sum the non-zero returns from vote_tweaks() we've seen; if vote_tweaks()
    * returns non-zero, it changed net_params and we should skip the tests for
@@ -1885,8 +1760,7 @@ test_a_networkstatus(
   vote_routerstatus_t *vrs;
   routerstatus_t *rs;
   int idx, n_rs, n_vrs;
-  char *v1_text=NULL, *v2_text=NULL, *v3_text=NULL, *consensus_text=NULL,
-    *cp=NULL;
+  char *consensus_text=NULL, *cp=NULL;
   smartlist_t *votes = smartlist_new();
 
   /* For generating the two other consensuses. */
@@ -1901,79 +1775,13 @@ test_a_networkstatus(
   tt_assert(rs_test);
   tt_assert(vrs_test);
 
-  /* Parse certificates and keys. */
-  cert1 = authority_cert_parse_from_string(AUTHORITY_CERT_1, NULL);
-  tt_assert(cert1);
-  cert2 = authority_cert_parse_from_string(AUTHORITY_CERT_2, NULL);
-  tt_assert(cert2);
-  cert3 = authority_cert_parse_from_string(AUTHORITY_CERT_3, NULL);
-  tt_assert(cert3);
-  sign_skey_1 = crypto_pk_new();
-  sign_skey_2 = crypto_pk_new();
-  sign_skey_3 = crypto_pk_new();
+  tt_assert(!dir_common_authority_pk_init(&cert1, &cert2, &cert3,
+                                          &sign_skey_1, &sign_skey_2,
+                                          &sign_skey_3));
   sign_skey_leg1 = pk_generate(4);
 
-  tt_assert(!crypto_pk_read_private_key_from_string(sign_skey_1,
-                                                   AUTHORITY_SIGNKEY_1, -1));
-  tt_assert(!crypto_pk_read_private_key_from_string(sign_skey_2,
-                                                   AUTHORITY_SIGNKEY_2, -1));
-  tt_assert(!crypto_pk_read_private_key_from_string(sign_skey_3,
-                                                   AUTHORITY_SIGNKEY_3, -1));
-
-  tt_assert(!crypto_pk_cmp_keys(sign_skey_1, cert1->signing_key));
-  tt_assert(!crypto_pk_cmp_keys(sign_skey_2, cert2->signing_key));
-
-  /*
-   * Set up a vote; generate it; try to parse it.
-   */
-  vote = tor_malloc_zero(sizeof(networkstatus_t));
-  vote->type = NS_TYPE_VOTE;
-  vote->published = now;
-  vote->valid_after = now+1000;
-  vote->fresh_until = now+2000;
-  vote->valid_until = now+3000;
-  vote->vote_seconds = 100;
-  vote->dist_seconds = 200;
-  vote->supported_methods = smartlist_new();
-  smartlist_split_string(vote->supported_methods, "1 2 3", NULL, 0, -1);
-  vote->client_versions = tor_strdup("0.1.2.14,0.1.2.15");
-  vote->server_versions = tor_strdup("0.1.2.14,0.1.2.15,0.1.2.16");
-  vote->known_flags = smartlist_new();
-  smartlist_split_string(vote->known_flags,
-                     "Authority Exit Fast Guard Running Stable V2Dir Valid",
-                     0, SPLIT_SKIP_SPACE|SPLIT_IGNORE_BLANK, 0);
-  vote->voters = smartlist_new();
-  voter = tor_malloc_zero(sizeof(networkstatus_voter_info_t));
-  voter->nickname = tor_strdup("Voter1");
-  voter->address = tor_strdup("1.2.3.4");
-  voter->addr = 0x01020304;
-  voter->dir_port = 80;
-  voter->or_port = 9000;
-  voter->contact = tor_strdup("voter@example.com");
-  crypto_pk_get_digest(cert1->identity_key, voter->identity_digest);
-  smartlist_add(vote->voters, voter);
-  vote->cert = authority_cert_dup(cert1);
-  vote->net_params = smartlist_new();
-  smartlist_split_string(vote->net_params, "circuitwindow=101 foo=990",
-                         NULL, 0, 0);
-  vote->routerstatus_list = smartlist_new();
-  /* add routerstatuses */
-  idx = 0;
-  do {
-    vrs = vrs_gen(idx, now);
-    if (vrs) {
-      smartlist_add(vote->routerstatus_list, vrs);
-      tt_assert(router_add_to_routerlist(generate_ri_from_rs(vrs),
-                                           &msg,0,0)>=0);
-      ++idx;
-    }
-  } while (vrs);
-  n_vrs = idx;
-
-  /* dump the vote and try to parse it. */
-  v1_text = format_networkstatus_vote(sign_skey_1, vote);
-  tt_assert(v1_text);
-  v1 = networkstatus_parse_vote_from_string(v1_text, NULL, NS_TYPE_VOTE);
+  tt_assert(!dir_common_construct_vote_1(&vote, cert1, sign_skey_1, vrs_gen,
+                                         &v1, &n_vrs, now, 1));
   tt_assert(v1);
 
   /* Make sure the parsed thing was right. */
@@ -2000,6 +1808,7 @@ test_a_networkstatus(
   tt_str_op(cp,OP_EQ, "Authority:Exit:Fast:Guard:Running:Stable:V2Dir:Valid");
   tor_free(cp);
   tt_int_op(smartlist_len(v1->routerstatus_list),OP_EQ, n_vrs);
+  tor_free(vote);
 
   if (vote_tweaks) params_tweaked += vote_tweaks(v1, 1, now);
 
@@ -2011,33 +1820,10 @@ test_a_networkstatus(
   }
 
   /* Generate second vote. It disagrees on some of the times,
-   * and doesn't list versions, and knows some crazy flags */
-  vote->published = now+1;
-  vote->fresh_until = now+3005;
-  vote->dist_seconds = 300;
-  authority_cert_free(vote->cert);
-  vote->cert = authority_cert_dup(cert2);
-  SMARTLIST_FOREACH(vote->net_params, char *, c, tor_free(c));
-  smartlist_clear(vote->net_params);
-  smartlist_split_string(vote->net_params, "bar=2000000000 circuitwindow=20",
-                         NULL, 0, 0);
-  tor_free(vote->client_versions);
-  tor_free(vote->server_versions);
-  voter = smartlist_get(vote->voters, 0);
-  tor_free(voter->nickname);
-  tor_free(voter->address);
-  voter->nickname = tor_strdup("Voter2");
-  voter->address = tor_strdup("2.3.4.5");
-  voter->addr = 0x02030405;
-  crypto_pk_get_digest(cert2->identity_key, voter->identity_digest);
-  smartlist_add(vote->known_flags, tor_strdup("MadeOfCheese"));
-  smartlist_add(vote->known_flags, tor_strdup("MadeOfTin"));
-  smartlist_sort_strings(vote->known_flags);
-
-  /* generate and parse v2. */
-  v2_text = format_networkstatus_vote(sign_skey_2, vote);
-  tt_assert(v2_text);
-  v2 = networkstatus_parse_vote_from_string(v2_text, NULL, NS_TYPE_VOTE);
+   * and doesn't list versions, and knows some crazy flags.
+   * Generate and parse v2. */
+  tt_assert(!dir_common_construct_vote_2(&vote, cert2, sign_skey_2, vrs_gen,
+                                         &v2, &n_vrs, now, 1));
   tt_assert(v2);
 
   if (vote_tweaks) params_tweaked += vote_tweaks(v2, 2, now);
@@ -2055,34 +1841,11 @@ test_a_networkstatus(
     tt_assert(vrs);
     vrs_test(vrs, 2, now);
   }
+  tor_free(vote);
 
-  /* Generate the third vote. */
-  vote->published = now;
-  vote->fresh_until = now+2003;
-  vote->dist_seconds = 250;
-  authority_cert_free(vote->cert);
-  vote->cert = authority_cert_dup(cert3);
-  SMARTLIST_FOREACH(vote->net_params, char *, c, tor_free(c));
-  smartlist_clear(vote->net_params);
-  smartlist_split_string(vote->net_params, "circuitwindow=80 foo=660",
-                         NULL, 0, 0);
-  smartlist_add(vote->supported_methods, tor_strdup("4"));
-  vote->client_versions = tor_strdup("0.1.2.14,0.1.2.17");
-  vote->server_versions = tor_strdup("0.1.2.10,0.1.2.15,0.1.2.16");
-  voter = smartlist_get(vote->voters, 0);
-  tor_free(voter->nickname);
-  tor_free(voter->address);
-  voter->nickname = tor_strdup("Voter3");
-  voter->address = tor_strdup("3.4.5.6");
-  voter->addr = 0x03040506;
-  crypto_pk_get_digest(cert3->identity_key, voter->identity_digest);
-  /* This one has a legacy id. */
-  memset(voter->legacy_id_digest, (int)'A', DIGEST_LEN);
-
-  v3_text = format_networkstatus_vote(sign_skey_3, vote);
-  tt_assert(v3_text);
-
-  v3 = networkstatus_parse_vote_from_string(v3_text, NULL, NS_TYPE_VOTE);
+  /* Generate the third vote with a legacy id. */
+  tt_assert(!dir_common_construct_vote_3(&vote, cert3, sign_skey_3, vrs_gen,
+                                         &v3, &n_vrs, now, 1));
   tt_assert(v3);
 
   if (vote_tweaks) params_tweaked += vote_tweaks(v3, 3, now);
@@ -2153,10 +1916,18 @@ test_a_networkstatus(
 
   /* Check the routerstatuses. */
   n_rs = smartlist_len(con->routerstatus_list);
+  tt_assert(n_rs);
   for (idx = 0; idx < n_rs; ++idx) {
     rs = smartlist_get(con->routerstatus_list, idx);
     tt_assert(rs);
     rs_test(rs, now);
+  }
+
+  n_rs = smartlist_len(con_md->routerstatus_list);
+  tt_assert(n_rs);
+  for (idx = 0; idx < n_rs; ++idx) {
+    rs = smartlist_get(con_md->routerstatus_list, idx);
+    tt_assert(rs);
   }
 
   /* Check signatures.  the first voter is a pseudo-entry with a legacy key.
@@ -2309,9 +2080,6 @@ test_a_networkstatus(
  done:
   tor_free(cp);
   smartlist_free(votes);
-  tor_free(v1_text);
-  tor_free(v2_text);
-  tor_free(v3_text);
   tor_free(consensus_text);
   tor_free(consensus_text_md);
 
@@ -2368,7 +2136,7 @@ static void
 test_dir_v3_networkstatus(void *arg)
 {
   (void)arg;
-  test_a_networkstatus(gen_routerstatus_for_v3ns,
+  test_a_networkstatus(dir_common_gen_routerstatus_for_v3ns,
                        vote_tweaks_for_v3ns,
                        test_vrs_for_v3ns,
                        test_consensus_for_v3ns,
@@ -2965,6 +2733,7 @@ test_dir_fmt_control_ns(void *arg)
   rs.is_fast = 1;
   rs.is_flagged_running = 1;
   rs.has_bandwidth = 1;
+  rs.is_v2_dir = 1;
   rs.bandwidth_kb = 1000;
 
   s = networkstatus_getinfo_helper_single(&rs);
@@ -3494,6 +3263,435 @@ test_dir_packages(void *arg)
   tor_free(res);
 }
 
+static void
+test_dir_download_status_schedule(void *arg)
+{
+  (void)arg;
+  download_status_t dls_failure = { 0, 0, 0, DL_SCHED_GENERIC,
+                                             DL_WANT_AUTHORITY,
+                                             DL_SCHED_INCREMENT_FAILURE };
+  download_status_t dls_attempt = { 0, 0, 0, DL_SCHED_CONSENSUS,
+                                             DL_WANT_ANY_DIRSERVER,
+                                             DL_SCHED_INCREMENT_ATTEMPT};
+  download_status_t dls_bridge  = { 0, 0, 0, DL_SCHED_BRIDGE,
+                                             DL_WANT_AUTHORITY,
+                                             DL_SCHED_INCREMENT_FAILURE};
+  int increment = -1;
+  int expected_increment = -1;
+  time_t current_time = time(NULL);
+  int delay1 = -1;
+  int delay2 = -1;
+  smartlist_t *schedule = smartlist_new();
+
+  /* Make a dummy schedule */
+  smartlist_add(schedule, (void *)&delay1);
+  smartlist_add(schedule, (void *)&delay2);
+
+  /* check a range of values */
+  delay1 = 1000;
+  increment = download_status_schedule_get_delay(&dls_failure,
+                                                 schedule,
+                                                 TIME_MIN);
+  expected_increment = delay1;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_failure.next_attempt_at == TIME_MIN + expected_increment);
+
+#if TIME_T_IS_SIGNED
+  delay1 = INT_MAX;
+  increment =  download_status_schedule_get_delay(&dls_failure,
+                                                  schedule,
+                                                  -1);
+  expected_increment = delay1;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_failure.next_attempt_at == TIME_MAX);
+#endif
+
+  delay1 = 0;
+  increment = download_status_schedule_get_delay(&dls_attempt,
+                                                 schedule,
+                                                 0);
+  expected_increment = delay1;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_attempt.next_attempt_at == 0 + expected_increment);
+
+  delay1 = 1000;
+  increment = download_status_schedule_get_delay(&dls_attempt,
+                                                 schedule,
+                                                 1);
+  expected_increment = delay1;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_attempt.next_attempt_at == 1 + expected_increment);
+
+  delay1 = INT_MAX;
+  increment = download_status_schedule_get_delay(&dls_bridge,
+                                                 schedule,
+                                                 current_time);
+  expected_increment = delay1;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_bridge.next_attempt_at == TIME_MAX);
+
+  delay1 = 1;
+  increment = download_status_schedule_get_delay(&dls_bridge,
+                                                 schedule,
+                                                 TIME_MAX);
+  expected_increment = delay1;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_bridge.next_attempt_at == TIME_MAX);
+
+  /* see what happens when we reach the end */
+  dls_attempt.n_download_attempts++;
+  dls_bridge.n_download_failures++;
+
+  delay2 = 100;
+  increment = download_status_schedule_get_delay(&dls_attempt,
+                                                 schedule,
+                                                 current_time);
+  expected_increment = delay2;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_attempt.next_attempt_at == current_time + delay2);
+
+  delay2 = 1;
+  increment = download_status_schedule_get_delay(&dls_bridge,
+                                                 schedule,
+                                                 current_time);
+  expected_increment = delay2;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_bridge.next_attempt_at == current_time + delay2);
+
+  /* see what happens when we try to go off the end */
+  dls_attempt.n_download_attempts++;
+  dls_bridge.n_download_failures++;
+
+  delay2 = 5;
+  increment = download_status_schedule_get_delay(&dls_attempt,
+                                                 schedule,
+                                                 current_time);
+  expected_increment = delay2;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_attempt.next_attempt_at == current_time + delay2);
+
+  delay2 = 17;
+  increment = download_status_schedule_get_delay(&dls_bridge,
+                                                 schedule,
+                                                 current_time);
+  expected_increment = delay2;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_bridge.next_attempt_at == current_time + delay2);
+
+  /* see what happens when we reach IMPOSSIBLE_TO_DOWNLOAD */
+  dls_attempt.n_download_attempts = IMPOSSIBLE_TO_DOWNLOAD;
+  dls_bridge.n_download_failures = IMPOSSIBLE_TO_DOWNLOAD;
+
+  delay2 = 35;
+  increment = download_status_schedule_get_delay(&dls_attempt,
+                                                 schedule,
+                                                 current_time);
+  expected_increment = INT_MAX;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_attempt.next_attempt_at == TIME_MAX);
+
+  delay2 = 99;
+  increment = download_status_schedule_get_delay(&dls_bridge,
+                                                 schedule,
+                                                 current_time);
+  expected_increment = INT_MAX;
+  tt_assert(increment == expected_increment);
+  tt_assert(dls_bridge.next_attempt_at == TIME_MAX);
+
+ done:
+  /* the pointers in schedule are allocated on the stack */
+  smartlist_free(schedule);
+}
+
+static void
+test_dir_download_status_increment(void *arg)
+{
+  (void)arg;
+  download_status_t dls_failure = { 0, 0, 0, DL_SCHED_GENERIC,
+    DL_WANT_AUTHORITY,
+    DL_SCHED_INCREMENT_FAILURE };
+  download_status_t dls_attempt = { 0, 0, 0, DL_SCHED_BRIDGE,
+    DL_WANT_ANY_DIRSERVER,
+    DL_SCHED_INCREMENT_ATTEMPT};
+  int delay0 = -1;
+  int delay1 = -1;
+  int delay2 = -1;
+  smartlist_t *schedule = smartlist_new();
+  or_options_t test_options;
+  time_t next_at = TIME_MAX;
+  time_t current_time = time(NULL);
+
+  /* Provide some values for the schedule */
+  delay0 = 10;
+  delay1 = 99;
+  delay2 = 20;
+
+  /* Make the schedule */
+  smartlist_add(schedule, (void *)&delay0);
+  smartlist_add(schedule, (void *)&delay1);
+  smartlist_add(schedule, (void *)&delay2);
+
+  /* Put it in the options */
+  mock_options = &test_options;
+  reset_options(mock_options, &mock_get_options_calls);
+  mock_options->TestingClientDownloadSchedule = schedule;
+  mock_options->TestingBridgeDownloadSchedule = schedule;
+
+  MOCK(get_options, mock_get_options);
+
+  /* Check that a failure reset works */
+  mock_get_options_calls = 0;
+  download_status_reset(&dls_failure);
+  /* we really want to test that it's equal to time(NULL) + delay0, but that's
+   * an unrealiable test, because time(NULL) might change. */
+  tt_assert(download_status_get_next_attempt_at(&dls_failure)
+            >= current_time + delay0);
+  tt_assert(download_status_get_next_attempt_at(&dls_failure)
+            != TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_failure) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_failure) == 0);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* avoid timing inconsistencies */
+  dls_failure.next_attempt_at = current_time + delay0;
+
+  /* check that a reset schedule becomes ready at the right time */
+  tt_assert(download_status_is_ready(&dls_failure,
+                                     current_time + delay0 - 1,
+                                     1) == 0);
+  tt_assert(download_status_is_ready(&dls_failure,
+                                     current_time + delay0,
+                                     1) == 1);
+  tt_assert(download_status_is_ready(&dls_failure,
+                                     current_time + delay0 + 1,
+                                     1) == 1);
+
+  /* Check that a failure increment works */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_failure(&dls_failure, 404, "test", 0,
+                                              current_time);
+  tt_assert(next_at == current_time + delay1);
+  tt_assert(download_status_get_n_failures(&dls_failure) == 1);
+  tt_assert(download_status_get_n_attempts(&dls_failure) == 1);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* check that an incremented schedule becomes ready at the right time */
+  tt_assert(download_status_is_ready(&dls_failure,
+                                     current_time + delay1 - 1,
+                                     1) == 0);
+  tt_assert(download_status_is_ready(&dls_failure,
+                                     current_time + delay1,
+                                     1) == 1);
+  tt_assert(download_status_is_ready(&dls_failure,
+                                     current_time + delay1 + 1,
+                                     1) == 1);
+
+  /* check that a schedule isn't ready if it's had too many failures */
+  tt_assert(download_status_is_ready(&dls_failure,
+                                     current_time + delay1 + 10,
+                                     0) == 0);
+
+  /* Check that failure increments don't happen on 503 for clients, but that
+   * attempt increments do. */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_failure(&dls_failure, 503, "test", 0,
+                                              current_time);
+  tt_assert(next_at == current_time + delay1);
+  tt_assert(download_status_get_n_failures(&dls_failure) == 1);
+  tt_assert(download_status_get_n_attempts(&dls_failure) == 2);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check that failure increments do happen on 503 for servers */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_failure(&dls_failure, 503, "test", 1,
+                                              current_time);
+  tt_assert(next_at == current_time + delay2);
+  tt_assert(download_status_get_n_failures(&dls_failure) == 2);
+  tt_assert(download_status_get_n_attempts(&dls_failure) == 3);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check what happens when we run off the end of the schedule */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_failure(&dls_failure, 404, "test", 0,
+                                              current_time);
+  tt_assert(next_at == current_time + delay2);
+  tt_assert(download_status_get_n_failures(&dls_failure) == 3);
+  tt_assert(download_status_get_n_attempts(&dls_failure) == 4);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check what happens when we hit the failure limit */
+  mock_get_options_calls = 0;
+  download_status_mark_impossible(&dls_failure);
+  next_at = download_status_increment_failure(&dls_failure, 404, "test", 0,
+                                              current_time);
+  tt_assert(next_at == TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_failure)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(download_status_get_n_attempts(&dls_failure)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check that a failure reset doesn't reset at the limit */
+  mock_get_options_calls = 0;
+  download_status_reset(&dls_failure);
+  tt_assert(download_status_get_next_attempt_at(&dls_failure)
+            == TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_failure)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(download_status_get_n_attempts(&dls_failure)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(mock_get_options_calls == 0);
+
+  /* Check that a failure reset resets just before the limit */
+  mock_get_options_calls = 0;
+  dls_failure.n_download_failures = IMPOSSIBLE_TO_DOWNLOAD - 1;
+  dls_failure.n_download_attempts = IMPOSSIBLE_TO_DOWNLOAD - 1;
+  download_status_reset(&dls_failure);
+  /* we really want to test that it's equal to time(NULL) + delay0, but that's
+   * an unrealiable test, because time(NULL) might change. */
+  tt_assert(download_status_get_next_attempt_at(&dls_failure)
+            >= current_time + delay0);
+  tt_assert(download_status_get_next_attempt_at(&dls_failure)
+            != TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_failure) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_failure) == 0);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check that failure increments do happen on attempt-based schedules,
+   * but that the retry is set at the end of time */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_failure(&dls_attempt, 404, "test", 0,
+                                              current_time);
+  tt_assert(next_at == TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_attempt) == 1);
+  tt_assert(download_status_get_n_attempts(&dls_attempt) == 0);
+  tt_assert(mock_get_options_calls == 0);
+
+  /* Check that an attempt reset works */
+  mock_get_options_calls = 0;
+  download_status_reset(&dls_attempt);
+  /* we really want to test that it's equal to time(NULL) + delay0, but that's
+   * an unrealiable test, because time(NULL) might change. */
+  tt_assert(download_status_get_next_attempt_at(&dls_attempt)
+            >= current_time + delay0);
+  tt_assert(download_status_get_next_attempt_at(&dls_attempt)
+            != TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_attempt) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_attempt) == 0);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* avoid timing inconsistencies */
+  dls_attempt.next_attempt_at = current_time + delay0;
+
+  /* check that a reset schedule becomes ready at the right time */
+  tt_assert(download_status_is_ready(&dls_attempt,
+                                     current_time + delay0 - 1,
+                                     1) == 0);
+  tt_assert(download_status_is_ready(&dls_attempt,
+                                     current_time + delay0,
+                                     1) == 1);
+  tt_assert(download_status_is_ready(&dls_attempt,
+                                     current_time + delay0 + 1,
+                                     1) == 1);
+
+  /* Check that an attempt increment works */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_attempt(&dls_attempt, "test",
+                                              current_time);
+  tt_assert(next_at == current_time + delay1);
+  tt_assert(download_status_get_n_failures(&dls_attempt) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_attempt) == 1);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* check that an incremented schedule becomes ready at the right time */
+  tt_assert(download_status_is_ready(&dls_attempt,
+                                     current_time + delay1 - 1,
+                                     1) == 0);
+  tt_assert(download_status_is_ready(&dls_attempt,
+                                     current_time + delay1,
+                                     1) == 1);
+  tt_assert(download_status_is_ready(&dls_attempt,
+                                     current_time + delay1 + 1,
+                                     1) == 1);
+
+  /* check that a schedule isn't ready if it's had too many attempts */
+  tt_assert(download_status_is_ready(&dls_attempt,
+                                     current_time + delay1 + 10,
+                                     0) == 0);
+
+  /* Check what happens when we reach then run off the end of the schedule */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_attempt(&dls_attempt, "test",
+                                              current_time);
+  tt_assert(next_at == current_time + delay2);
+  tt_assert(download_status_get_n_failures(&dls_attempt) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_attempt) == 2);
+  tt_assert(mock_get_options_calls >= 1);
+
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_attempt(&dls_attempt, "test",
+                                              current_time);
+  tt_assert(next_at == current_time + delay2);
+  tt_assert(download_status_get_n_failures(&dls_attempt) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_attempt) == 3);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check what happens when we hit the attempt limit */
+  mock_get_options_calls = 0;
+  download_status_mark_impossible(&dls_attempt);
+  next_at = download_status_increment_attempt(&dls_attempt, "test",
+                                              current_time);
+  tt_assert(next_at == TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_attempt)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(download_status_get_n_attempts(&dls_attempt)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check that an attempt reset doesn't reset at the limit */
+  mock_get_options_calls = 0;
+  download_status_reset(&dls_attempt);
+  tt_assert(download_status_get_next_attempt_at(&dls_attempt)
+            == TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_attempt)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(download_status_get_n_attempts(&dls_attempt)
+            == IMPOSSIBLE_TO_DOWNLOAD);
+  tt_assert(mock_get_options_calls == 0);
+
+  /* Check that an attempt reset resets just before the limit */
+  mock_get_options_calls = 0;
+  dls_attempt.n_download_failures = IMPOSSIBLE_TO_DOWNLOAD - 1;
+  dls_attempt.n_download_attempts = IMPOSSIBLE_TO_DOWNLOAD - 1;
+  download_status_reset(&dls_attempt);
+  /* we really want to test that it's equal to time(NULL) + delay0, but that's
+   * an unrealiable test, because time(NULL) might change. */
+  tt_assert(download_status_get_next_attempt_at(&dls_attempt)
+            >= current_time + delay0);
+  tt_assert(download_status_get_next_attempt_at(&dls_attempt)
+            != TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_attempt) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_attempt) == 0);
+  tt_assert(mock_get_options_calls >= 1);
+
+  /* Check that attempt increments don't happen on failure-based schedules,
+   * and that the attempt is set at the end of time */
+  mock_get_options_calls = 0;
+  next_at = download_status_increment_attempt(&dls_failure, "test",
+                                              current_time);
+  tt_assert(next_at == TIME_MAX);
+  tt_assert(download_status_get_n_failures(&dls_failure) == 0);
+  tt_assert(download_status_get_n_attempts(&dls_failure) == 0);
+  tt_assert(mock_get_options_calls == 0);
+
+ done:
+  /* the pointers in schedule are allocated on the stack */
+  smartlist_free(schedule);
+  UNMOCK(get_options);
+  mock_options = NULL;
+  mock_get_options_calls = 0;
+}
+
 #define DIR_LEGACY(name)                                                   \
   { #name, test_dir_ ## name , TT_FORK, NULL, NULL }
 
@@ -3525,6 +3723,8 @@ struct testcase_t dir_tests[] = {
   DIR(purpose_needs_anonymity, 0),
   DIR(fetch_type, 0),
   DIR(packages, 0),
+  DIR(download_status_schedule, 0),
+  DIR(download_status_increment, 0),
   END_OF_TESTCASES
 };
 

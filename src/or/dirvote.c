@@ -54,7 +54,6 @@ static int dirvote_perform_vote(void);
 static void dirvote_clear_votes(int all_votes);
 static int dirvote_compute_consensuses(void);
 static int dirvote_publish_consensus(void);
-static char *make_consensus_method_list(int low, int high, const char *sep);
 
 /* =====
  * Voting
@@ -564,7 +563,7 @@ consensus_method_is_supported(int method)
 
 /** Return a newly allocated string holding the numbers between low and high
  * (inclusive) that are supported consensus methods. */
-static char *
+STATIC char *
 make_consensus_method_list(int low, int high, const char *separator)
 {
   char *list;
@@ -3373,8 +3372,8 @@ dirvote_free_all(void)
  * ==== */
 
 /** Return the body of the consensus that we're currently trying to build. */
-const char *
-dirvote_get_pending_consensus(consensus_flavor_t flav)
+MOCK_IMPL(const char *,
+dirvote_get_pending_consensus, (consensus_flavor_t flav))
 {
   tor_assert(((int)flav) >= 0 && (int)flav < N_CONSENSUS_FLAVORS);
   return pending_consensuses[flav].body;
@@ -3382,8 +3381,8 @@ dirvote_get_pending_consensus(consensus_flavor_t flav)
 
 /** Return the signatures that we know for the consensus that we're currently
  * trying to build. */
-const char *
-dirvote_get_pending_detached_signatures(void)
+MOCK_IMPL(const char *,
+dirvote_get_pending_detached_signatures, (void))
 {
   return pending_consensus_signatures;
 }
