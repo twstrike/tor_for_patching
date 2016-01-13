@@ -37,13 +37,13 @@ connection_ap_handshake_rewrite_mock(entry_connection_t *conn,
 }
 
 static void
-init_rewrite_mock()
+init_rewrite_mock(void)
 {
   rewrite_mock = tor_malloc_zero(sizeof(rewrite_result_t));
 }
 
 static void
-destroy_rewrite_mock()
+destroy_rewrite_mock(void)
 {
   tor_free(rewrite_mock);
 }
@@ -132,14 +132,14 @@ get_options_mock(void)
 }
 
 inline static void
-init_mock_options()
+init_mock_options(void)
 {
   options_mock = tor_malloc_zero(sizeof(options_mock));
   options_mock->ExcludeExitNodes = NULL;
 }
 
 inline static void
-destroy_mock_options()
+destroy_mock_options(void)
 {
   tor_free(options_mock);
 }
@@ -403,14 +403,14 @@ node_get_by_nickname_mock(const char *nickname, int warn)
 }
 
 static void
-init_exit_node_mock()
+init_exit_node_mock(void)
 {
   exit_node_mock = tor_malloc_zero(sizeof(node_t));
   exit_node_mock->rs = tor_malloc_zero(sizeof(routerstatus_t));
 }
 
 static void
-destroy_exit_node_mock()
+destroy_exit_node_mock(void)
 {
   tor_free(exit_node_mock->rs);
   tor_free(exit_node_mock);
