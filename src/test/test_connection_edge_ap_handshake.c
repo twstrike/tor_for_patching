@@ -162,7 +162,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_bogu
 
   options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
   rewrite_mock->should_close = 0;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://www.bogus.onion");
+  SET_SOCKS_ADDRESS(conn->socks_request, "www.bogus.onion");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
@@ -203,7 +203,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_unal
   options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
   rewrite_mock->should_close = 0;
   rewrite_mock->exit_source = ADDRMAPSRC_AUTOMAP;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://www.notgood.exit");
+  SET_SOCKS_ADDRESS(conn->socks_request, "www.notgood.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
   options_mock->AllowDotExit = 0;
 
@@ -212,7 +212,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_unal
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Stale automapped address for 'http://www.notgood.exit', with AllowDotExit disabled. Refusing.\n");
+  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Stale automapped address for 'www.notgood.exit', with AllowDotExit disabled. Refusing.\n");
 
   done:
     UNMOCK(get_options);
@@ -245,7 +245,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_dns_
   options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
   rewrite_mock->should_close = 0;
   rewrite_mock->exit_source = ADDRMAPSRC_DNS;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://www.dns.exit");
+  SET_SOCKS_ADDRESS(conn->socks_request, "www.dns.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
@@ -253,7 +253,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_dns_
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'http://www.dns.exit', with impossible source for the .exit part. Refusing.\n");
+  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'www.dns.exit', with impossible source for the .exit part. Refusing.\n");
 
   done:
     UNMOCK(get_options);
@@ -286,7 +286,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
   options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
   rewrite_mock->should_close = 0;
   rewrite_mock->exit_source = ADDRMAPSRC_NONE;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://www.notremapped.exit");
+  SET_SOCKS_ADDRESS(conn->socks_request, "www.notremapped.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
   options_mock->AllowDotExit = 0;
 
@@ -295,7 +295,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'http://www.notremapped.exit', with impossible source for the .exit part. Refusing.\n");
+  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'www.notremapped.exit', with impossible source for the .exit part. Refusing.\n");
 
   done:
     UNMOCK(get_options);
@@ -328,7 +328,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
   options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
   rewrite_mock->should_close = 0;
   rewrite_mock->exit_source = ADDRMAPSRC_NONE;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://malformed..exit");
+  SET_SOCKS_ADDRESS(conn->socks_request, "malformed..exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
   options_mock->AllowDotExit = 1;
 
@@ -337,7 +337,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Malformed exit address 'http://malformed..exit'. Refusing.\n");
+  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Malformed exit address 'malformed..exit'. Refusing.\n");
 
   done:
     UNMOCK(get_options);
@@ -369,7 +369,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_unrecognized_exit
 
   rewrite_mock->should_close = 0;
   rewrite_mock->exit_source = ADDRMAPSRC_NONE;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://www.wellformed.exit");
+  SET_SOCKS_ADDRESS(conn->socks_request, "www.wellformed.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
   options_mock->AllowDotExit = 1;
   options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
@@ -379,7 +379,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_unrecognized_exit
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Unrecognized relay in exit address 'http://www.exit'. Refusing.\n");
+  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Unrecognized relay in exit address 'www.exit'. Refusing.\n");
 
   done:
     UNMOCK(get_options);
@@ -438,7 +438,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
 
   rewrite_mock->should_close = 0;
   rewrite_mock->exit_source = ADDRMAPSRC_NONE;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://www.wellformed.exit");
+  SET_SOCKS_ADDRESS(conn->socks_request, "www.wellformed.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
   strlcpy(exit_node_mock->rs->nickname, "wellformed", MAX_NICKNAME_LEN+1);
 
@@ -456,7 +456,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'http://www.exit'. Refusing.\n");
+  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'www.exit'. Refusing.\n");
 
   done:
     UNMOCK(get_options);
@@ -493,7 +493,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_to_port0(void *data)
 
   rewrite_mock->should_close = 0;
   rewrite_mock->exit_source = ADDRMAPSRC_NONE;
-  SET_SOCKS_ADDRESS(conn->socks_request, "http://www.wellformed.exit");
+  SET_SOCKS_ADDRESS(conn->socks_request, "www.wellformed.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
   options_mock->AllowDotExit = 1;
   options_mock->ExcludeExitNodes = routerset_new();
@@ -505,7 +505,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_to_port0(void *data)
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'http://www.exit'. Refusing.\n");
+  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'www.exit'. Refusing.\n");
 
   done:
     UNMOCK(get_options);
