@@ -52,12 +52,31 @@ connection_mark_unattached_ap_mock(entry_connection_t *conn,
   (void) file;
 }
 
+static char mock_safe_logging;
+static int mock_allow_dot_exit = 0;
+static int mock_strict_nodes = 0;
+static routerset_t *mock_exclude_exit_nodes;
+static routerset_t *mock_exclude_exit_nodes_union;
+static const or_options_t *
+get_options_mock(void)
+{
+  or_options_t *options_mock = tor_malloc_zero(sizeof(options_mock));
+  options_mock->ExcludeExitNodes = NULL;
+  options_mock->SafeLogging_ = mock_safe_logging;
+  options_mock->AllowDotExit = mock_allow_dot_exit;
+  options_mock->StrictNodes = mock_strict_nodes;
+  memcpy(&options_mock->ExcludeExitNodes, &mock_exclude_exit_nodes, sizeof(routerset_t));
+  memcpy(&options_mock->ExcludeExitNodesUnion_, &mock_exclude_exit_nodes_union, sizeof(routerset_t));
+  return options_mock;
+}
+
 static entry_connection_t *
 init_tests(void)
 {
   addressmap_init();
   MOCK(connection_ap_handshake_rewrite, connection_ap_handshake_rewrite_mock);
   MOCK(connection_mark_unattached_ap_, connection_mark_unattached_ap_mock);
+  MOCK(get_options, get_options_mock);
   return entry_connection_new(CONN_TYPE_AP, AF_INET);
 }
 
@@ -99,38 +118,13 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_with_error(void *data
 #define SET_SOCKS_ADDRESS(socks, dest) \
   strlcpy(socks->address, dest, sizeof(socks->address));
 
-static or_options_t *options_mock = NULL;
-static const or_options_t *
-get_options_mock(void)
-{
-  tor_assert(options_mock);
-  return options_mock;
-}
-
-inline static void
-init_mock_options(void)
-{
-  options_mock = tor_malloc_zero(sizeof(options_mock));
-  options_mock->ExcludeExitNodes = NULL;
-}
-
-inline static void
-destroy_mock_options(void)
-{
-  tor_free(options_mock);
-}
-
 static void
 test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_bogus(void *data)
 {
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
-
-  init_mock_options();
-
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
   mock_should_close = 0;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.bogus.onion");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
@@ -146,7 +140,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_bogu
     UNMOCK(get_options);
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
-    destroy_mock_options();
     teardown_capture_of_logs(prev_log);
 }
 
@@ -156,11 +149,8 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_unal
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
-  init_mock_options();
-
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
-  options_mock->AllowDotExit = 0;
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
+  mock_allow_dot_exit = 0;
   mock_should_close = 0;
   mock_exit_source = ADDRMAPSRC_AUTOMAP;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.notgood.exit");
@@ -177,7 +167,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_unal
     UNMOCK(get_options);
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
-    destroy_mock_options();
     teardown_capture_of_logs(prev_log);
 }
 
@@ -187,11 +176,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_dns_
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
-
-  init_mock_options();
-
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
   mock_should_close = 0;
   mock_exit_source = ADDRMAPSRC_DNS;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.dns.exit");
@@ -208,7 +193,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_dns_
     UNMOCK(get_options);
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
-    destroy_mock_options();
     teardown_capture_of_logs(prev_log);
 }
 
@@ -218,16 +202,12 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
-
-  init_mock_options();
-
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
+  mock_allow_dot_exit = 0;
   mock_should_close = 0;
   mock_exit_source = ADDRMAPSRC_NONE;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.notremapped.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
-  options_mock->AllowDotExit = 0;
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
   int res = connection_ap_handshake_rewrite_and_attach(conn, NULL, NULL);
@@ -240,7 +220,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
     UNMOCK(get_options);
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
-    destroy_mock_options();
     teardown_capture_of_logs(prev_log);
 }
 
@@ -250,16 +229,12 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
-
-  init_mock_options();
-
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
+  mock_allow_dot_exit = 1;
   mock_should_close = 0;
   mock_exit_source = ADDRMAPSRC_NONE;
   SET_SOCKS_ADDRESS(conn->socks_request, "malformed..exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
-  options_mock->AllowDotExit = 1;
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
   int res = connection_ap_handshake_rewrite_and_attach(conn, NULL, NULL);
@@ -272,7 +247,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
     UNMOCK(get_options);
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
-    destroy_mock_options();
     teardown_capture_of_logs(prev_log);
 }
 
@@ -282,16 +256,12 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_unrecognized_exit
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
-
-  init_mock_options();
-
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
+  mock_allow_dot_exit = 1;
   mock_should_close = 0;
   mock_exit_source = ADDRMAPSRC_NONE;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.wellformed.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
-  options_mock->AllowDotExit = 1;
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
   int res = connection_ap_handshake_rewrite_and_attach(conn, NULL, NULL);
@@ -304,7 +274,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_unrecognized_exit
     UNMOCK(get_options);
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
-    destroy_mock_options();
     teardown_capture_of_logs(prev_log);
 }
 
@@ -339,26 +308,21 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
   MOCK(node_get_by_nickname, node_get_by_nickname_mock);
 
   init_exit_node_mock();
-  init_mock_options();
 
-  mock_should_close = 0;
   mock_exit_source = ADDRMAPSRC_NONE;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.wellformed.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
   strlcpy(exit_node_mock->rs->nickname, "wellformed", MAX_NICKNAME_LEN+1);
-
-  options_mock->AllowDotExit = 1;
-  options_mock->StrictNodes = 0;
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
-
   excluded_nodes = routerset_new();
   smartlist_add(excluded_nodes->list, tor_strdup("wellformed"));
   strmap_set(excluded_nodes->names, tor_strdup("wellformed"), exit_node_mock);
-  options_mock->ExcludeExitNodes = excluded_nodes;
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
+  mock_allow_dot_exit = 1;
+  mock_strict_nodes = 0;
+  mock_exclude_exit_nodes = excluded_nodes;
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
   int res = connection_ap_handshake_rewrite_and_attach(conn, NULL, NULL);
@@ -372,7 +336,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
     UNMOCK(node_get_by_nickname);
-    destroy_mock_options();
     destroy_exit_node_mock();
     tor_free(excluded_nodes);
     teardown_capture_of_logs(prev_log);
@@ -384,20 +347,18 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_to_port0(void *data)
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(get_options, get_options_mock);
   MOCK(node_get_by_nickname, node_get_by_nickname_mock);
 
-  init_mock_options();
   init_exit_node_mock();
 
   mock_should_close = 0;
   mock_exit_source = ADDRMAPSRC_NONE;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.wellformed.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
-  options_mock->AllowDotExit = 1;
-  options_mock->ExcludeExitNodes = routerset_new();
-  options_mock->ExcludeExitNodesUnion_ = routerset_new();
-  options_mock->SafeLogging_ = SAFELOG_SCRUB_NONE;
+  mock_safe_logging = SAFELOG_SCRUB_NONE;
+  mock_allow_dot_exit = 1;
+  mock_exclude_exit_nodes = routerset_new();
+  mock_exclude_exit_nodes_union = routerset_new();
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
   int res = connection_ap_handshake_rewrite_and_attach(conn, NULL, NULL);
@@ -411,7 +372,6 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_to_port0(void *data)
     UNMOCK(connection_ap_handshake_rewrite);
     UNMOCK(connection_mark_unattached_ap_);
     UNMOCK(node_get_by_nickname);
-    destroy_mock_options();
     destroy_exit_node_mock();
     teardown_capture_of_logs(prev_log);
 }
