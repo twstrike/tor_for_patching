@@ -278,26 +278,29 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_unrecognized_exit
 }
 
 static node_t *exit_node_mock = NULL;
+static void
+destroy_exit_node_mock(void)
+{
+  tor_free(exit_node_mock->rs);
+  tor_free(exit_node_mock);
+}
+
+static char mock_nickname[MAX_NICKNAME_LEN+1];
 static const node_t *
 node_get_by_nickname_mock(const char *nickname, int warn)
 {
   tor_assert(nickname);
   tor_assert(warn);
+  exit_node_mock = tor_malloc_zero(sizeof(node_t));
+  exit_node_mock->rs = tor_malloc_zero(sizeof(routerstatus_t));
+  strlcpy(exit_node_mock->rs->nickname, mock_nickname, MAX_NICKNAME_LEN+1);
   return exit_node_mock;
 }
 
 static void
 init_exit_node_mock(void)
 {
-  exit_node_mock = tor_malloc_zero(sizeof(node_t));
-  exit_node_mock->rs = tor_malloc_zero(sizeof(routerstatus_t));
-}
-
-static void
-destroy_exit_node_mock(void)
-{
-  tor_free(exit_node_mock->rs);
-  tor_free(exit_node_mock);
+  MOCK(node_get_by_nickname, node_get_by_nickname_mock);
 }
 
 static routerset_t *excluded_nodes = NULL;
@@ -308,14 +311,12 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
   entry_connection_t *conn = init_tests();
   (void) data;
 
-  MOCK(node_get_by_nickname, node_get_by_nickname_mock);
-
   init_exit_node_mock();
 
   mock_exit_source = ADDRMAPSRC_NONE;
   SET_SOCKS_ADDRESS(conn->socks_request, "www.wellformed.exit");
   conn->socks_request->command = SOCKS_COMMAND_CONNECT;
-  strlcpy(exit_node_mock->rs->nickname, "wellformed", MAX_NICKNAME_LEN+1);
+  strlcpy(mock_nickname, "wellformed", MAX_NICKNAME_LEN+1);
   excluded_nodes = routerset_new();
   smartlist_add(excluded_nodes->list, tor_strdup("wellformed"));
   strmap_set(excluded_nodes->names, tor_strdup("wellformed"), exit_node_mock);
