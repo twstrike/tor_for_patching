@@ -97,6 +97,16 @@ init_tests(void)
 }
 
 static void
+clean_up_tests(entry_connection_t *conn)
+{
+    UNMOCK(connection_ap_handshake_rewrite);
+    UNMOCK(connection_mark_unattached_ap_);
+    connection_free_(ENTRY_TO_CONN(conn));
+    addressmap_free_all();
+    free_options_mock();
+}
+
+static void
 test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_with_answer(void *data)
 {
   mock_should_close = 1;
@@ -108,11 +118,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_with_answer(void *dat
   tt_int_op(res, OP_EQ, 0);
 
   done:
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    addressmap_free_all();
-    free_options_mock();
+    clean_up_tests(conn);
 }
 
 static void
@@ -128,11 +134,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_with_error(void *data
   tt_int_op(res, OP_EQ, -1);
 
   done:
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    addressmap_free_all();
-    free_options_mock();
+    clean_up_tests(conn);
 }
 
 #define SET_SOCKS_ADDRESS(socks, dest) \
@@ -157,12 +159,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_bogu
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Invalid onion hostname bogus; rejecting\n");
 
   done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
-    addressmap_free_all();
+    clean_up_tests(conn);
     teardown_capture_of_logs(prev_log);
     escaped(NULL);
 }
@@ -188,12 +185,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_unal
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Stale automapped address for 'www.notgood.exit', with AllowDotExit disabled. Refusing.\n");
 
   done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
-    addressmap_free_all();
+    clean_up_tests(conn);
     teardown_capture_of_logs(prev_log);
     escaped(NULL);
 }
@@ -218,12 +210,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_dns_
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'www.dns.exit', with impossible source for the .exit part. Refusing.\n");
 
   done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
-    addressmap_free_all();
+    clean_up_tests(conn);
     teardown_capture_of_logs(prev_log);
     escaped(NULL);
 }
@@ -249,12 +236,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'www.notremapped.exit', with impossible source for the .exit part. Refusing.\n");
 
   done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
-    addressmap_free_all();
+    clean_up_tests(conn);
     teardown_capture_of_logs(prev_log);
     escaped(NULL);
 }
@@ -280,12 +262,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Malformed exit address 'malformed..exit'. Refusing.\n");
 
   done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
-    addressmap_free_all();
+    clean_up_tests(conn);
     teardown_capture_of_logs(prev_log);
 }
 
@@ -310,12 +287,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_unrecognized_exit
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Unrecognized relay in exit address 'www.exit'. Refusing.\n");
 
   done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
-    addressmap_free_all();
+    clean_up_tests(conn);
     teardown_capture_of_logs(prev_log);
     escaped(NULL);
 }
@@ -377,16 +349,11 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'www.exit'. Refusing.\n");
 
   done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
+    clean_up_tests(conn);
     UNMOCK(node_get_by_nickname);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
     routerset_free(mock_exclude_exit_nodes);
     routerset_free(excluded_nodes);
     destroy_exit_node_mock();
-    addressmap_free_all();
     teardown_capture_of_logs(prev_log);
     escaped(NULL);
 }
@@ -416,16 +383,11 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_to_port0(void *data)
   tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'www.exit'. Refusing.\n");
   
 done:
-    UNMOCK(get_options);
-    UNMOCK(connection_ap_handshake_rewrite);
-    UNMOCK(connection_mark_unattached_ap_);
+    clean_up_tests(conn);
     UNMOCK(node_get_by_nickname);
-    connection_free_(ENTRY_TO_CONN(conn));
-    free_options_mock();
     routerset_free(mock_exclude_exit_nodes_union);
     routerset_free(mock_exclude_exit_nodes);
     destroy_exit_node_mock();
-    addressmap_free_all();
     teardown_capture_of_logs(prev_log);
     escaped(NULL); // stop memory leak of last escaped value
 }
