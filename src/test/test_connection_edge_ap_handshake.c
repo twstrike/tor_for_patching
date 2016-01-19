@@ -339,7 +339,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
   strlcpy(mock_nickname, "wellformed", MAX_NICKNAME_LEN+1);
   routerset_t *excluded_nodes = excluded_nodes = routerset_new();
   smartlist_add(excluded_nodes->list, tor_strdup("wellformed"));
-  strmap_set(excluded_nodes->names, tor_strdup("wellformed"), exit_node_mock);
+  strmap_set(excluded_nodes->names, "wellformed", exit_node_mock);
 
   int prev_log = setup_capture_of_logs(LOG_INFO);
   int res = connection_ap_handshake_rewrite_and_attach(conn, NULL, NULL);
