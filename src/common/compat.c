@@ -717,7 +717,8 @@ strtok_helper(char *cp, const char *sep)
 }
 
 /** Implementation of strtok_r for platforms whose coders haven't figured out
- * how to write one.  Hey guys!  You can use this code here for free! */
+ * how to write one.  Hey, retrograde libc developers!  You can use this code
+ * here for free! */
 char *
 tor_strtok_r_impl(char *str, const char *sep, char **lasts)
 {
@@ -2691,8 +2692,7 @@ static int uname_result_is_set = 0;
 
 /** Return a pointer to a description of our platform.
  */
-const char *
-get_uname(void)
+MOCK_IMPL(const char *, get_uname, (void))
 {
 #ifdef HAVE_UNAME
   struct utsname u;
