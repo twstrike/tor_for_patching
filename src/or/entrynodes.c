@@ -1105,6 +1105,7 @@ populate_live_entry_guards(smartlist_t *live_entry_guards,
  *
  * Helper for choose_random{entry,dirguard}.
 */
+#ifndef USE_PROP_259
 static const node_t *
 choose_random_entry_impl(cpath_build_state_t *state, int for_directory,
                          dirinfo_type_t dirinfo_type, int *n_options_out)
@@ -1207,7 +1208,111 @@ choose_random_entry_impl(cpath_build_state_t *state, int for_directory,
   smartlist_free(live_entry_guards);
   return node;
 }
+#else
+static const node_t *
+choose_random_entry_impl(cpath_build_state_t *state, int for_directory,
+                         dirinfo_type_t dirinfo_type, int *n_options_out)
+{
+  log_info(LD_CIRC, "Now using *prop259* impl");
+  const or_options_t *options = get_options();
+  smartlist_t *live_entry_guards = smartlist_new();
+  const node_t *chosen_exit =
+    state?build_state_get_exit_node(state) : NULL;
+  const node_t *node = NULL;
+  int need_uptime = state ? state->need_uptime : 0;
+  int need_capacity = state ? state->need_capacity : 0;
+  int preferred_min = 0;
+  const int num_needed = decide_num_guards(options, for_directory);
+  int retval = 0;
 
+  if (n_options_out)
+    *n_options_out = 0;
+
+  if (!entry_guards)
+    entry_guards = smartlist_new();
+
+  if (should_add_entry_nodes)
+    entry_guards_set_from_config(options);
+
+  if (!entry_list_is_constrained(options) &&
+      smartlist_len(entry_guards) < num_needed)
+    pick_entry_guards(options, for_directory);
+
+ retry:
+  smartlist_clear(live_entry_guards);
+
+  /* Populate the list of live entry guards so that we pick one of
+     them. */
+  retval = populate_live_entry_guards(live_entry_guards,
+                                      entry_guards,
+                                      chosen_exit,
+                                      dirinfo_type,
+                                      for_directory,
+                                      need_uptime, need_capacity);
+
+  if (retval == 1) { /* We should choose a guard right now. */
+    goto choose_and_finish;
+  }
+
+  if (entry_list_is_constrained(options)) {
+    /* If we prefer the entry nodes we've got, and we have at least
+     * one choice, that's great. Use it. */
+    preferred_min = 1;
+  } else {
+    /* Try to have at least 2 choices available. This way we don't
+     * get stuck with a single live-but-crummy entry and just keep
+     * using it.
+     * (We might get 2 live-but-crummy entry guards, but so be it.) */
+    preferred_min = 2;
+  }
+
+  if (smartlist_len(live_entry_guards) < preferred_min) {
+    if (!entry_list_is_constrained(options)) {
+      /* still no? try adding a new entry then */
+      /* XXX if guard doesn't imply fast and stable, then we need
+       * to tell add_an_entry_guard below what we want, or it might
+       * be a long time til we get it. -RD */
+      node = add_an_entry_guard(NULL, 0, 0, 1, for_directory);
+      if (node) {
+        entry_guards_changed();
+        /* XXX we start over here in case the new node we added shares
+         * a family with our exit node. There's a chance that we'll just
+         * load up on entry guards here, if the network we're using is
+         * one big family. Perhaps we should teach add_an_entry_guard()
+         * to understand nodes-to-avoid-if-possible? -RD */
+        goto retry;
+      }
+    }
+    if (!node && need_uptime) {
+      need_uptime = 0; /* try without that requirement */
+      goto retry;
+    }
+    if (!node && need_capacity) {
+      /* still no? last attempt, try without requiring capacity */
+      need_capacity = 0;
+      goto retry;
+    }
+
+    /* live_entry_guards may be empty below. Oh well, we tried. */
+  }
+
+ choose_and_finish:
+  if (entry_list_is_constrained(options)) {
+    /* We need to weight by bandwidth, because our bridges or entryguards
+     * were not already selected proportional to their bandwidth. */
+    node = node_sl_choose_by_bandwidth(live_entry_guards, WEIGHT_FOR_GUARD);
+  } else {
+    /* We choose uniformly at random here, because choose_good_entry_server()
+     * already weights its choices by bandwidth, so we don't want to
+     * *double*-weight our guard selection. */
+    node = smartlist_choose(live_entry_guards);
+  }
+  if (n_options_out)
+    *n_options_out = smartlist_len(live_entry_guards);
+  smartlist_free(live_entry_guards);
+  return node;
+}
+#endif
 /** Parse <b>state</b> and learn about the entry guards it describes.
  * If <b>set</b> is true, and there are no errors, replace the global
  * entry_list with what we find.
