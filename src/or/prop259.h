@@ -15,10 +15,9 @@ typedef struct {
 
 MOCK_DECL(const node_t *,get_next_entry_guard,(guard_state_t *state));
 #ifdef PROP259_PRIVATE
-const unsigned int STATE_PRIMARY = 0;
-const unsigned int STATE_UTOPIC = 1;
-const unsigned int STATE_DYSTOPIC = 2;
-const unsigned int STATE_RETRY = 3;
+const unsigned int STATE_PRIMARY_GUARDS = 0;
+const unsigned int STATE_TRY_UTOPIC = 1;
+const unsigned int STATE_TRY_DYSTOPIC = 2;
 
 guard_state_t *init_guard_state(void);
 guard_state_t *transfer_to(guard_state_t *guard_state,const unsigned int new_state);

@@ -36,16 +36,13 @@ get_next_entry_guard,(guard_state_t *state))
     node_t *entry = tor_malloc_zero(sizeof(node_t));
     if(reach_treshould(state)){
         switch(state->state){
-            case STATE_PRIMARY:
-                transfer_to(state,STATE_UTOPIC);
+            case STATE_PRIMARY_GUARDS:
+                transfer_to(state,STATE_TRY_UTOPIC);
                 break;
-            case STATE_UTOPIC:
-                transfer_to(state,STATE_DYSTOPIC);
+            case STATE_TRY_UTOPIC:
+                transfer_to(state,STATE_TRY_DYSTOPIC);
                 break;
-            case STATE_DYSTOPIC:
-                transfer_to(state,STATE_RETRY);
-                break;
-            case STATE_RETRY:
+            case STATE_TRY_DYSTOPIC:
                 state = init_guard_state();
                 break;
         }
@@ -57,7 +54,7 @@ get_next_entry_guard,(guard_state_t *state))
 guard_state_t *init_guard_state(void)
 {
     guard_state_t *guard_state = tor_malloc_zero(sizeof(guard_state_t));
-    guard_state->state = STATE_PRIMARY;
+    guard_state->state = STATE_PRIMARY_GUARDS;
     return guard_state;
 }
 

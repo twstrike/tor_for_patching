@@ -53,7 +53,7 @@ test_state_machine_should_use_PrimaryState(void *arg)
   (void) arg;
 
   guard_state = init_guard_state();
-  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY);
+  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
 
  done:
   tor_free(guard_state);
@@ -67,9 +67,9 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
   (void) arg;
 
   guard_state = init_guard_state();
-  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY);
-  guard_state = transfer_to(guard_state, STATE_UTOPIC);
-  tt_int_op(guard_state->state, OP_EQ, STATE_UTOPIC);
+  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
+  guard_state = transfer_to(guard_state, STATE_TRY_UTOPIC);
+  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_UTOPIC);
 
  done:
   tor_free(guard_state);
@@ -78,11 +78,11 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 int mock_bad_reach_treshould(guard_state_t *state)
 {
     switch(state->state){
-        case STATE_PRIMARY:
+        case STATE_PRIMARY_GUARDS:
             return 1;
-        case STATE_UTOPIC:
+        case STATE_TRY_UTOPIC:
             return 1;
-        case STATE_DYSTOPIC:
+        case STATE_TRY_DYSTOPIC:
             return 0;
     }
     return 1;
@@ -98,9 +98,9 @@ test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
 
   MOCK(reach_treshould, mock_bad_reach_treshould);
   guard_state = init_guard_state();
-  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY);
+  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
   next_guard = get_next_entry_guard(guard_state);
-  tt_int_op(guard_state->state, OP_EQ, STATE_DYSTOPIC);
+  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_DYSTOPIC);
 
  done:
   UNMOCK(reach_treshould);
