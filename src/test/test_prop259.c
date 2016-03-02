@@ -33,10 +33,11 @@ static void
 test_state_machine_should_get_next_guard(void *arg)
 {
   const node_t *next_guard = NULL;
+  guard_state_t *guard_state = NULL;
 
   (void) arg;
 
-  guard_state_t *guard_state = tor_malloc_zero(sizeof(guard_state_t));
+  guard_state = init_guard_state();
   next_guard = get_next_entry_guard(guard_state);
   tt_assert(next_guard);
 
@@ -52,19 +53,73 @@ test_state_machine_should_use_PrimaryState(void *arg)
   (void) arg;
 
   guard_state = init_guard_state();
-  tt_str_op(guard_state->state, OP_EQ, "PirmaryState");
+  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY);
 
  done:
   tor_free(guard_state);
 }
 
+static void
+test_state_machine_should_use_new_state_as_current_state(void *arg)
+{
+  guard_state_t *guard_state = NULL;
+
+  (void) arg;
+
+  guard_state = init_guard_state();
+  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY);
+  guard_state = transfer_to(guard_state, STATE_UTOPIC);
+  tt_int_op(guard_state->state, OP_EQ, STATE_UTOPIC);
+
+ done:
+  tor_free(guard_state);
+}
+
+int mock_bad_reach_treshould(guard_state_t *state)
+{
+    switch(state->state){
+        case STATE_PRIMARY:
+            return 1;
+        case STATE_UTOPIC:
+            return 1;
+        case STATE_DYSTOPIC:
+            return 0;
+    }
+    return 1;
+}
+
+static void
+test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
+{
+  const node_t *next_guard = NULL;
+  guard_state_t *guard_state = NULL;
+
+  (void) arg;
+
+  MOCK(reach_treshould, mock_bad_reach_treshould);
+  guard_state = init_guard_state();
+  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY);
+  next_guard = get_next_entry_guard(guard_state);
+  tt_int_op(guard_state->state, OP_EQ, STATE_DYSTOPIC);
+
+ done:
+  UNMOCK(reach_treshould);
+  tor_free(guard_state);
+}
+
 
 struct testcase_t entrynodes_new_tests[] = {
-  { "state_machine",
+  { "state_machine_next",
     test_state_machine_should_get_next_guard,
     0, NULL, NULL },
   { "state_machine_init",
     test_state_machine_should_use_PrimaryState,
+    0, NULL, NULL },
+  { "state_machine_transfer",
+    test_state_machine_should_use_new_state_as_current_state,
+    0, NULL, NULL },
+  { "state_machine_failover",
+    test_state_machine_should_fail_over_when_next_entry_guard_null,
     0, NULL, NULL },
   END_OF_TESTCASES
 };

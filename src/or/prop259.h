@@ -8,13 +8,19 @@
 #define TOR_GUARD_STATE_H
 
 typedef struct {
- char *state;
+ unsigned int state;
 } guard_state_t;
 
 #endif
 
+MOCK_DECL(const node_t *,get_next_entry_guard,(guard_state_t *state));
 #ifdef PROP259_PRIVATE
-const node_t *get_next_entry_guard(guard_state_t *state);
+const unsigned int STATE_PRIMARY = 0;
+const unsigned int STATE_UTOPIC = 1;
+const unsigned int STATE_DYSTOPIC = 2;
+const unsigned int STATE_RETRY = 3;
 
-#endif
 guard_state_t *init_guard_state(void);
+guard_state_t *transfer_to(guard_state_t *guard_state,const unsigned int new_state);
+MOCK_DECL(int, reach_treshould,(guard_state_t *state));
+#endif

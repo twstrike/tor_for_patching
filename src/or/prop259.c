@@ -30,14 +30,45 @@
 #include "transports.h"
 #include "statefile.h"
 
-const node_t *
-get_next_entry_guard(guard_state_t *state){
+MOCK_IMPL(const node_t *,
+get_next_entry_guard,(guard_state_t *state))
+{
     node_t *entry = tor_malloc_zero(sizeof(node_t));
+    if(reach_treshould(state)){
+        switch(state->state){
+            case STATE_PRIMARY:
+                transfer_to(state,STATE_UTOPIC);
+                break;
+            case STATE_UTOPIC:
+                transfer_to(state,STATE_DYSTOPIC);
+                break;
+            case STATE_DYSTOPIC:
+                transfer_to(state,STATE_RETRY);
+                break;
+            case STATE_RETRY:
+                state = init_guard_state();
+                break;
+        }
+        return get_next_entry_guard(state);
+    }
     return entry;
 }
 
-guard_state_t *init_guard_state(void){
+guard_state_t *init_guard_state(void)
+{
     guard_state_t *guard_state = tor_malloc_zero(sizeof(guard_state_t));
-    guard_state->state = tor_strdup("PirmaryState");
+    guard_state->state = STATE_PRIMARY;
     return guard_state;
+}
+
+guard_state_t *transfer_to(guard_state_t *guard_state,const unsigned int new_state)
+{
+    guard_state->state = new_state;
+    return guard_state;
+}
+
+MOCK_IMPL(int,
+reach_treshould,(guard_state_t *state))
+{
+    return 0;
 }
