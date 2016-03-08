@@ -31,10 +31,10 @@
 #include "statefile.h"
 
 MOCK_IMPL(const node_t *,
-get_next_entry_guard,(guard_state_t *state))
+algo_choose_entry_guard_next,(guard_state_t *state))
 {
     node_t *entry = tor_malloc_zero(sizeof(node_t));
-    if(reach_treshould(state)){
+    if(check_treshould(state)){
         switch(state->state){
             case STATE_PRIMARY_GUARDS:
                 transfer_to(state,STATE_TRY_UTOPIC);
@@ -43,15 +43,21 @@ get_next_entry_guard,(guard_state_t *state))
                 transfer_to(state,STATE_TRY_DYSTOPIC);
                 break;
             case STATE_TRY_DYSTOPIC:
-                state = init_guard_state();
-                break;
+                transfer_to(state,STATE_PRIMARY_GUARDS);
+                return NULL;
         }
-        return get_next_entry_guard(state);
+        return algo_choose_entry_guard_next(state);
     }
     return entry;
 }
 
-guard_state_t *init_guard_state(void)
+guard_state_t *algo_choose_entry_guard_start(
+        smartlist_t *used_guards,
+        smartlist_t *sampled_utopic_guards,
+        smartlist_t *sampled_dystopic_guards,
+        smartlist_t *exclude_nodes,
+        int n_primary_guards,
+        int dir)
 {
     guard_state_t *guard_state = tor_malloc_zero(sizeof(guard_state_t));
     guard_state->state = STATE_PRIMARY_GUARDS;
@@ -65,7 +71,7 @@ guard_state_t *transfer_to(guard_state_t *guard_state,const unsigned int new_sta
 }
 
 MOCK_IMPL(int,
-reach_treshould,(guard_state_t *state))
+check_treshould,(guard_state_t *state))
 {
     return 0;
 }
