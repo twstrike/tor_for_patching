@@ -8,12 +8,24 @@
 #define TOR_GUARD_STATE_H
 
 typedef struct {
- unsigned int state;
+    smartlist_t *guards;
+    smartlist_t *utopic_guards;
+    smartlist_t *dystopic_guards;
+    smartlist_t *remaining_utopic_guards;
+    smartlist_t *remaining_dystopic_guards;
+    smartlist_t *primary_guards;
+} guard_context_t;
+
+typedef struct {
+    unsigned int state;
+    smartlist_t *sampled_utopic_guards;
+    smartlist_t *sampled_dystopic_guards;
+    guard_context_t *context;
 } guard_state_t;
 
 #endif
 
-MOCK_DECL(const node_t *,algo_choose_entry_guard_next,(guard_state_t *state));
+MOCK_DECL(entry_guard_t *,algo_choose_entry_guard_next,(guard_state_t *state));
 #ifdef PROP259_PRIVATE
 const unsigned int STATE_PRIMARY_GUARDS = 0;
 const unsigned int STATE_TRY_UTOPIC = 1;
@@ -21,8 +33,6 @@ const unsigned int STATE_TRY_DYSTOPIC = 2;
 
 guard_state_t *algo_choose_entry_guard_start(
         smartlist_t *used_guards,
-        smartlist_t *sampled_utopic_guards,
-        smartlist_t *sampled_dystopic_guards,
         smartlist_t *exclude_nodes,
         int n_primary_guards,
         int dir);

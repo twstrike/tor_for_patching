@@ -34,8 +34,6 @@ test_state_machine_should_use_PrimaryState(void *arg)
 {
   guard_state_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
-  smartlist_t *sampled_utopic_guards = smartlist_new();
-  smartlist_t *sampled_dystopic_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
@@ -43,8 +41,6 @@ test_state_machine_should_use_PrimaryState(void *arg)
   (void) arg;
   guard_state = algo_choose_entry_guard_start(
           used_guards,
-          sampled_utopic_guards,
-          sampled_dystopic_guards,
           exclude_nodes,
           n_primary_guards,
           dir);
@@ -59,16 +55,12 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 {
   guard_state_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
-  smartlist_t *sampled_utopic_guards = smartlist_new();
-  smartlist_t *sampled_dystopic_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
   guard_state = algo_choose_entry_guard_start(
           used_guards,
-          sampled_utopic_guards,
-          sampled_dystopic_guards,
           exclude_nodes,
           n_primary_guards,
           dir);
@@ -98,19 +90,14 @@ int mock_bad_check_treshould(guard_state_t *state)
 static void
 test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
 {
-  const node_t *next_guard = NULL;
   guard_state_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
-  smartlist_t *sampled_utopic_guards = smartlist_new();
-  smartlist_t *sampled_dystopic_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
   guard_state = algo_choose_entry_guard_start(
           used_guards,
-          sampled_utopic_guards,
-          sampled_dystopic_guards,
           exclude_nodes,
           n_primary_guards,
           dir);
@@ -118,8 +105,37 @@ test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
 
   MOCK(check_treshould, mock_bad_check_treshould);
   tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
-  next_guard = algo_choose_entry_guard_next(guard_state);
+  algo_choose_entry_guard_next(guard_state);
   tt_int_op(guard_state->state, OP_EQ, STATE_TRY_DYSTOPIC);
+
+ done:
+  UNMOCK(check_treshould);
+  tor_free(guard_state);
+}
+
+static void
+test_state_machine_should_return_primary_guard_by_order(void *arg)
+{
+  guard_state_t *guard_state = NULL;
+  smartlist_t *used_guards = smartlist_new();
+  smartlist_t *exclude_nodes = smartlist_new();
+  int n_primary_guards = 3;
+  int dir = 0;
+
+  guard_state = algo_choose_entry_guard_start(
+          used_guards,
+          exclude_nodes,
+          n_primary_guards,
+          dir);
+  (void) arg;
+
+  entry_guard_t *entry1 = tor_malloc_zero(sizeof(entry_guard_t));
+  entry_guard_t *entry2 = tor_malloc_zero(sizeof(entry_guard_t));
+  smartlist_add(guard_state->context->primary_guards, entry1);
+  smartlist_add(guard_state->context->primary_guards, entry2);
+
+  entry_guard_t *entry_guard1 = algo_choose_entry_guard_next(guard_state);
+  tt_ptr_op(entry1, OP_EQ, entry_guard1);
 
  done:
   UNMOCK(check_treshould);
@@ -136,6 +152,9 @@ struct testcase_t entrynodes_new_tests[] = {
     0, NULL, NULL },
   { "state_machine_failover",
     test_state_machine_should_fail_over_when_next_entry_guard_null,
+    0, NULL, NULL },
+  { "state_machine_primary",
+    test_state_machine_should_return_primary_guard_by_order,
     0, NULL, NULL },
   END_OF_TESTCASES
 };

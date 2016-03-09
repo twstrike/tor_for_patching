@@ -30,10 +30,9 @@
 #include "transports.h"
 #include "statefile.h"
 
-MOCK_IMPL(const node_t *,
+MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_state_t *state))
 {
-    node_t *entry = tor_malloc_zero(sizeof(node_t));
     if(check_treshould(state)){
         switch(state->state){
             case STATE_PRIMARY_GUARDS:
@@ -48,19 +47,26 @@ algo_choose_entry_guard_next,(guard_state_t *state))
         }
         return algo_choose_entry_guard_next(state);
     }
-    return entry;
+    switch(state->state){
+        case STATE_PRIMARY_GUARDS:
+            return smartlist_get(state->context->primary_guards,0);
+        case STATE_TRY_UTOPIC:
+        case STATE_TRY_DYSTOPIC:
+            return NULL;
+    }
+    return NULL;
 }
 
 guard_state_t *algo_choose_entry_guard_start(
         smartlist_t *used_guards,
-        smartlist_t *sampled_utopic_guards,
-        smartlist_t *sampled_dystopic_guards,
         smartlist_t *exclude_nodes,
         int n_primary_guards,
         int dir)
 {
     guard_state_t *guard_state = tor_malloc_zero(sizeof(guard_state_t));
     guard_state->state = STATE_PRIMARY_GUARDS;
+    guard_state->context = tor_malloc_zero(sizeof(guard_context_t));
+    guard_state->context->primary_guards = smartlist_new();
     return guard_state;
 }
 
