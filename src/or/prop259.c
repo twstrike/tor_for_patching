@@ -49,7 +49,11 @@ algo_choose_entry_guard_next,(guard_state_t *state))
     }
     switch(state->state){
         case STATE_PRIMARY_GUARDS:
-            return smartlist_get(state->context->primary_guards,0);
+            SMARTLIST_FOREACH_BEGIN(state->context->primary_guards, entry_guard_t *, e) {
+                if (!e->unreachable) {
+                    return e;
+                }
+            } SMARTLIST_FOREACH_END(e);
         case STATE_TRY_UTOPIC:
         case STATE_TRY_DYSTOPIC:
             return NULL;

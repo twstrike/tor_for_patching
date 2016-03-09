@@ -134,8 +134,16 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
   smartlist_add(guard_state->context->primary_guards, entry1);
   smartlist_add(guard_state->context->primary_guards, entry2);
 
-  entry_guard_t *entry_guard1 = algo_choose_entry_guard_next(guard_state);
-  tt_ptr_op(entry1, OP_EQ, entry_guard1);
+  entry_guard_t *guard1 = algo_choose_entry_guard_next(guard_state);
+  tt_ptr_op(entry1, OP_EQ, guard1);
+  entry_guard_t *guard2 = algo_choose_entry_guard_next(guard_state);
+  tt_ptr_op(entry1, OP_EQ, guard2);
+  entry1->unreachable = 1;
+  entry_guard_t *guard3 = algo_choose_entry_guard_next(guard_state);
+  tt_ptr_op(entry2, OP_EQ, guard3);
+  entry1->unreachable = 0;
+  entry_guard_t *guard4 = algo_choose_entry_guard_next(guard_state);
+  tt_ptr_op(entry1, OP_EQ, guard4);
 
  done:
   UNMOCK(check_treshould);
