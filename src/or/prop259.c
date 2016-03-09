@@ -33,32 +33,29 @@
 MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_state_t *state))
 {
-    if(check_treshould(state)){
-        switch(state->state){
-            case STATE_PRIMARY_GUARDS:
-                transfer_to(state,STATE_TRY_UTOPIC);
-                break;
-            case STATE_TRY_UTOPIC:
-                transfer_to(state,STATE_TRY_DYSTOPIC);
-                break;
-            case STATE_TRY_DYSTOPIC:
-                transfer_to(state,STATE_PRIMARY_GUARDS);
-                return NULL;
-        }
-        return algo_choose_entry_guard_next(state);
-    }
     switch(state->state){
         case STATE_PRIMARY_GUARDS:
+            if (check_treshould(state)){
+                transfer_to(state,STATE_TRY_UTOPIC);
+            }
             SMARTLIST_FOREACH_BEGIN(state->context->primary_guards, entry_guard_t *, e) {
                 if (!e->unreachable) {
                     return e;
                 }
             } SMARTLIST_FOREACH_END(e);
+            break;
         case STATE_TRY_UTOPIC:
+            if (check_treshould(state)){
+                transfer_to(state,STATE_TRY_DYSTOPIC);
+            }
+            break;
         case STATE_TRY_DYSTOPIC:
+            if (check_treshould(state)){
+                transfer_to(state,STATE_PRIMARY_GUARDS);
+            }
             return NULL;
     }
-    return NULL;
+    return algo_choose_entry_guard_next(state);
 }
 
 guard_state_t *algo_choose_entry_guard_start(
