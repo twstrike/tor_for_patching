@@ -39,27 +39,26 @@ static void transition_to_previous_state_or_try_utopic(guard_selection_t *guard_
 }
 
 MOCK_IMPL(entry_guard_t *,
-algo_choose_entry_guard_next,(guard_selection_t *state))
+        algo_choose_entry_guard_next,(guard_selection_t *guard_selection))
 {
-    switch(state->state){
+    switch(guard_selection->state){
         case STATE_PRIMARY_GUARDS:
-            SMARTLIST_FOREACH_BEGIN(state->primary_guards, entry_guard_t *, e) {
+            SMARTLIST_FOREACH_BEGIN(guard_selection->primary_guards, entry_guard_t *, e) {
                 if (!e->unreachable_since) {
                     return e;
                 }
             } SMARTLIST_FOREACH_END(e);
-
-						transition_to_previous_state_or_try_utopic(state);
+            transition_to_previous_state_or_try_utopic(guard_selection);
             break;
         case STATE_TRY_UTOPIC:
-						//try to get something
+            //try to get something
             break;
         case STATE_TRY_DYSTOPIC:
-						//try to get something
-            return NULL;
+            //try to get something
+            break;
     }
 
-		return NULL;
+    return NULL;
 }
 
 guard_selection_t *algo_choose_entry_guard_start(

@@ -32,23 +32,23 @@
 static void
 test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
 {
-  guard_selection_t *guard_state = NULL;
+  guard_selection_t *guard_selection = NULL;
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
   (void) arg;
-  guard_state = algo_choose_entry_guard_start(
+  guard_selection = algo_choose_entry_guard_start(
           used_guards,
           NULL, NULL,
           exclude_nodes,
           n_primary_guards,
           dir);
-  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
+  tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
 
  done:
-  tor_free(guard_state);
+  tor_free(guard_selection);
   tor_free(used_guards);
   tor_free(exclude_nodes);
 }
@@ -56,13 +56,13 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
 static void
 test_state_machine_should_use_new_state_as_current_state(void *arg)
 {
-  guard_selection_t *guard_state = NULL;
+  guard_selection_t *guard_selection = NULL;
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
-  guard_state = algo_choose_entry_guard_start(
+  guard_selection = algo_choose_entry_guard_start(
           used_guards,
           NULL, NULL,
           exclude_nodes,
@@ -70,12 +70,12 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
           dir);
   (void) arg;
 
-  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
-  transition_to(guard_state, STATE_TRY_UTOPIC);
-  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_UTOPIC);
+  tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
+  transition_to(guard_selection, STATE_TRY_UTOPIC);
+  tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
 
  done:
-  tor_free(guard_state);
+  tor_free(guard_selection);
   tor_free(used_guards);
   tor_free(exclude_nodes);
 }
@@ -83,13 +83,13 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 static void
 test_state_machine_should_return_primary_guard_by_order(void *arg)
 {
-  guard_selection_t *guard_state = NULL;
+  guard_selection_t *guard_selection = NULL;
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
-  guard_state = algo_choose_entry_guard_start(
+  guard_selection = algo_choose_entry_guard_start(
           used_guards,
           NULL, NULL,
           exclude_nodes,
@@ -99,23 +99,23 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
 
   entry_guard_t *entry1 = tor_malloc_zero(sizeof(entry_guard_t));
   entry_guard_t *entry2 = tor_malloc_zero(sizeof(entry_guard_t));
-  smartlist_add(guard_state->primary_guards, entry1);
-  smartlist_add(guard_state->primary_guards, entry2);
+  smartlist_add(guard_selection->primary_guards, entry1);
+  smartlist_add(guard_selection->primary_guards, entry2);
 
-  entry_guard_t *guard1 = algo_choose_entry_guard_next(guard_state);
+  entry_guard_t *guard1 = algo_choose_entry_guard_next(guard_selection);
   tt_ptr_op(entry1, OP_EQ, guard1);
-  entry_guard_t *guard2 = algo_choose_entry_guard_next(guard_state);
+  entry_guard_t *guard2 = algo_choose_entry_guard_next(guard_selection);
   tt_ptr_op(entry1, OP_EQ, guard2);
   entry1->unreachable_since = 1;
-  entry_guard_t *guard3 = algo_choose_entry_guard_next(guard_state);
+  entry_guard_t *guard3 = algo_choose_entry_guard_next(guard_selection);
   tt_ptr_op(entry2, OP_EQ, guard3);
   // XXX 0 is Jan 1st 1970, I think it should be something else
   entry1->unreachable_since = 0;
-  entry_guard_t *guard4 = algo_choose_entry_guard_next(guard_state);
+  entry_guard_t *guard4 = algo_choose_entry_guard_next(guard_selection);
   tt_ptr_op(entry1, OP_EQ, guard4);
 
  done:
-  tor_free(guard_state);
+  tor_free(guard_selection);
   tor_free(used_guards);
   tor_free(exclude_nodes);
 }
@@ -123,13 +123,13 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
 static void
 test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(void *arg)
 {
-  guard_selection_t *guard_state = NULL;
+  guard_selection_t *guard_selection = NULL;
   smartlist_t *used_guards = NULL;
   smartlist_t *exclude_nodes = NULL;
   int n_primary_guards = 3;
   int dir = 0;
 
-  guard_state = algo_choose_entry_guard_start(
+  guard_selection = algo_choose_entry_guard_start(
           used_guards,
           NULL, NULL,
           exclude_nodes,
@@ -137,24 +137,24 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(voi
           dir);
   (void) arg;
 
-  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
-  algo_choose_entry_guard_next(guard_state);
-  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_UTOPIC);
+  tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
+  algo_choose_entry_guard_next(guard_selection);
+  tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
 
  done:
-  tor_free(guard_state);
+  tor_free(guard_selection);
 }
 
 static void
 test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
-{ 
-  guard_selection_t *guard_state = NULL;
+{
+  guard_selection_t *guard_selection = NULL;
   smartlist_t *used_guards = NULL;
   smartlist_t *exclude_nodes = NULL;
   int n_primary_guards = 3;
   int dir = 0;
 
-  guard_state = algo_choose_entry_guard_start(
+  guard_selection = algo_choose_entry_guard_start(
           used_guards,
           NULL, NULL,
           exclude_nodes,
@@ -162,13 +162,13 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
           dir);
   (void) arg;
 
-  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
-  guard_state->previous_state = STATE_TRY_DYSTOPIC;
-  algo_choose_entry_guard_next(guard_state);
-  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_DYSTOPIC);
+  tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
+  guard_selection->previous_state = STATE_TRY_DYSTOPIC;
+  algo_choose_entry_guard_next(guard_selection);
+  tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_DYSTOPIC);
 
  done:
-  tor_free(guard_state);
+  tor_free(guard_selection);
 }
 
 

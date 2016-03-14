@@ -68,9 +68,6 @@ typedef struct entry_guard_t {
   double use_attempts; /**< Number of circuits we tried to use with streams */
   double use_successes; /**< Number of successfully used circuits using
                                * this guard as first hop. */
-#ifdef USE_PROP_259
-  int unreachable;
-#endif
 } entry_guard_t;
 
 entry_guard_t *entry_guard_get_by_id_digest(const char *digest);
