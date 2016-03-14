@@ -253,6 +253,8 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
 static void
 test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
 		entry_guard_t* guard = NULL;
+		smartlist_t *used_guards = NULL; 
+		smartlist_t *primary_guards = NULL; 
 		(void) arg;
 
 		entry_guard_t *g1, *g2, *g3;
@@ -260,10 +262,10 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
 		g2 = tor_malloc_zero(sizeof(entry_guard_t));
 		g3 = tor_malloc_zero(sizeof(entry_guard_t));
 
-		smartlist_t *primary_guards = smartlist_new();
+		primary_guards = smartlist_new();
 		smartlist_add(primary_guards, g1);
 
-		smartlist_t *used_guards = smartlist_new();
+		used_guards = smartlist_new();
 		smartlist_add(used_guards, g1);
 		smartlist_add(used_guards, g2);
 		smartlist_add(used_guards, g3);
@@ -286,6 +288,8 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
 
 done:
 		tor_free(guard_selection);
+		tor_free(used_guards);
+		tor_free(primary_guards);
 }
 
 static void
