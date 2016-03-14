@@ -30,19 +30,26 @@
 #include "transports.h"
 #include "statefile.h"
 
+static void transition_to_previous_state_or_try_utopic(guard_selection_state_t *algo_state) {
+  if(algo_state->previous_state != 0) {
+    transfer_to(algo_state, algo_state->previous_state);
+  } else {
+    transfer_to(algo_state, STATE_TRY_UTOPIC);
+  }
+}
+
 MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_selection_state_t *state))
 {
     switch(state->state){
         case STATE_PRIMARY_GUARDS:
-            if (check_treshould(state)){
-                transfer_to(state,STATE_TRY_UTOPIC);
-            }
             SMARTLIST_FOREACH_BEGIN(state->context->primary_guards, entry_guard_t *, e) {
                 if (!e->unreachable_since) {
                     return e;
                 }
             } SMARTLIST_FOREACH_END(e);
+
+            transition_to_previous_state_or_try_utopic(state);
             break;
         case STATE_TRY_UTOPIC:
             if (check_treshould(state)){
