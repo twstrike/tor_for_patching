@@ -92,7 +92,7 @@ done:
 }
 
 static entry_guard_t*
-state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
+each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection) {
 		SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
 				if(smartlist_contains(guard_selection->primary_guards, e)){
 						continue;
@@ -103,6 +103,11 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
 				}
 		} SMARTLIST_FOREACH_END(e);
 
+		return NULL;
+}
+
+static entry_guard_t*
+each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection){
 		entry_guard_t *guard = NULL;
 		smartlist_t *remaining = smartlist_new();
 		smartlist_add_all(remaining, guard_selection->remaining_utopic_guards);
@@ -123,6 +128,16 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
 
 		tor_free(remaining);
 		return guard;
+}
+
+static entry_guard_t*
+state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
+		entry_guard_t *guard = each_used_guard_not_in_primary_guards(guard_selection);
+		if(guard){
+				return guard;
+		}
+
+		return each_remaining_utopic_by_bandwidth(guard_selection);
 }
 
 MOCK_IMPL(entry_guard_t *,
