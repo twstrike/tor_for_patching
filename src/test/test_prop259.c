@@ -357,6 +357,36 @@ done:
 		UNMOCK(node_sl_choose_by_bandwidth);
 }
 
+static void
+test_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC(void *arg) {
+		entry_guard_t* guard = NULL;
+		guard_selection_t *guard_selection = NULL;
+		smartlist_t *primary_guards = NULL;
+		smartlist_t *used_guards = NULL;
+		smartlist_t *remaining_utopic_guards = NULL;
+		(void) arg;
+
+		primary_guards = smartlist_new();
+		used_guards = smartlist_new();
+		remaining_utopic_guards = smartlist_new();
+
+		guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+		guard_selection->state = STATE_TRY_UTOPIC;
+		guard_selection->used_guards = used_guards;
+		guard_selection->primary_guards = primary_guards;
+		guard_selection->remaining_utopic_guards = remaining_utopic_guards;
+
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, NULL);
+		tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_DYSTOPIC);
+
+done:
+		tor_free(guard_selection);
+		tor_free(primary_guards);
+		tor_free(used_guards);
+		tor_free(remaining_utopic_guards);
+}
+
 
 
 /* Unittest setup function: Setup a fake network. */
@@ -420,6 +450,9 @@ struct testcase_t entrynodes_new_tests[] = {
     0, NULL, NULL },
   { "STATE_TRY_UTOPIC_returns_REMAINING_UTOPIC",
     test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights,
+		TT_FORK, &fake_network, NULL },
+  { "STATE_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC",
+    test_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC,
 		TT_FORK, &fake_network, NULL },
 
   END_OF_TESTCASES

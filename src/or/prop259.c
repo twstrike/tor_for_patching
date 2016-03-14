@@ -137,7 +137,14 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
 				return guard;
 		}
 
-		return each_remaining_utopic_by_bandwidth(guard_selection);
+		guard = each_remaining_utopic_by_bandwidth(guard_selection);
+		if(guard){
+				return guard;
+		}
+
+		transition_to(guard_selection, STATE_TRY_DYSTOPIC);
+
+		return NULL;
 }
 
 MOCK_IMPL(entry_guard_t *,
