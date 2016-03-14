@@ -80,19 +80,6 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
   tor_free(exclude_nodes);
 }
 
-int mock_bad_check_treshould(guard_selection_t *state)
-{
-    switch(state->state){
-        case STATE_PRIMARY_GUARDS:
-            return 1;
-        case STATE_TRY_UTOPIC:
-            return 1;
-        case STATE_TRY_DYSTOPIC:
-            return 0;
-    }
-    return 1;
-}
-
 static void
 test_state_machine_should_return_primary_guard_by_order(void *arg)
 {
