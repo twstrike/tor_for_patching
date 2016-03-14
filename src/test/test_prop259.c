@@ -294,6 +294,9 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
 		smartlist_t *our_nodelist = NULL;
 		node_t *node = NULL;
 		guard_selection_t *guard_selection = NULL;
+		smartlist_t *primary_guards = NULL;
+		smartlist_t *used_guards = NULL;
+		smartlist_t *remaining_utopic_guards = NULL;
 		(void) arg;
 
 		MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
@@ -315,13 +318,13 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
 		node = smartlist_get(our_nodelist, 2);
 		g3 = entry_guard_get_by_id_digest(node->identity);
 
-		smartlist_t *primary_guards = smartlist_new();
+		primary_guards = smartlist_new();
 		smartlist_add(primary_guards, g1);
 
-		smartlist_t *used_guards = smartlist_new();
+		used_guards = smartlist_new();
 		smartlist_add(used_guards, g1);
 
-		smartlist_t *remaining_utopic_guards = smartlist_new();
+		remaining_utopic_guards = smartlist_new();
 		smartlist_add(remaining_utopic_guards, g2);
 		smartlist_add(remaining_utopic_guards, g3);
 
@@ -345,6 +348,9 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
 
 done:
 		tor_free(guard_selection);
+		tor_free(primary_guards);
+		tor_free(used_guards);
+		tor_free(remaining_utopic_guards);
 		UNMOCK(node_sl_choose_by_bandwidth);
 }
 
