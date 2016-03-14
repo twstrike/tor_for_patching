@@ -76,6 +76,7 @@ test_next_by_bandwidth_return_each_entry(void *arg) {
 		entry_guard_t* guard = NULL;
 		node_t *node = NULL;
 		smartlist_t *guards = NULL;
+		entry_guard_t *g1, *g2, *g3 = NULL;
 		(void) arg;
 
 		MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
@@ -90,15 +91,16 @@ test_next_by_bandwidth_return_each_entry(void *arg) {
 				tt_assert(node_tmp);
 		} SMARTLIST_FOREACH_END(node);
 
-		entry_guard_t *g1, *g2;
 		node = smartlist_get(our_nodelist, 0);
 		g1 = entry_guard_get_by_id_digest(node->identity);
 		node = smartlist_get(our_nodelist, 1);
 		g2 = entry_guard_get_by_id_digest(node->identity);
+		g3 = tor_malloc_zero(sizeof(entry_guard_t));
 
 		guards = smartlist_new();
 		smartlist_add(guards, g1);
 		smartlist_add(guards, g2);
+		smartlist_add(guards, g3); // this should be ignored
 
 		guard = next_by_bandwidth(guards);
 		tt_ptr_op(guard, OP_EQ, g1);
@@ -111,6 +113,7 @@ test_next_by_bandwidth_return_each_entry(void *arg) {
 
 done:
 		tor_free(guards);
+		tor_free(g3);
 		UNMOCK(node_sl_choose_by_bandwidth);
 }
 
@@ -345,12 +348,6 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
 		guard = algo_choose_entry_guard_next(guard_selection);
 		tt_ptr_op(guard, OP_EQ, g3);
 		tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards, g2))
-
-		//XXX this is unrealistic.
-		//in real life this wont be called unless g3 is unreachable
-		g2->unreachable_since = 0;
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g3);
 
 done:
 		tor_free(guard_selection);
