@@ -21,21 +21,21 @@ typedef struct {
     smartlist_t *sampled_utopic_guards;
     smartlist_t *sampled_dystopic_guards;
     guard_context_t *context;
-} guard_state_t;
+} guard_selection_state_t;
 
 #endif
 
-MOCK_DECL(entry_guard_t *,algo_choose_entry_guard_next,(guard_state_t *state));
+MOCK_DECL(entry_guard_t *,algo_choose_entry_guard_next,(guard_selection_state_t *state));
 #ifdef PROP259_PRIVATE
 const unsigned int STATE_PRIMARY_GUARDS = 0;
 const unsigned int STATE_TRY_UTOPIC = 1;
 const unsigned int STATE_TRY_DYSTOPIC = 2;
 
-guard_state_t *algo_choose_entry_guard_start(
+guard_selection_state_t *algo_choose_entry_guard_start(
         smartlist_t *used_guards,
         smartlist_t *exclude_nodes,
         int n_primary_guards,
         int dir);
-guard_state_t *transfer_to(guard_state_t *guard_state,const unsigned int new_state);
-MOCK_DECL(int, check_treshould,(guard_state_t *state));
+guard_selection_state_t *transfer_to(guard_selection_state_t *guard_state,const unsigned int new_state);
+MOCK_DECL(int, check_treshould,(guard_selection_state_t *state));
 #endif

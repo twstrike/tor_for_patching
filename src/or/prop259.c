@@ -31,7 +31,7 @@
 #include "statefile.h"
 
 MOCK_IMPL(entry_guard_t *,
-algo_choose_entry_guard_next,(guard_state_t *state))
+algo_choose_entry_guard_next,(guard_selection_state_t *state))
 {
     switch(state->state){
         case STATE_PRIMARY_GUARDS:
@@ -55,30 +55,32 @@ algo_choose_entry_guard_next,(guard_state_t *state))
             }
             return NULL;
     }
+
     return algo_choose_entry_guard_next(state);
 }
 
-guard_state_t *algo_choose_entry_guard_start(
+guard_selection_state_t *algo_choose_entry_guard_start(
         smartlist_t *used_guards,
         smartlist_t *exclude_nodes,
         int n_primary_guards,
         int dir)
 {
-    guard_state_t *guard_state = tor_malloc_zero(sizeof(guard_state_t));
-    guard_state->state = STATE_PRIMARY_GUARDS;
-    guard_state->context = tor_malloc_zero(sizeof(guard_context_t));
-    guard_state->context->primary_guards = smartlist_new();
-    return guard_state;
+    guard_selection_state_t *algo_state = tor_malloc_zero(sizeof(guard_selection_state_t));
+    algo_state->state = STATE_PRIMARY_GUARDS;
+    algo_state->context = tor_malloc_zero(sizeof(guard_context_t));
+    algo_state->context->primary_guards = smartlist_new();
+    return algo_state;
 }
 
-guard_state_t *transfer_to(guard_state_t *guard_state,const unsigned int new_state)
+//XXX should be transition_to
+guard_selection_state_t *transfer_to(guard_selection_state_t *algo_state, const unsigned int new_state)
 {
-    guard_state->state = new_state;
-    return guard_state;
+    algo_state->state = new_state;
+    return algo_state;
 }
 
 MOCK_IMPL(int,
-check_treshould,(guard_state_t *state))
+check_treshould,(guard_selection_state_t *state))
 {
     return 0;
 }

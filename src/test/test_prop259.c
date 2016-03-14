@@ -30,9 +30,9 @@
  */
 
 static void
-test_state_machine_should_use_PrimaryState(void *arg)
+test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
 {
-  guard_state_t *guard_state = NULL;
+  guard_selection_state_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
@@ -53,7 +53,7 @@ test_state_machine_should_use_PrimaryState(void *arg)
 static void
 test_state_machine_should_use_new_state_as_current_state(void *arg)
 {
-  guard_state_t *guard_state = NULL;
+  guard_selection_state_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
@@ -74,7 +74,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
   tor_free(guard_state);
 }
 
-int mock_bad_check_treshould(guard_state_t *state)
+int mock_bad_check_treshould(guard_selection_state_t *state)
 {
     switch(state->state){
         case STATE_PRIMARY_GUARDS:
@@ -90,7 +90,7 @@ int mock_bad_check_treshould(guard_state_t *state)
 static void
 test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
 {
-  guard_state_t *guard_state = NULL;
+  guard_selection_state_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
@@ -116,7 +116,7 @@ test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
 static void
 test_state_machine_should_return_primary_guard_by_order(void *arg)
 {
-  guard_state_t *guard_state = NULL;
+  guard_selection_state_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
@@ -141,7 +141,8 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
   entry1->unreachable_since = 1;
   entry_guard_t *guard3 = algo_choose_entry_guard_next(guard_state);
   tt_ptr_op(entry2, OP_EQ, guard3);
-  entry1->unreachable_since = -1;
+  // XXX 0 is Jan 1st 1970, I think it should be something else
+  entry1->unreachable_since = 0;
   entry_guard_t *guard4 = algo_choose_entry_guard_next(guard_state);
   tt_ptr_op(entry1, OP_EQ, guard4);
 
@@ -153,7 +154,7 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
 
 struct testcase_t entrynodes_new_tests[] = {
   { "state_machine_init",
-    test_state_machine_should_use_PrimaryState,
+    test_STATE_PRIMARY_GUARD_is_initial_state,
     0, NULL, NULL },
   { "state_machine_transfer",
     test_state_machine_should_use_new_state_as_current_state,
