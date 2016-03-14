@@ -66,6 +66,55 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
   tor_free(exclude_nodes);
 }
 
+const node_t* node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
+														 bandwidth_weight_rule_t rule){
+		return smartlist_get(sl, 0);
+}
+
+static void
+test_next_by_bandwidth_return_each_entry(void *arg) {
+		entry_guard_t* guard = NULL;
+		node_t *node = NULL;
+		smartlist_t *guards = NULL;
+		(void) arg;
+
+		MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
+
+		// all nodes are guards
+		tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
+
+		smartlist_t *our_nodelist = nodelist_get_list();
+		SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
+				const node_t *node_tmp;
+				node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
+				tt_assert(node_tmp);
+		} SMARTLIST_FOREACH_END(node);
+
+		entry_guard_t *g1, *g2;
+		node = smartlist_get(our_nodelist, 0);
+		g1 = entry_guard_get_by_id_digest(node->identity);
+		node = smartlist_get(our_nodelist, 1);
+		g2 = entry_guard_get_by_id_digest(node->identity);
+
+		guards = smartlist_new();
+		smartlist_add(guards, g1);
+		smartlist_add(guards, g2);
+
+		guard = next_by_bandwidth(guards);
+		tt_ptr_op(guard, OP_EQ, g1);
+
+		guard = next_by_bandwidth(guards);
+		tt_ptr_op(guard, OP_EQ, g2);
+
+		guard = next_by_bandwidth(guards);
+		tt_ptr_op(guard, OP_EQ, NULL);
+
+done:
+		tor_free(guards);
+		UNMOCK(node_sl_choose_by_bandwidth);
+}
+
+
 static void
 test_state_machine_should_use_new_state_as_current_state(void *arg)
 {
@@ -239,11 +288,6 @@ done:
 		tor_free(guard_selection);
 }
 
-const node_t* node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
-														 bandwidth_weight_rule_t rule){
-		return smartlist_get(sl, 0);
-}
-
 static void
 test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
 		entry_guard_t* guard = NULL;
@@ -347,6 +391,9 @@ struct testcase_t entrynodes_new_tests[] = {
   { "state_machine_init",
     test_STATE_PRIMARY_GUARD_is_initial_state,
     0, NULL, NULL },
+  { "next_by_bandwidth",
+    test_next_by_bandwidth_return_each_entry,
+		TT_FORK, &fake_network, NULL },
   { "state_machine_transfer",
     test_state_machine_should_use_new_state_as_current_state,
     0, NULL, NULL },

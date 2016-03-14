@@ -27,6 +27,7 @@ typedef struct {
 #endif
 
 MOCK_DECL(entry_guard_t *,algo_choose_entry_guard_next,(guard_selection_t *));
+
 #ifdef PROP259_PRIVATE
 const unsigned int STATE_INVALID = 0;
 const unsigned int STATE_PRIMARY_GUARDS = 1;
@@ -43,4 +44,5 @@ guard_selection_t* algo_choose_entry_guard_start(
 
 void transition_to(guard_selection_t *algo, const unsigned int state);
 
+STATIC entry_guard_t* next_by_bandwidth(smartlist_t *guards);
 #endif

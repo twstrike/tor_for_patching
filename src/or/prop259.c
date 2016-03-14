@@ -64,7 +64,7 @@ static void smartlist_remove_keeporder(smartlist_t *sl, const void *e) {
 		smartlist_del_keeporder(sl, pos);
 }
 
-static entry_guard_t* next_by_bandwidth(smartlist_t *guards) {
+STATIC entry_guard_t* next_by_bandwidth(smartlist_t *guards) {
 		entry_guard_t *guard = NULL;
 		smartlist_t *nodes = smartlist_new();
 
