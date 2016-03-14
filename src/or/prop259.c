@@ -51,6 +51,46 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection) {
 		return NULL;
 }
 
+static const node_t* guard_to_node(const entry_guard_t *guard) {
+		return node_get_by_id(guard->identity);
+}
+
+static entry_guard_t* node_to_guard(const node_t *node) {
+		return entry_guard_get_by_id_digest(node->identity);
+}
+
+static void smartlist_remove_keeporder(smartlist_t *sl, const void *e) {
+		int pos = smartlist_pos(sl, e);
+		smartlist_del_keeporder(sl, pos);
+}
+
+static entry_guard_t* next_by_bandwidth(smartlist_t *guards) {
+		entry_guard_t *guard = NULL;
+		smartlist_t *nodes = smartlist_new();
+
+		SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+			const node_t *node = guard_to_node(e);
+			if(!node){
+					continue; // not listed
+			}
+
+			smartlist_add(nodes, (void *)node);
+		} SMARTLIST_FOREACH_END(e);
+
+		const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
+		if(!node){
+				goto done;
+		}
+
+		guard = node_to_guard(node);
+		tor_assert(guard);
+		smartlist_remove_keeporder(guards, guard);
+
+done:
+		tor_free(nodes);
+		return guard;
+}
+
 static entry_guard_t*
 state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
 		SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
@@ -63,7 +103,26 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
 				}
 		} SMARTLIST_FOREACH_END(e);
 
-		return NULL;
+		entry_guard_t *guard = NULL;
+		smartlist_t *remaining = smartlist_new();
+		smartlist_add_all(remaining, guard_selection->remaining_utopic_guards);
+
+		while(smartlist_len(remaining) > 0) {
+				entry_guard_t *g = next_by_bandwidth(remaining);
+				if(!g){
+						break;
+				}
+
+				if (!g->unreachable_since) {
+						guard = g;
+						break;
+				}
+
+				smartlist_remove_keeporder(guard_selection->remaining_utopic_guards, g);
+		}
+
+		tor_free(remaining);
+		return guard;
 }
 
 MOCK_IMPL(entry_guard_t *,

@@ -24,6 +24,14 @@
 
 #include "test_helpers.h"
 
+/** Dummy Tor state used in unittests. */
+static or_state_t *dummy_state = NULL;
+static or_state_t *
+get_or_state_replacement(void)
+{
+  return dummy_state;
+}
+
 /* TODO:
  * algo_choose_entry_guard_next() test with state machine.
  *
@@ -231,6 +239,110 @@ done:
 		tor_free(guard_selection);
 }
 
+const node_t* node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
+														 bandwidth_weight_rule_t rule){
+		return smartlist_get(sl, 0);
+}
+
+static void
+test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
+		entry_guard_t* guard = NULL;
+		smartlist_t *our_nodelist = NULL;
+		node_t *node = NULL;
+		guard_selection_t *guard_selection = NULL;
+		(void) arg;
+
+		MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
+
+		tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
+
+		our_nodelist = nodelist_get_list();
+		SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
+				const node_t *node_tmp;
+				node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
+				tt_assert(node_tmp);
+		} SMARTLIST_FOREACH_END(node);
+
+		entry_guard_t *g1, *g2, *g3;
+		node = smartlist_get(our_nodelist, 0);
+		g1 = entry_guard_get_by_id_digest(node->identity);
+		node = smartlist_get(our_nodelist, 1);
+		g2 = entry_guard_get_by_id_digest(node->identity);
+		node = smartlist_get(our_nodelist, 2);
+		g3 = entry_guard_get_by_id_digest(node->identity);
+
+		smartlist_t *primary_guards = smartlist_new();
+		smartlist_add(primary_guards, g1);
+
+		smartlist_t *used_guards = smartlist_new();
+		smartlist_add(used_guards, g1);
+
+		smartlist_t *remaining_utopic_guards = smartlist_new();
+		smartlist_add(remaining_utopic_guards, g2);
+		smartlist_add(remaining_utopic_guards, g3);
+
+		guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+		guard_selection->state = STATE_TRY_UTOPIC;
+		guard_selection->used_guards = used_guards;
+		guard_selection->primary_guards = primary_guards;
+		guard_selection->remaining_utopic_guards = remaining_utopic_guards;
+
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g2);
+
+		g2->unreachable_since = 1;
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g3);
+		tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards, g2))
+
+		g2->unreachable_since = 0;
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g3);
+
+done:
+		tor_free(guard_selection);
+		UNMOCK(node_sl_choose_by_bandwidth);
+}
+
+
+
+/* Unittest setup function: Setup a fake network. */
+static void *
+fake_network_setup(const struct testcase_t *testcase)
+{
+  (void) testcase;
+
+  /* Setup fake state */
+  dummy_state = tor_malloc_zero(sizeof(or_state_t));
+  MOCK(get_or_state,
+       get_or_state_replacement);
+
+  /* Setup fake routerlist. */
+  helper_setup_fake_routerlist();
+
+  /* Return anything but NULL (it's interpreted as test fail) */
+  return dummy_state;
+}
+
+/* Unittest cleanup function: Cleanup the fake network. */
+static int
+fake_network_cleanup(const struct testcase_t *testcase, void *ptr)
+{
+  (void) testcase;
+  (void) ptr;
+
+  routerlist_free_all();
+  nodelist_free_all();
+  entry_guards_free_all();
+  or_state_free(dummy_state);
+
+  return 1; /* NOP */
+}
+
+static const struct testcase_setup_t fake_network = {
+		fake_network_setup, fake_network_cleanup
+};
+
 struct testcase_t entrynodes_new_tests[] = {
   { "state_machine_init",
     test_STATE_PRIMARY_GUARD_is_initial_state,
@@ -250,5 +362,9 @@ struct testcase_t entrynodes_new_tests[] = {
   { "STATE_TRY_UTOPIC_returns_USED_NOT_PRIMARY",
     test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS,
     0, NULL, NULL },
+  { "STATE_TRY_UTOPIC_returns_REMAINING_UTOPIC",
+    test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights,
+		TT_FORK, &fake_network, NULL },
+
   END_OF_TESTCASES
 };

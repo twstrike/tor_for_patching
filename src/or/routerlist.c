@@ -2453,9 +2453,9 @@ frac_nodes_with_descriptors(const smartlist_t *sl,
 
 /** Choose a random element of status list <b>sl</b>, weighted by
  * the advertised bandwidth of each node */
-const node_t *
-node_sl_choose_by_bandwidth(const smartlist_t *sl,
-                            bandwidth_weight_rule_t rule)
+MOCK_IMPL(const node_t *,
+node_sl_choose_by_bandwidth,(const smartlist_t *sl,
+                            bandwidth_weight_rule_t rule))
 { /*XXXX MOVE */
   return smartlist_choose_node_by_bandwidth_weights(sl, rule);
 }
