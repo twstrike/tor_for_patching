@@ -342,6 +342,8 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
 		tt_ptr_op(guard, OP_EQ, g3);
 		tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards, g2))
 
+		//XXX this is unrealistic.
+		//in real life this wont be called unless g3 is unreachable
 		g2->unreachable_since = 0;
 		guard = algo_choose_entry_guard_next(guard_selection);
 		tt_ptr_op(guard, OP_EQ, g3);
