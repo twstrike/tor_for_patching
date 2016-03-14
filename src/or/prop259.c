@@ -31,7 +31,11 @@
 #include "statefile.h"
 
 static void transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection) {
+	if(guard_selection->previous_state != 0) {
+		transition_to(guard_selection, guard_selection->previous_state);
+	} else {
 		transition_to(guard_selection, STATE_TRY_UTOPIC);
+	}
 }
 
 MOCK_IMPL(entry_guard_t *,

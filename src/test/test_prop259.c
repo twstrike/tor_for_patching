@@ -90,7 +90,7 @@ int mock_bad_check_treshould(guard_selection_t *state)
 }
 
 static void
-test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
+test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(void *arg)
 {
   guard_selection_t *guard_state = NULL;
   smartlist_t *used_guards = smartlist_new();
@@ -109,6 +109,32 @@ test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
   tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
   algo_choose_entry_guard_next(guard_state);
   tt_int_op(guard_state->state, OP_EQ, STATE_TRY_UTOPIC);
+
+ done:
+  tor_free(guard_state);
+}
+
+static void
+test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
+{ 
+  guard_selection_t *guard_state = NULL;
+  smartlist_t *used_guards = NULL;
+  smartlist_t *exclude_nodes = NULL;
+  int n_primary_guards = 3;
+  int dir = 0;
+
+  guard_state = algo_choose_entry_guard_start(
+          used_guards,
+          NULL, NULL,
+          exclude_nodes,
+          n_primary_guards,
+          dir);
+  (void) arg;
+
+  tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
+  guard_state->previous_state = STATE_TRY_DYSTOPIC;
+  algo_choose_entry_guard_next(guard_state);
+  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_DYSTOPIC);
 
  done:
   tor_free(guard_state);
@@ -160,11 +186,14 @@ struct testcase_t entrynodes_new_tests[] = {
   { "state_machine_transfer",
     test_state_machine_should_use_new_state_as_current_state,
     0, NULL, NULL },
-  { "state_machine_failover",
-    test_state_machine_should_fail_over_when_next_entry_guard_null,
+  { "state_machine_transition",
+    test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state,
     0, NULL, NULL },
   { "state_machine_primary",
     test_state_machine_should_return_primary_guard_by_order,
+    0, NULL, NULL },
+  { "state_machine_next",
+    test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one,
     0, NULL, NULL },
   END_OF_TESTCASES
 };
