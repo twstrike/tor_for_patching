@@ -186,6 +186,12 @@ guard_selection_t *algo_choose_entry_guard_start(
 		guard_selection->primary_guards = smartlist_new();
 
 		//XXX fill remaining sets from sampled
+		(void) used_guards;
+		(void) sampled_utopic;
+		(void) sampled_dystopic;
+		(void) exclude_nodes;
+		(void) n_primary_guards;
+		(void) dir;
 
 		return guard_selection;
 }

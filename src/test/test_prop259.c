@@ -66,8 +66,11 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
   tor_free(exclude_nodes);
 }
 
-const node_t* node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
+static const
+node_t* node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
 														 bandwidth_weight_rule_t rule){
+		(void) rule;
+
 		return smartlist_get(sl, 0);
 }
 
