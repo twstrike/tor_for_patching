@@ -101,6 +101,7 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
+  entry_guard_t *chosen = NULL;
 
   guard_selection = algo_choose_entry_guard_start(
           used_guards,
@@ -115,17 +116,17 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
   smartlist_add(guard_selection->primary_guards, entry1);
   smartlist_add(guard_selection->primary_guards, entry2);
 
-  entry_guard_t *guard1 = algo_choose_entry_guard_next(guard_selection);
-  tt_ptr_op(entry1, OP_EQ, guard1);
-  entry_guard_t *guard2 = algo_choose_entry_guard_next(guard_selection);
-  tt_ptr_op(entry1, OP_EQ, guard2);
+  chosen = algo_choose_entry_guard_next(guard_selection);
+  tt_ptr_op(entry1, OP_EQ, chosen);
+  chosen = algo_choose_entry_guard_next(guard_selection);
+  tt_ptr_op(entry1, OP_EQ, chosen);
+
   entry1->unreachable_since = 1;
-  entry_guard_t *guard3 = algo_choose_entry_guard_next(guard_selection);
-  tt_ptr_op(entry2, OP_EQ, guard3);
-  // XXX 0 is Jan 1st 1970, I think it should be something else
+  chosen = algo_choose_entry_guard_next(guard_selection);
+  tt_ptr_op(entry2, OP_EQ, chosen);
+
   entry1->unreachable_since = 0;
-  entry_guard_t *guard4 = algo_choose_entry_guard_next(guard_selection);
-  tt_ptr_op(entry1, OP_EQ, guard4);
+  chosen = algo_choose_entry_guard_next(guard_selection);
 
  done:
   tor_free(guard_selection);
@@ -192,7 +193,43 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
   tor_free(guard_selection);
 }
 
+static void
+test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
+		entry_guard_t* guard = NULL;
+		(void) arg;
 
+		entry_guard_t *g1, *g2, *g3;
+		g1 = tor_malloc_zero(sizeof(entry_guard_t));
+		g2 = tor_malloc_zero(sizeof(entry_guard_t));
+		g3 = tor_malloc_zero(sizeof(entry_guard_t));
+
+		smartlist_t *primary_guards = smartlist_new();
+		smartlist_add(primary_guards, g1);
+
+		smartlist_t *used_guards = smartlist_new();
+		smartlist_add(used_guards, g1);
+		smartlist_add(used_guards, g2);
+		smartlist_add(used_guards, g3);
+
+		guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+		guard_selection->state = STATE_TRY_UTOPIC;
+		guard_selection->used_guards = used_guards;
+		guard_selection->primary_guards = primary_guards;
+
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g2);
+
+		g2->unreachable_since = 1;
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g3);
+
+		g2->unreachable_since = 0;
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g2);
+
+done:
+		tor_free(guard_selection);
+}
 
 struct testcase_t entrynodes_new_tests[] = {
   { "state_machine_init",
@@ -209,6 +246,9 @@ struct testcase_t entrynodes_new_tests[] = {
     0, NULL, NULL },
   { "state_machine_next",
     test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one,
+    0, NULL, NULL },
+  { "STATE_TRY_UTOPIC_returns_USED_NOT_PRIMARY",
+    test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS,
     0, NULL, NULL },
   END_OF_TESTCASES
 };

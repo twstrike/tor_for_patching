@@ -38,7 +38,8 @@ static void transition_to_previous_state_or_try_utopic(guard_selection_t *guard_
 		}
 }
 
-static entry_guard_t* state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection) {
+static entry_guard_t*
+state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection) {
 		SMARTLIST_FOREACH_BEGIN(guard_selection->primary_guards, entry_guard_t *, e) {
 				if (!e->unreachable_since) {
 						return e;
@@ -50,19 +51,33 @@ static entry_guard_t* state_PRIMARY_GUARDS_next(guard_selection_t *guard_selecti
 		return NULL;
 }
 
+static entry_guard_t*
+state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
+		SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
+				if(smartlist_contains(guard_selection->primary_guards, e)){
+						continue;
+				}
+
+				if (!e->unreachable_since) {
+						return e;
+				}
+		} SMARTLIST_FOREACH_END(e);
+
+		return NULL;
+}
+
 MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_selection_t *guard_selection))
 {
-    switch(guard_selection->state){
-        case STATE_PRIMARY_GUARDS:
-						return state_PRIMARY_GUARDS_next(guard_selection);
-        case STATE_TRY_UTOPIC:
-            //try to get something
-            break;
-        case STATE_TRY_DYSTOPIC:
-            //try to get something
-            break;
-    }
+		switch(guard_selection->state){
+		case STATE_PRIMARY_GUARDS:
+				return state_PRIMARY_GUARDS_next(guard_selection);
+		case STATE_TRY_UTOPIC:
+				return state_TRY_UTOPIC_next(guard_selection);
+		case STATE_TRY_DYSTOPIC:
+				//try to get something
+				return NULL;
+		}
 
     return NULL;
 }
