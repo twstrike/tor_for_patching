@@ -256,8 +256,8 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
 static void
 test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
 		entry_guard_t* guard = NULL;
-		smartlist_t *used_guards = NULL; 
-		smartlist_t *primary_guards = NULL; 
+		smartlist_t *used_guards = NULL;
+		smartlist_t *primary_guards = NULL;
 		(void) arg;
 
 		entry_guard_t *g1, *g2, *g3;
@@ -426,6 +426,42 @@ static const struct testcase_setup_t fake_network = {
 		fake_network_setup, fake_network_cleanup
 };
 
+static void
+test_ON_NEW_CONSENSUS(void *arg){
+  (void) arg;
+
+  guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  entry_guard_t *g1, *g2, *g3, *g4, *g5;
+  g1 = tor_malloc_zero(sizeof(entry_guard_t));
+  g2 = tor_malloc_zero(sizeof(entry_guard_t));
+  g3 = tor_malloc_zero(sizeof(entry_guard_t));
+  smartlist_t *primary_guards = smartlist_new();
+  smartlist_add(primary_guards, g1);
+  smartlist_add(primary_guards, g2);
+  smartlist_add(primary_guards, g3);
+  smartlist_t *used_guards = smartlist_new();
+  g4 = tor_malloc_zero(sizeof(entry_guard_t));
+  g5 = tor_malloc_zero(sizeof(entry_guard_t));
+  smartlist_add(used_guards, g4);
+  smartlist_add(used_guards, g5);
+
+  guard_selection->primary_guards = primary_guards;
+  guard_selection->used_guards = used_guards;
+
+  g1->bad_since = 1;
+  g2->bad_since = 1;
+
+  algo_on_new_consensus(guard_selection);
+
+  tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
+  tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g3);
+  tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g4);
+  tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g5);
+
+done:
+		tor_free(guard_selection);
+}
+
 struct testcase_t entrynodes_new_tests[] = {
   { "state_machine_init",
     test_STATE_PRIMARY_GUARD_is_initial_state,
@@ -454,6 +490,8 @@ struct testcase_t entrynodes_new_tests[] = {
   { "STATE_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC",
     test_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC,
 		TT_FORK, &fake_network, NULL },
-
+  { "ON_NEW_CONSENSUS",
+    test_ON_NEW_CONSENSUS,
+    0, NULL, NULL },
   END_OF_TESTCASES
 };

@@ -98,7 +98,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection) {
 						continue;
 				}
 
-				if (!e->unreachable_since) {
+				if (!e->unreachable_since && !e->bad_since) {
 						return e;
 				}
 		} SMARTLIST_FOREACH_END(e);
@@ -185,3 +185,25 @@ void transition_to(guard_selection_t *guard_selection, const unsigned int new_st
 		guard_selection->state = new_state;
 }
 
+void algo_on_new_consensus(guard_selection_t *guard_selection)
+{
+    SMARTLIST_FOREACH_BEGIN(guard_selection->primary_guards, entry_guard_t *, e) {
+        if (e->bad_since) {
+            SMARTLIST_DEL_CURRENT(guard_selection->primary_guards, e);
+        }
+    } SMARTLIST_FOREACH_END(e);
+
+    while(smartlist_len(guard_selection->primary_guards) < 3) {
+         smartlist_add(guard_selection->primary_guards, next_primary_guard(guard_selection));
+    }
+}
+
+entry_guard_t *next_primary_guard(guard_selection_t *guard_selection)
+{
+    SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
+        if (!smartlist_contains(guard_selection->primary_guards, e)){
+            return e;
+        }
+    } SMARTLIST_FOREACH_END(e);
+    return NULL;//return NEXT_BY_BANDWIDTH(REMAINING_UTOPIC_GUARDS);
+}

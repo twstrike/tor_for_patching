@@ -43,6 +43,8 @@ guard_selection_t* algo_choose_entry_guard_start(
         int dir);
 
 void transition_to(guard_selection_t *algo, const unsigned int state);
+void algo_on_new_consensus(guard_selection_t *guard_selection);
+entry_guard_t *next_primary_guard(guard_selection_t *guard_selection);
 
 STATIC entry_guard_t* next_by_bandwidth(smartlist_t *guards);
 #endif
