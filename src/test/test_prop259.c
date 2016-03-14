@@ -138,10 +138,10 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
   tt_ptr_op(entry1, OP_EQ, guard1);
   entry_guard_t *guard2 = algo_choose_entry_guard_next(guard_state);
   tt_ptr_op(entry1, OP_EQ, guard2);
-  entry1->unreachable = 1;
+  entry1->unreachable_since = 1;
   entry_guard_t *guard3 = algo_choose_entry_guard_next(guard_state);
   tt_ptr_op(entry2, OP_EQ, guard3);
-  entry1->unreachable = 0;
+  entry1->unreachable_since = -1;
   entry_guard_t *guard4 = algo_choose_entry_guard_next(guard_state);
   tt_ptr_op(entry1, OP_EQ, guard4);
 

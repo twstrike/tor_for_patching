@@ -39,7 +39,7 @@ algo_choose_entry_guard_next,(guard_state_t *state))
                 transfer_to(state,STATE_TRY_UTOPIC);
             }
             SMARTLIST_FOREACH_BEGIN(state->context->primary_guards, entry_guard_t *, e) {
-                if (!e->unreachable) {
+                if (!e->unreachable_since) {
                     return e;
                 }
             } SMARTLIST_FOREACH_END(e);
