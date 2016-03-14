@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -1002,12 +1002,12 @@ directory_all_unreachable(time_t now)
 /** This function is called whenever we successfully pull down some new
  * network statuses or server descriptors. */
 void
-directory_info_has_arrived(time_t now, int from_cache)
+directory_info_has_arrived(time_t now, int from_cache, int suppress_logs)
 {
   const or_options_t *options = get_options();
 
   if (!router_have_minimum_dir_info()) {
-    int quiet = from_cache ||
+    int quiet = suppress_logs || from_cache ||
                 directory_too_idle_to_fetch_descriptors(options, now);
     tor_log(quiet ? LOG_INFO : LOG_NOTICE, LD_DIR,
         "I learned some more directory information, but not enough to "
@@ -2391,7 +2391,7 @@ do_main_loop(void)
    * appropriate.)
    */
   now = time(NULL);
-  directory_info_has_arrived(now, 1);
+  directory_info_has_arrived(now, 1, 0);
 
   if (server_mode(get_options())) {
     /* launch cpuworkers. Need to do this *after* we've read the onion key. */
@@ -3100,7 +3100,6 @@ tor_free_all(int postfork)
   connection_free_all();
   connection_edge_free_all();
   scheduler_free_all();
-  memarea_clear_freelist();
   nodelist_free_all();
   microdesc_free_all();
   ext_orport_free_all();
@@ -3301,6 +3300,8 @@ sandbox_init_filter(void)
     OPEN_DATADIR2(name, name2 suffix);                  \
   } while (0)
 
+  OPEN(options->DataDirectory);
+  OPEN_DATADIR("keys");
   OPEN_DATADIR_SUFFIX("cached-certs", ".tmp");
   OPEN_DATADIR_SUFFIX("cached-consensus", ".tmp");
   OPEN_DATADIR_SUFFIX("unverified-consensus", ".tmp");

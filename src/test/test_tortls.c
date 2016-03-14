@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2015, The Tor Project, Inc. */
+/* Copyright (c) 2010-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define TORTLS_PRIVATE
@@ -539,10 +539,10 @@ test_tortls_x509_cert_get_id_digests(void *ignored)
 {
   (void)ignored;
   tor_x509_cert_t *cert;
-  digests_t *d;
-  const digests_t *res;
+  common_digests_t *d;
+  const common_digests_t *res;
   cert = tor_malloc_zero(sizeof(tor_x509_cert_t));
-  d = tor_malloc_zero(sizeof(digests_t));
+  d = tor_malloc_zero(sizeof(common_digests_t));
   d->d[0][0] = 42;
 
   res = tor_x509_cert_get_id_digests(cert);

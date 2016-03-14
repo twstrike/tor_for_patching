@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -2195,7 +2195,7 @@ print_usage(void)
   printf(
 "Copyright (c) 2001-2004, Roger Dingledine\n"
 "Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson\n"
-"Copyright (c) 2007-2015, The Tor Project, Inc.\n\n"
+"Copyright (c) 2007-2016, The Tor Project, Inc.\n\n"
 "tor -f <torrc> [args]\n"
 "See man page for options, or https://www.torproject.org/ for "
 "documentation.\n");
@@ -2861,7 +2861,7 @@ options_validate(or_options_t *old_options, or_options_t *options,
       options->TransProxyType_parsed = TPT_TPROXY;
 #endif
     } else if (!strcasecmp(options->TransProxyType, "ipfw")) {
-#if !defined(__FreeBSD__) && !defined( DARWIN )
+#ifndef KERNEL_MAY_SUPPORT_IPFW
       /* Earlier versions of OS X have ipfw */
       REJECT("ipfw is a FreeBSD-specific"
              "and OS X/Darwin-specific feature.");
@@ -6373,6 +6373,7 @@ parse_port_config(smartlist_t *out,
         tor_free(addrtmp);
         goto err;
       }
+      tor_free(addrtmp);
     } else {
       /* Try parsing integer port before address, because, who knows?
          "9050" might be a valid address. */

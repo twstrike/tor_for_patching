@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -13,6 +13,10 @@
 #define TOR_CONFIG_H
 
 #include "testsupport.h"
+
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(DARWIN)
+#define KERNEL_MAY_SUPPORT_IPFW
+#endif
 
 MOCK_DECL(const char*, get_dirportfrontpage, (void));
 MOCK_DECL(const or_options_t *, get_options, (void));

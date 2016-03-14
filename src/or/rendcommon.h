@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -57,6 +57,10 @@ int rend_id_is_in_interval(const char *a, const char *b, const char *c);
 void rend_get_descriptor_id_bytes(char *descriptor_id_out,
                                   const char *service_id,
                                   const char *secret_id_part);
+int hid_serv_get_responsible_directories(smartlist_t *responsible_dirs,
+				                                         const char *id);
+int hid_serv_acting_as_directory(void);
+MOCK_DECL(int, hid_serv_responsible_for_desc_id, (const char *id));
 
 rend_data_t *rend_data_dup(const rend_data_t *data);
 rend_data_t *rend_data_client_create(const char *onion_address,

@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -2318,7 +2318,7 @@ connection_or_compute_authenticate_cell_body(or_connection_t *conn,
 
   {
     const tor_x509_cert_t *id_cert=NULL, *link_cert=NULL;
-    const digests_t *my_digests, *their_digests;
+    const common_digests_t *my_digests, *their_digests;
     const uint8_t *my_id, *their_id, *client_id, *server_id;
     if (tor_tls_get_my_certs(server, &link_cert, &id_cert))
       goto err;

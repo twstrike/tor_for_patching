@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -1935,7 +1935,7 @@ typedef struct cached_dir_t {
   size_t dir_len; /**< Length of <b>dir</b> (not counting its NUL). */
   size_t dir_z_len; /**< Length of <b>dir_z</b>. */
   time_t published; /**< When was this object published. */
-  digests_t digests; /**< Digests of this object (networkstatus only) */
+  common_digests_t digests; /**< Digests of this object (networkstatus only) */
   int refcnt; /**< Reference count for this cached_dir_t. */
 } cached_dir_t;
 
@@ -2573,7 +2573,7 @@ typedef struct networkstatus_t {
   struct authority_cert_t *cert; /**< Vote only: the voter's certificate. */
 
   /** Digests of this document, as signed. */
-  digests_t digests;
+  common_digests_t digests;
 
   /** List of router statuses, sorted by identity digest.  For a vote,
    * the elements are vote_routerstatus_t; for a consensus, the elements
@@ -4092,8 +4092,8 @@ typedef struct {
   int ClientUseIPv6;
   /** If true, prefer an IPv6 OR port over an IPv4 one for entry node
    * connections. If auto, bridge clients prefer IPv6, and other clients
-   * prefer IPv4. Use fascist_firewall_prefer_ipv6_orport() instead of
-   * accessing this value directly. */
+   * prefer IPv4. Use node_ipv6_or_preferred() instead of accessing this value
+   * directly. */
   int ClientPreferIPv6ORPort;
   /** If true, prefer an IPv6 directory port over an IPv4 one for direct
    * directory connections. If auto, bridge clients prefer IPv6, and other

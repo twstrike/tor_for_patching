@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -63,9 +63,9 @@ int directory_too_idle_to_fetch_descriptors(const or_options_t *options,
 
 cached_dir_t *dirserv_get_consensus(const char *flavor_name);
 void dirserv_set_cached_consensus_networkstatus(const char *consensus,
-                                                const char *flavor_name,
-                                                const digests_t *digests,
-                                                time_t published);
+                                              const char *flavor_name,
+                                              const common_digests_t *digests,
+                                              time_t published);
 void dirserv_clear_old_networkstatuses(time_t cutoff);
 int dirserv_get_routerdesc_fingerprints(smartlist_t *fps_out, const char *key,
                                         const char **msg,

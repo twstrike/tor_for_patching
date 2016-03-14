@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define DIRVOTE_PRIVATE
@@ -2114,14 +2114,14 @@ networkstatus_add_detached_signatures(networkstatus_t *target,
 
   /** Make sure all the digests we know match, and at least one matches. */
   {
-    digests_t *digests = strmap_get(sigs->digests, flavor);
+    common_digests_t *digests = strmap_get(sigs->digests, flavor);
     int n_matches = 0;
     int alg;
     if (!digests) {
       *msg_out = "No digests for given consensus flavor";
       return -1;
     }
-    for (alg = DIGEST_SHA1; alg < N_DIGEST_ALGORITHMS; ++alg) {
+    for (alg = DIGEST_SHA1; alg < N_COMMON_DIGEST_ALGORITHMS; ++alg) {
       if (!tor_mem_is_zero(digests->d[alg], DIGEST256_LEN)) {
         if (fast_memeq(target->digests.d[alg], digests->d[alg],
                        DIGEST256_LEN)) {
@@ -2314,7 +2314,7 @@ networkstatus_get_detached_signatures(smartlist_t *consensuses)
 
     /* start with SHA256; we don't include SHA1 for anything but the basic
      * consensus. */
-    for (alg = DIGEST_SHA256; alg < N_DIGEST_ALGORITHMS; ++alg) {
+    for (alg = DIGEST_SHA256; alg < N_COMMON_DIGEST_ALGORITHMS; ++alg) {
       char d[HEX_DIGEST256_LEN+1];
       const char *alg_name =
         crypto_digest_algorithm_get_name(alg);

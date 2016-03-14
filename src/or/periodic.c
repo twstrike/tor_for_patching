@@ -1,5 +1,11 @@
-/* Copyright (c) 2015, The Tor Project, Inc. */
+/* Copyright (c) 2015-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file periodic.c
+ *
+ * \brief Generic backend for handling periodic events.
+ */
 
 #include "or.h"
 #include "compat_libevent.h"

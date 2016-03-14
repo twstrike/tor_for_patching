@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -201,11 +201,6 @@ const char *esc_router_info(const routerinfo_t *router);
 void routers_sort_by_identity(smartlist_t *routers);
 
 void refresh_all_country_info(void);
-
-int hid_serv_get_responsible_directories(smartlist_t *responsible_dirs,
-                                         const char *id);
-int hid_serv_acting_as_directory(void);
-MOCK_DECL(int, hid_serv_responsible_for_desc_id, (const char *id));
 
 void list_pending_microdesc_downloads(digest256map_t *result);
 void launch_descriptor_downloads(int purpose,

@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #include "orconfig.h"
@@ -497,7 +497,6 @@ test_dir_routerinfo_parsing(void *arg)
 #undef CHECK_FAIL
 #undef CHECK_OK
  done:
-  memarea_clear_freelist();
   routerinfo_free(ri);
 }
 
@@ -601,7 +600,6 @@ test_dir_extrainfo_parsing(void *arg)
 
  done:
   escaped(NULL);
-  memarea_clear_freelist();
   extrainfo_free(ei);
   routerinfo_free(ri);
   digestmap_free((digestmap_t*)map, routerinfo_free_wrapper_);
@@ -1999,11 +1997,13 @@ test_a_networkstatus(
     tt_assert(con_md3);
 
     /* All three should have the same digest. */
-    tt_mem_op(&con->digests,OP_EQ, &con2->digests, sizeof(digests_t));
-    tt_mem_op(&con->digests,OP_EQ, &con3->digests, sizeof(digests_t));
+    tt_mem_op(&con->digests,OP_EQ, &con2->digests, sizeof(common_digests_t));
+    tt_mem_op(&con->digests,OP_EQ, &con3->digests, sizeof(common_digests_t));
 
-    tt_mem_op(&con_md->digests,OP_EQ, &con_md2->digests, sizeof(digests_t));
-    tt_mem_op(&con_md->digests,OP_EQ, &con_md3->digests, sizeof(digests_t));
+    tt_mem_op(&con_md->digests,OP_EQ, &con_md2->digests,
+              sizeof(common_digests_t));
+    tt_mem_op(&con_md->digests,OP_EQ, &con_md3->digests,
+              sizeof(common_digests_t));
 
     /* Extract a detached signature from con3. */
     detached_text1 = get_detached_sigs(con3, con_md3);
@@ -2017,7 +2017,7 @@ test_a_networkstatus(
     tt_int_op(dsig1->fresh_until,OP_EQ, con3->fresh_until);
     tt_int_op(dsig1->valid_until,OP_EQ, con3->valid_until);
     {
-      digests_t *dsig_digests = strmap_get(dsig1->digests, "ns");
+      common_digests_t *dsig_digests = strmap_get(dsig1->digests, "ns");
       tt_assert(dsig_digests);
       tt_mem_op(dsig_digests->d[DIGEST_SHA1], OP_EQ,
                 con3->digests.d[DIGEST_SHA1], DIGEST_LEN);

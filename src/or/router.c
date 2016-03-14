@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define ROUTER_PRIVATE
@@ -1941,7 +1941,11 @@ router_build_fresh_descriptor(routerinfo_t **r, extrainfo_t **e)
           ! p->server_cfg.no_advertise &&
           ! p->server_cfg.bind_ipv4_only &&
           tor_addr_family(&p->addr) == AF_INET6) {
-        if (! tor_addr_is_internal(&p->addr, 0)) {
+        /* Like IPv4, if the relay is configured using the default
+         * authorities, disallow internal IPs. Otherwise, allow them. */
+        const int default_auth = (!options->DirAuthorities &&
+                                  !options->AlternateDirAuthority);
+        if (! tor_addr_is_internal(&p->addr, 0) || ! default_auth) {
           ipv6_orport = p;
           break;
         } else {
@@ -1949,7 +1953,7 @@ router_build_fresh_descriptor(routerinfo_t **r, extrainfo_t **e)
           log_warn(LD_CONFIG,
                    "Unable to use configured IPv6 address \"%s\" in a "
                    "descriptor. Skipping it. "
-                   "Try specifying a globally reachable address explicitly. ",
+                   "Try specifying a globally reachable address explicitly.",
                    tor_addr_to_str(addrbuf, &p->addr, sizeof(addrbuf), 1));
         }
       }

@@ -3,10 +3,6 @@
 # Copyright (c) 2007-2015, The Tor Project, Inc.
 # See LICENSE for licensing information
 
-# "foreign" means we don't follow GNU package layout standards
-# 1.9 means we require automake vesion 1.9
-AUTOMAKE_OPTIONS = foreign 1.9 subdir-objects
-
 ACLOCAL_AMFLAGS = -I m4
 
 noinst_LIBRARIES=
@@ -138,10 +134,10 @@ need-stem-path:
 		exit 1; \
 	fi
 
-test-stem: need-stem-path $(TESTING_TOR_BINARY)
+test-stem: need-stem-path all
 	@$(PYTHON) "$$STEM_SOURCE_DIR"/run_tests.py --tor $(TESTING_TOR_BINARY) --all --log notice --target RUN_ALL;
 
-test-stem-full: need-stem-path $(TESTING_TOR_BINARY)
+test-stem-full: need-stem-path all
 	@$(PYTHON) "$$STEM_SOURCE_DIR"/run_tests.py --tor $(TESTING_TOR_BINARY) --all --log notice --target RUN_ALL,ONLINE -v;
 
 test-full: need-stem-path need-chutney-path check test-network test-stem

@@ -1,8 +1,16 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file nodelist.c
+ *
+ * \brief Structures and functions for tracking what we know about the routers
+ *   on the Tor network, and correlating information from networkstatus,
+ *   routerinfo, and microdescs.
+ */
 
 #include "or.h"
 #include "address.h"
@@ -981,6 +989,9 @@ node_has_ipv6_dirport(const node_t *node)
  *  i) the node_t says that it prefers IPv6
  *  or
  *  ii) the router has no IPv4 OR address.
+ *
+ * If you don't have a node, consider looking it up.
+ * If there is no node, use fascist_firewall_prefer_ipv6_orport().
  */
 int
 node_ipv6_or_preferred(const node_t *node)
@@ -1078,6 +1089,8 @@ node_get_pref_ipv6_orport(const node_t *node, tor_addr_port_t *ap_out)
  *  i) the router has no IPv4 Dir address.
  *  or
  *  ii) our preference is for IPv6 Dir addresses.
+ *
+ * If there is no node, use fascist_firewall_prefer_ipv6_dirport().
  */
 int
 node_ipv6_dir_preferred(const node_t *node)

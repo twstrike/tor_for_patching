@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define CONFIG_PRIVATE
@@ -158,7 +158,6 @@ test_options_validate_impl(const char *configuration,
   }
 
  done:
-  memarea_clear_freelist();
   escaped(NULL);
   policies_free_all();
   config_free_lines(cl);
@@ -211,7 +210,7 @@ test_have_enough_mem_for_dircache(void *arg)
 {
   (void)arg;
   or_options_t *opt=NULL;
-  or_options_t *dflt;
+  or_options_t *dflt=NULL;
   config_line_t *cl=NULL;
   char *msg=NULL;;
   int r;
@@ -242,6 +241,7 @@ test_have_enough_mem_for_dircache(void *arg)
   }
   tor_free(msg);
 
+  config_free_lines(cl); cl = NULL;
   configuration = "ORPort 8080\nDirCache 1\nBridgeRelay 1";
   r = config_get_lines(configuration, &cl, 1);
   tt_int_op(r, OP_EQ, 0);
@@ -264,6 +264,7 @@ test_have_enough_mem_for_dircache(void *arg)
   }
   tor_free(msg);
 
+  config_free_lines(cl); cl = NULL;
   configuration = "ORPort 8080\nDirCache 0";
   r = config_get_lines(configuration, &cl, 1);
   tt_int_op(r, OP_EQ, 0);
@@ -291,9 +292,9 @@ test_have_enough_mem_for_dircache(void *arg)
  done:
   if (msg)
     tor_free(msg);
-  tor_free(dflt);
-  tor_free(opt);
-  tor_free(cl);
+  or_options_free(dflt);
+  or_options_free(opt);
+  config_free_lines(cl);
   return;
 }
 
@@ -1057,7 +1058,7 @@ test_options_validate__transproxy(void *ignored)
   ret = options_validate(tdata->old_opt, tdata->opt, tdata->def_opt, 0, &msg);
   tt_int_op(ret, OP_EQ, -1);
 
-#if !defined(__FreeBSD__) && !defined( DARWIN )
+#ifndef KERNEL_MAY_SUPPORT_IPFW
   tt_str_op(msg, OP_EQ, "ipfw is a FreeBSD-specificand OS X/Darwin-specific "
             "feature.");
 #else
@@ -1085,7 +1086,7 @@ test_options_validate__transproxy(void *ignored)
   tt_int_op(ret, OP_EQ, -1);
   tt_assert(!msg);
 #endif
-#if defined(__FreeBSD__) || defined( DARWIN )
+#if defined(__FreeBSD_kernel__) || defined( DARWIN )
   tdata = get_options_test_data("TransProxyType ipfw\n"
                                 "TransPort 127.0.0.1:123\n");
   ret = options_validate(tdata->old_opt, tdata->opt, tdata->def_opt, 0, &msg);
@@ -1947,7 +1948,6 @@ test_options_validate__use_bridges(void *ignored)
 
  done:
   NS_UNMOCK(geoip_get_country);
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -2185,7 +2185,6 @@ test_options_validate__publish_server_descriptor(void *ignored)
 
  done:
   teardown_capture_of_logs(previous_log);
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -2261,7 +2260,6 @@ test_options_validate__testing(void *ignored)
 
  done:
   escaped(NULL); // This will free the leaking memory from the previous escaped
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -2309,7 +2307,6 @@ test_options_validate__hidserv(void *ignored)
 
  done:
   teardown_capture_of_logs(previous_log);
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -2334,7 +2331,6 @@ test_options_validate__predicted_ports(void *ignored)
 
  done:
   teardown_capture_of_logs(previous_log);
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -2537,7 +2533,6 @@ test_options_validate__bandwidth(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -2625,7 +2620,6 @@ test_options_validate__circuits(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -2659,7 +2653,6 @@ test_options_validate__port_forwarding(void *ignored)
 
  done:
   free_options_test_data(tdata);
-  memarea_clear_freelist();
   policies_free_all();
   tor_free(msg);
 }
@@ -2689,7 +2682,6 @@ test_options_validate__tor2web(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -2756,7 +2748,6 @@ test_options_validate__rend(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -2876,7 +2867,6 @@ test_options_validate__accounting(void *ignored)
 
  done:
   teardown_capture_of_logs(previous_log);
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -3208,7 +3198,6 @@ test_options_validate__proxy(void *ignored)
  done:
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
-  memarea_clear_freelist();
   policies_free_all();
   // sandbox_free_getaddrinfo_cache();
   tor_free(msg);
@@ -3436,7 +3425,6 @@ test_options_validate__control(void *ignored)
 
  done:
   teardown_capture_of_logs(previous_log);
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -3509,7 +3497,6 @@ test_options_validate__families(void *ignored)
 
  done:
   teardown_capture_of_logs(previous_log);
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -3534,7 +3521,6 @@ test_options_validate__addr_policies(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -3621,7 +3607,6 @@ test_options_validate__dir_auth(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -3747,7 +3732,6 @@ test_options_validate__transport(void *ignored)
 
  done:
   escaped(NULL); // This will free the leaking memory from the previous escaped
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -3831,7 +3815,6 @@ test_options_validate__constrained_sockets(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -4051,7 +4034,6 @@ test_options_validate__v3_auth(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -4086,7 +4068,6 @@ test_options_validate__virtual_addr(void *ignored)
 
  done:
   escaped(NULL); // This will free the leaking memory from the previous escaped
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);
@@ -4128,7 +4109,6 @@ test_options_validate__exits(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -4297,7 +4277,6 @@ test_options_validate__testing_options(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   teardown_capture_of_logs(previous_log);
   free_options_test_data(tdata);
@@ -4351,7 +4330,6 @@ test_options_validate__accel(void *ignored)
   tor_free(msg);
 
  done:
-  memarea_clear_freelist();
   policies_free_all();
   free_options_test_data(tdata);
   tor_free(msg);

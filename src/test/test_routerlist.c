@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Tor Project, Inc. */
+/* Copyright (c) 2014-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #include "orconfig.h"
@@ -30,7 +30,7 @@ extern const char AUTHORITY_SIGNKEY_2[];
 extern const char AUTHORITY_CERT_3[];
 extern const char AUTHORITY_SIGNKEY_3[];
 
-void construct_consensus(const char **consensus_text_md);
+void construct_consensus(char **consensus_text_md);
 
 /* 4 digests + 3 sep + pre + post + NULL */
 static char output[4*BASE64_DIGEST256_LEN+3+2+2+1];
@@ -120,7 +120,7 @@ test_routerlist_launch_descriptor_downloads(void *arg)
 }
 
 void
-construct_consensus(const char **consensus_text_md)
+construct_consensus(char **consensus_text_md)
 {
   networkstatus_t *vote = NULL;
   networkstatus_t *v1 = NULL, *v2 = NULL, *v3 = NULL;
@@ -130,7 +130,6 @@ construct_consensus(const char **consensus_text_md)
   crypto_pk_t *sign_skey_leg=NULL;
   time_t now = time(NULL);
   smartlist_t *votes = NULL;
-  addr_policy_t *pol1 = NULL, *pol2 = NULL, *pol3 = NULL;
   int n_vrs;
 
   tt_assert(!dir_common_authority_pk_init(&cert1, &cert2, &cert3,
@@ -141,7 +140,7 @@ construct_consensus(const char **consensus_text_md)
   dir_common_construct_vote_1(&vote, cert1, sign_skey_1,
                               &dir_common_gen_routerstatus_for_v3ns,
                               &v1, &n_vrs, now, 1);
-
+  networkstatus_vote_free(vote);
   tt_assert(v1);
   tt_int_op(n_vrs, ==, 4);
   tt_int_op(smartlist_len(v1->routerstatus_list), ==, 4);
@@ -149,7 +148,7 @@ construct_consensus(const char **consensus_text_md)
   dir_common_construct_vote_2(&vote, cert2, sign_skey_2,
                               &dir_common_gen_routerstatus_for_v3ns,
                               &v2, &n_vrs, now, 1);
-
+  networkstatus_vote_free(vote);
   tt_assert(v2);
   tt_int_op(n_vrs, ==, 4);
   tt_int_op(smartlist_len(v2->routerstatus_list), ==, 4);
@@ -161,7 +160,7 @@ construct_consensus(const char **consensus_text_md)
   tt_assert(v3);
   tt_int_op(n_vrs, ==, 4);
   tt_int_op(smartlist_len(v3->routerstatus_list), ==, 4);
-
+  networkstatus_vote_free(vote);
   votes = smartlist_new();
   smartlist_add(votes, v1);
   smartlist_add(votes, v2);
@@ -177,16 +176,18 @@ construct_consensus(const char **consensus_text_md)
   tt_assert(*consensus_text_md);
 
  done:
-  if (vote)
-    tor_free(vote);
-  if (voter)
-    tor_free(voter);
-  if (pol1)
-    tor_free(pol1);
-  if (pol2)
-    tor_free(pol2);
-  if (pol3)
-    tor_free(pol3);
+  tor_free(voter);
+  networkstatus_vote_free(v1);
+  networkstatus_vote_free(v2);
+  networkstatus_vote_free(v3);
+  smartlist_free(votes);
+  authority_cert_free(cert1);
+  authority_cert_free(cert2);
+  authority_cert_free(cert3);
+  crypto_pk_free(sign_skey_1);
+  crypto_pk_free(sign_skey_2);
+  crypto_pk_free(sign_skey_3);
+  crypto_pk_free(sign_skey_leg);
 }
 
 static void
@@ -195,7 +196,7 @@ test_router_pick_directory_server_impl(void *arg)
   (void)arg;
 
   networkstatus_t *con_md = NULL;
-  const char *consensus_text_md = NULL;
+  char *consensus_text_md = NULL;
   int flags = PDS_IGNORE_FASCISTFIREWALL|PDS_RETRY_IF_NO_SERVERS;
   or_options_t *options = get_options_mutable();
   const routerstatus_t *rs = NULL;
@@ -370,6 +371,8 @@ test_router_pick_directory_server_impl(void *arg)
   if (options->ReachableORAddresses ||
       options->ReachableDirAddresses)
     policies_free_all();
+  tor_free(consensus_text_md);
+  networkstatus_vote_free(con_md);
 }
 
 connection_t *mocked_connection = NULL;

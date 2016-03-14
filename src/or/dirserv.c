@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define DIRSERV_PRIVATE
@@ -1230,7 +1230,7 @@ free_cached_dir_(void *_d)
 void
 dirserv_set_cached_consensus_networkstatus(const char *networkstatus,
                                            const char *flavor_name,
-                                           const digests_t *digests,
+                                           const common_digests_t *digests,
                                            time_t published)
 {
   cached_dir_t *new_networkstatus;
@@ -1239,7 +1239,7 @@ dirserv_set_cached_consensus_networkstatus(const char *networkstatus,
     cached_consensuses = strmap_new();
 
   new_networkstatus = new_cached_dir(tor_strdup(networkstatus), published);
-  memcpy(&new_networkstatus->digests, digests, sizeof(digests_t));
+  memcpy(&new_networkstatus->digests, digests, sizeof(common_digests_t));
   old_networkstatus = strmap_set(cached_consensuses, flavor_name,
                                  new_networkstatus);
   if (old_networkstatus)

@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Tor Project, Inc. */
+/* Copyright (c) 2014-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define ADDRESS_PRIVATE
@@ -297,7 +297,9 @@ test_address_get_if_addrs_ifaddrs(void *arg)
   }
 
   done:
-  SMARTLIST_FOREACH(results, tor_addr_t *, t, tor_free(t));
+  if (results) {
+    SMARTLIST_FOREACH(results, tor_addr_t *, t, tor_free(t));
+  }
   smartlist_free(results);
   return;
 }

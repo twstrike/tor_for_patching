@@ -1,12 +1,12 @@
 /* Copyright (c) 2003-2004, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
  * \file compat.c
  * \brief Wrappers to make calls more portable.  This code defines
- * functions such as tor_malloc, tor_snprintf, get/set various data types,
+ * functions such as tor_snprintf, get/set various data types,
  * renaming, setting socket options, switching user IDs.  It is basically
  * where the non-portable items are conditionally included depending on
  * the platform.

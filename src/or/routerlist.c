@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -1566,14 +1566,14 @@ router_picked_poor_directory_log(const routerstatus_t *rs)
   } else if (!fascist_firewall_allows_rs(rs, FIREWALL_OR_CONNECTION, 1)
              && !fascist_firewall_allows_rs(rs, FIREWALL_DIR_CONNECTION, 1)
              ) {
-    log_warn(LD_BUG, "Selected a directory %s with non-preferred OR and Dir "
+    log_info(LD_BUG, "Selected a directory %s with non-preferred OR and Dir "
              "addresses for launching a connection: "
              "IPv4 %s OR %d Dir %d IPv6 %s OR %d Dir %d",
              routerstatus_describe(rs),
              fmt_addr32(rs->addr), rs->or_port,
              rs->dir_port, fmt_addr(&rs->ipv6_addr),
              rs->ipv6_orport, rs->dir_port);
-    log_backtrace(LOG_WARN, LD_BUG, "Node search initiated by");
+    log_backtrace(LOG_INFO, LD_BUG, "Node search initiated by");
   }
 }
 
@@ -5395,77 +5395,3 @@ refresh_all_country_info(void)
 
   nodelist_refresh_countries();
 }
-
-/** Determine the routers that are responsible for <b>id</b> (binary) and
- * add pointers to those routers' routerstatus_t to <b>responsible_dirs</b>.
- * Return -1 if we're returning an empty smartlist, else return 0.
- */
-int
-hid_serv_get_responsible_directories(smartlist_t *responsible_dirs,
-                                     const char *id)
-{
-  int start, found, n_added = 0, i;
-  networkstatus_t *c = networkstatus_get_latest_consensus();
-  if (!c || !smartlist_len(c->routerstatus_list)) {
-    log_warn(LD_REND, "We don't have a consensus, so we can't perform v2 "
-             "rendezvous operations.");
-    return -1;
-  }
-  tor_assert(id);
-  start = networkstatus_vote_find_entry_idx(c, id, &found);
-  if (start == smartlist_len(c->routerstatus_list)) start = 0;
-  i = start;
-  do {
-    routerstatus_t *r = smartlist_get(c->routerstatus_list, i);
-    if (r->is_hs_dir) {
-      smartlist_add(responsible_dirs, r);
-      if (++n_added == REND_NUMBER_OF_CONSECUTIVE_REPLICAS)
-        return 0;
-    }
-    if (++i == smartlist_len(c->routerstatus_list))
-      i = 0;
-  } while (i != start);
-
-  /* Even though we don't have the desired number of hidden service
-   * directories, be happy if we got any. */
-  return smartlist_len(responsible_dirs) ? 0 : -1;
-}
-
-/** Return true if this node is currently acting as hidden service
- * directory, false otherwise. */
-int
-hid_serv_acting_as_directory(void)
-{
-  const routerinfo_t *me = router_get_my_routerinfo();
-  if (!me)
-    return 0;
-  return 1;
-}
-
-/** Return true if this node is responsible for storing the descriptor ID
- * in <b>query</b> and false otherwise. */
-MOCK_IMPL(int, hid_serv_responsible_for_desc_id,
-          (const char *query))
-{
-  const routerinfo_t *me;
-  routerstatus_t *last_rs;
-  const char *my_id, *last_id;
-  int result;
-  smartlist_t *responsible;
-  if (!hid_serv_acting_as_directory())
-    return 0;
-  if (!(me = router_get_my_routerinfo()))
-    return 0; /* This is redundant, but let's be paranoid. */
-  my_id = me->cache_info.identity_digest;
-  responsible = smartlist_new();
-  if (hid_serv_get_responsible_directories(responsible, query) < 0) {
-    smartlist_free(responsible);
-    return 0;
-  }
-  last_rs = smartlist_get(responsible, smartlist_len(responsible)-1);
-  last_id = last_rs->identity_digest;
-  result = rend_id_is_in_interval(my_id, query, last_id);
-  smartlist_free(responsible);
-  return result;
-}
-

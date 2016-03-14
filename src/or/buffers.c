@@ -1,14 +1,15 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
  * \file buffers.c
  * \brief Implements a generic interface buffer.  Buffers are
  * fairly opaque string holders that can read to or flush from:
- * memory, file descriptors, or TLS connections.
+ * memory, file descriptors, or TLS connections.  Buffers are implemented
+ * as linked lists of memory chunks.
  **/
 #define BUFFERS_PRIVATE
 #include "or.h"
