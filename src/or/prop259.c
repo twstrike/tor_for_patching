@@ -92,9 +92,13 @@ done:
 }
 
 static entry_guard_t*
-each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection) {
+each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection, int require_dystopic) {
 		SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
 				if(smartlist_contains(guard_selection->primary_guards, e)){
+						continue;
+				}
+
+				if (require_dystopic && !smartlist_contains(guard_selection->dystopic_guards, e)) {
 						continue;
 				}
 
@@ -132,7 +136,8 @@ each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection){
 
 static entry_guard_t*
 state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
-		entry_guard_t *guard = each_used_guard_not_in_primary_guards(guard_selection);
+		int dystopic = 0;
+		entry_guard_t *guard = each_used_guard_not_in_primary_guards(guard_selection, dystopic);
 		if(guard){
 				return guard;
 		}
@@ -147,6 +152,12 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection) {
 		return NULL;
 }
 
+static entry_guard_t*
+state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection) {
+		int dystopic = 1;
+		return each_used_guard_not_in_primary_guards(guard_selection, dystopic);	
+}
+
 MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_selection_t *guard_selection))
 {
@@ -156,8 +167,7 @@ algo_choose_entry_guard_next,(guard_selection_t *guard_selection))
 		case STATE_TRY_UTOPIC:
 				return state_TRY_UTOPIC_next(guard_selection);
 		case STATE_TRY_DYSTOPIC:
-				//try to get something
-				return NULL;
+				return state_TRY_DYSTOPIC_next(guard_selection);
 		}
 
     return NULL;

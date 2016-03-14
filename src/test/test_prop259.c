@@ -285,11 +285,15 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
 		guard = algo_choose_entry_guard_next(guard_selection);
 		tt_ptr_op(guard, OP_EQ, g3);
 
+		//XXX this seems to be unrealistic
 		g2->unreachable_since = 0;
 		guard = algo_choose_entry_guard_next(guard_selection);
 		tt_ptr_op(guard, OP_EQ, g2);
 
 done:
+		tor_free(g1);
+		tor_free(g2);
+		tor_free(g3);
 		tor_free(guard_selection);
 		tor_free(used_guards);
 		tor_free(primary_guards);
@@ -358,7 +362,7 @@ done:
 }
 
 static void
-test_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC(void *arg) {
+test_TRY_UTOPIC_transitions_to_TRY_DYSTOPIC(void *arg) {
 		entry_guard_t* guard = NULL;
 		guard_selection_t *guard_selection = NULL;
 		smartlist_t *primary_guards = NULL;
@@ -387,6 +391,60 @@ done:
 		tor_free(remaining_utopic_guards);
 }
 
+static void
+test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
+		entry_guard_t* guard = NULL;
+		smartlist_t *used_guards = NULL; 
+		smartlist_t *primary_guards = NULL; 
+		smartlist_t *dystopic_guards = NULL; 
+		entry_guard_t *g1, *g2, *g3, *g4;
+		(void) arg;
+
+		g1 = tor_malloc_zero(sizeof(entry_guard_t));
+		g2 = tor_malloc_zero(sizeof(entry_guard_t));
+		g3 = tor_malloc_zero(sizeof(entry_guard_t));
+		g4 = tor_malloc_zero(sizeof(entry_guard_t));
+
+		primary_guards = smartlist_new();
+		smartlist_add(primary_guards, g1);
+
+		used_guards = smartlist_new();
+		smartlist_add(used_guards, g1);
+		smartlist_add(used_guards, g2);
+		smartlist_add(used_guards, g3);
+		smartlist_add(used_guards, g4);
+
+		dystopic_guards = smartlist_new();
+		smartlist_add(dystopic_guards, g3);
+		smartlist_add(dystopic_guards, g4);
+
+		guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+		guard_selection->state = STATE_TRY_DYSTOPIC;
+		guard_selection->used_guards = used_guards;
+		guard_selection->primary_guards = primary_guards;
+		guard_selection->dystopic_guards = dystopic_guards;
+
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g3);
+
+		g3->unreachable_since = 1;
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g4);
+
+		//XXX this seems to be unrealistic
+		g3->unreachable_since = 0;
+		guard = algo_choose_entry_guard_next(guard_selection);
+		tt_ptr_op(guard, OP_EQ, g3);
+
+done:
+		tor_free(g1);
+		tor_free(g2);
+		tor_free(g3);
+		tor_free(g4);
+		tor_free(guard_selection);
+		tor_free(used_guards);
+		tor_free(primary_guards);
+}
 
 
 /* Unittest setup function: Setup a fake network. */
@@ -488,10 +546,14 @@ struct testcase_t entrynodes_new_tests[] = {
     test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights,
 		TT_FORK, &fake_network, NULL },
   { "STATE_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC",
-    test_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC,
+    test_TRY_UTOPIC_transitions_to_TRY_DYSTOPIC,
 		TT_FORK, &fake_network, NULL },
+  { "STATE_TRY_DYSTOPIC_returns_dystopic_USED_NOT_PRIMARY",
+    test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS,
+    0, NULL, NULL },
   { "ON_NEW_CONSENSUS",
     test_ON_NEW_CONSENSUS,
     0, NULL, NULL },
+
   END_OF_TESTCASES
 };
