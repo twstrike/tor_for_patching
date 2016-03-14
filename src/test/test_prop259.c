@@ -32,19 +32,24 @@
 static void
 test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
 {
-  guard_selection_t *guard_selection = NULL;
+  (void) arg;
+
+  guard_selection_t *guard_selection;
+  smartlist_t *sampled_utopic = smartlist_new();
+  smartlist_t *sampled_dystopic = smartlist_new();
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
-  (void) arg;
   guard_selection = algo_choose_entry_guard_start(
           used_guards,
-          NULL, NULL,
+          sampled_utopic,
+          sampled_dystopic,
           exclude_nodes,
           n_primary_guards,
           dir);
+
   tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
 
  done:
@@ -56,7 +61,11 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
 static void
 test_state_machine_should_use_new_state_as_current_state(void *arg)
 {
-  guard_selection_t *guard_selection = NULL;
+  (void) arg;
+
+  guard_selection_t *guard_selection;
+  smartlist_t *sampled_utopic = smartlist_new();
+  smartlist_t *sampled_dystopic = smartlist_new();
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
@@ -64,11 +73,11 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 
   guard_selection = algo_choose_entry_guard_start(
           used_guards,
-          NULL, NULL,
+          sampled_utopic,
+          sampled_dystopic,
           exclude_nodes,
           n_primary_guards,
           dir);
-  (void) arg;
 
   tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
   transition_to(guard_selection, STATE_TRY_UTOPIC);
@@ -83,7 +92,11 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 static void
 test_state_machine_should_return_primary_guard_by_order(void *arg)
 {
-  guard_selection_t *guard_selection = NULL;
+  (void) arg;
+
+  guard_selection_t *guard_selection;
+  smartlist_t *sampled_utopic = smartlist_new();
+  smartlist_t *sampled_dystopic = smartlist_new();
   smartlist_t *used_guards = smartlist_new();
   smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
@@ -91,11 +104,11 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
 
   guard_selection = algo_choose_entry_guard_start(
           used_guards,
-          NULL, NULL,
+          sampled_utopic,
+          sampled_dystopic,
           exclude_nodes,
           n_primary_guards,
           dir);
-  (void) arg;
 
   entry_guard_t *entry1 = tor_malloc_zero(sizeof(entry_guard_t));
   entry_guard_t *entry2 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -123,19 +136,23 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
 static void
 test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(void *arg)
 {
-  guard_selection_t *guard_selection = NULL;
-  smartlist_t *used_guards = NULL;
-  smartlist_t *exclude_nodes = NULL;
+  (void) arg;
+
+  guard_selection_t *guard_selection;
+  smartlist_t *sampled_utopic = smartlist_new();
+  smartlist_t *sampled_dystopic = smartlist_new();
+  smartlist_t *used_guards = smartlist_new();
+  smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
   guard_selection = algo_choose_entry_guard_start(
           used_guards,
-          NULL, NULL,
+          sampled_utopic,
+          sampled_dystopic,
           exclude_nodes,
           n_primary_guards,
           dir);
-  (void) arg;
 
   tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
   algo_choose_entry_guard_next(guard_selection);
@@ -148,19 +165,23 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(voi
 static void
 test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
 {
-  guard_selection_t *guard_selection = NULL;
-  smartlist_t *used_guards = NULL;
-  smartlist_t *exclude_nodes = NULL;
+  (void) arg;
+
+  guard_selection_t *guard_selection;
+  smartlist_t *sampled_utopic = smartlist_new();
+  smartlist_t *sampled_dystopic = smartlist_new();
+  smartlist_t *used_guards = smartlist_new();
+  smartlist_t *exclude_nodes = smartlist_new();
   int n_primary_guards = 3;
   int dir = 0;
 
   guard_selection = algo_choose_entry_guard_start(
           used_guards,
-          NULL, NULL,
+          sampled_utopic,
+          sampled_dystopic,
           exclude_nodes,
           n_primary_guards,
           dir);
-  (void) arg;
 
   tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
   guard_selection->previous_state = STATE_TRY_DYSTOPIC;
