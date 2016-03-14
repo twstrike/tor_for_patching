@@ -18,6 +18,7 @@ typedef struct {
 
 typedef struct {
     unsigned int state;
+    unsigned int previous_state;
     smartlist_t *sampled_utopic_guards;
     smartlist_t *sampled_dystopic_guards;
     guard_context_t *context;
@@ -27,9 +28,10 @@ typedef struct {
 
 MOCK_DECL(entry_guard_t *,algo_choose_entry_guard_next,(guard_selection_state_t *state));
 #ifdef PROP259_PRIVATE
-const unsigned int STATE_PRIMARY_GUARDS = 0;
-const unsigned int STATE_TRY_UTOPIC = 1;
-const unsigned int STATE_TRY_DYSTOPIC = 2;
+const unsigned int STATE_INVALID = 0;
+const unsigned int STATE_PRIMARY_GUARDS = 1;
+const unsigned int STATE_TRY_UTOPIC = 2;
+const unsigned int STATE_TRY_DYSTOPIC = 3;
 
 guard_selection_state_t *algo_choose_entry_guard_start(
         smartlist_t *used_guards,
