@@ -30,6 +30,10 @@
 #include "transports.h"
 #include "statefile.h"
 
+static void transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection) {
+		transition_to(guard_selection, STATE_TRY_UTOPIC);
+}
+
 MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_selection_t *state))
 {
@@ -40,18 +44,18 @@ algo_choose_entry_guard_next,(guard_selection_t *state))
                     return e;
                 }
             } SMARTLIST_FOREACH_END(e);
+
+						transition_to_previous_state_or_try_utopic(state);
             break;
         case STATE_TRY_UTOPIC:
 						//try to get something
-            transition_to(state, STATE_TRY_DYSTOPIC);
             break;
         case STATE_TRY_DYSTOPIC:
 						//try to get something
-            transition_to(state, STATE_PRIMARY_GUARDS);
             return NULL;
     }
 
-    return algo_choose_entry_guard_next(state);
+		return NULL;
 }
 
 guard_selection_t *algo_choose_entry_guard_start(

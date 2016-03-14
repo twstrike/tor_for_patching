@@ -108,7 +108,7 @@ test_state_machine_should_fail_over_when_next_entry_guard_null(void *arg)
 
   tt_int_op(guard_state->state, OP_EQ, STATE_PRIMARY_GUARDS);
   algo_choose_entry_guard_next(guard_state);
-  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_DYSTOPIC);
+  tt_int_op(guard_state->state, OP_EQ, STATE_TRY_UTOPIC);
 
  done:
   tor_free(guard_state);
