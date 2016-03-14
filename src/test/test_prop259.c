@@ -68,56 +68,56 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
 
 static const
 node_t* node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
-														 bandwidth_weight_rule_t rule){
-		(void) rule;
+                             bandwidth_weight_rule_t rule){
+    (void) rule;
 
-		return smartlist_get(sl, 0);
+    return smartlist_get(sl, 0);
 }
 
 static void
 test_next_by_bandwidth_return_each_entry(void *arg) {
-		entry_guard_t* guard = NULL;
-		node_t *node = NULL;
-		smartlist_t *guards = NULL;
-		entry_guard_t *g1, *g2, *g3 = NULL;
-		(void) arg;
+    entry_guard_t* guard = NULL;
+    node_t *node = NULL;
+    smartlist_t *guards = NULL;
+    entry_guard_t *g1, *g2, *g3 = NULL;
+    (void) arg;
 
-		MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
+    MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
 
-		// all nodes are guards
-		tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
+    // all nodes are guards
+    tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
 
-		smartlist_t *our_nodelist = nodelist_get_list();
-		SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
-				const node_t *node_tmp;
-				node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
-				tt_assert(node_tmp);
-		} SMARTLIST_FOREACH_END(node);
+    smartlist_t *our_nodelist = nodelist_get_list();
+    SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
+        const node_t *node_tmp;
+        node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
+        tt_assert(node_tmp);
+    } SMARTLIST_FOREACH_END(node);
 
-		node = smartlist_get(our_nodelist, 0);
-		g1 = entry_guard_get_by_id_digest(node->identity);
-		node = smartlist_get(our_nodelist, 1);
-		g2 = entry_guard_get_by_id_digest(node->identity);
-		g3 = tor_malloc_zero(sizeof(entry_guard_t));
+    node = smartlist_get(our_nodelist, 0);
+    g1 = entry_guard_get_by_id_digest(node->identity);
+    node = smartlist_get(our_nodelist, 1);
+    g2 = entry_guard_get_by_id_digest(node->identity);
+    g3 = tor_malloc_zero(sizeof(entry_guard_t));
 
-		guards = smartlist_new();
-		smartlist_add(guards, g1);
-		smartlist_add(guards, g2);
-		smartlist_add(guards, g3); // this should be ignored
+    guards = smartlist_new();
+    smartlist_add(guards, g1);
+    smartlist_add(guards, g2);
+    smartlist_add(guards, g3); // this should be ignored
 
-		guard = next_by_bandwidth(guards);
-		tt_ptr_op(guard, OP_EQ, g1);
+    guard = next_by_bandwidth(guards);
+    tt_ptr_op(guard, OP_EQ, g1);
 
-		guard = next_by_bandwidth(guards);
-		tt_ptr_op(guard, OP_EQ, g2);
+    guard = next_by_bandwidth(guards);
+    tt_ptr_op(guard, OP_EQ, g2);
 
-		guard = next_by_bandwidth(guards);
-		tt_ptr_op(guard, OP_EQ, NULL);
+    guard = next_by_bandwidth(guards);
+    tt_ptr_op(guard, OP_EQ, NULL);
 
 done:
-		tor_free(guards);
-		tor_free(g3);
-		UNMOCK(node_sl_choose_by_bandwidth);
+    tor_free(guards);
+    tor_free(g3);
+    UNMOCK(node_sl_choose_by_bandwidth);
 }
 
 
@@ -258,195 +258,195 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
 
 static void
 test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
-		entry_guard_t* guard = NULL;
-		smartlist_t *used_guards = NULL;
-		smartlist_t *primary_guards = NULL;
-		(void) arg;
+    entry_guard_t* guard = NULL;
+    smartlist_t *used_guards = NULL;
+    smartlist_t *primary_guards = NULL;
+    (void) arg;
 
-		entry_guard_t *g1, *g2, *g3;
-		g1 = tor_malloc_zero(sizeof(entry_guard_t));
-		g2 = tor_malloc_zero(sizeof(entry_guard_t));
-		g3 = tor_malloc_zero(sizeof(entry_guard_t));
+    entry_guard_t *g1, *g2, *g3;
+    g1 = tor_malloc_zero(sizeof(entry_guard_t));
+    g2 = tor_malloc_zero(sizeof(entry_guard_t));
+    g3 = tor_malloc_zero(sizeof(entry_guard_t));
 
-		primary_guards = smartlist_new();
-		smartlist_add(primary_guards, g1);
+    primary_guards = smartlist_new();
+    smartlist_add(primary_guards, g1);
 
-		used_guards = smartlist_new();
-		smartlist_add(used_guards, g1);
-		smartlist_add(used_guards, g2);
-		smartlist_add(used_guards, g3);
+    used_guards = smartlist_new();
+    smartlist_add(used_guards, g1);
+    smartlist_add(used_guards, g2);
+    smartlist_add(used_guards, g3);
 
-		guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-		guard_selection->state = STATE_TRY_UTOPIC;
-		guard_selection->used_guards = used_guards;
-		guard_selection->primary_guards = primary_guards;
+    guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+    guard_selection->state = STATE_TRY_UTOPIC;
+    guard_selection->used_guards = used_guards;
+    guard_selection->primary_guards = primary_guards;
 
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g2);
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g2);
 
-		g2->unreachable_since = 1;
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g3);
+    g2->unreachable_since = 1;
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g3);
 
-		//XXX this seems to be unrealistic
-		g2->unreachable_since = 0;
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g2);
+    //XXX this seems to be unrealistic
+    g2->unreachable_since = 0;
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g2);
 
 done:
-		tor_free(g1);
-		tor_free(g2);
-		tor_free(g3);
-		tor_free(guard_selection);
-		tor_free(used_guards);
-		tor_free(primary_guards);
+    tor_free(g1);
+    tor_free(g2);
+    tor_free(g3);
+    tor_free(guard_selection);
+    tor_free(used_guards);
+    tor_free(primary_guards);
 }
 
 static void
 test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg) {
-		entry_guard_t* guard = NULL;
-		smartlist_t *our_nodelist = NULL;
-		node_t *node = NULL;
-		guard_selection_t *guard_selection = NULL;
-		smartlist_t *primary_guards = NULL;
-		smartlist_t *used_guards = NULL;
-		smartlist_t *remaining_utopic_guards = NULL;
-		(void) arg;
+    entry_guard_t* guard = NULL;
+    smartlist_t *our_nodelist = NULL;
+    node_t *node = NULL;
+    guard_selection_t *guard_selection = NULL;
+    smartlist_t *primary_guards = NULL;
+    smartlist_t *used_guards = NULL;
+    smartlist_t *remaining_utopic_guards = NULL;
+    (void) arg;
 
-		MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
+    MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
 
-		tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
+    tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
 
-		our_nodelist = nodelist_get_list();
-		SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
-				const node_t *node_tmp;
-				node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
-				tt_assert(node_tmp);
-		} SMARTLIST_FOREACH_END(node);
+    our_nodelist = nodelist_get_list();
+    SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
+        const node_t *node_tmp;
+        node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
+        tt_assert(node_tmp);
+    } SMARTLIST_FOREACH_END(node);
 
-		entry_guard_t *g1, *g2, *g3;
-		node = smartlist_get(our_nodelist, 0);
-		g1 = entry_guard_get_by_id_digest(node->identity);
-		node = smartlist_get(our_nodelist, 1);
-		g2 = entry_guard_get_by_id_digest(node->identity);
-		node = smartlist_get(our_nodelist, 2);
-		g3 = entry_guard_get_by_id_digest(node->identity);
+    entry_guard_t *g1, *g2, *g3;
+    node = smartlist_get(our_nodelist, 0);
+    g1 = entry_guard_get_by_id_digest(node->identity);
+    node = smartlist_get(our_nodelist, 1);
+    g2 = entry_guard_get_by_id_digest(node->identity);
+    node = smartlist_get(our_nodelist, 2);
+    g3 = entry_guard_get_by_id_digest(node->identity);
 
-		primary_guards = smartlist_new();
-		smartlist_add(primary_guards, g1);
+    primary_guards = smartlist_new();
+    smartlist_add(primary_guards, g1);
 
-		used_guards = smartlist_new();
-		smartlist_add(used_guards, g1);
+    used_guards = smartlist_new();
+    smartlist_add(used_guards, g1);
 
-		remaining_utopic_guards = smartlist_new();
-		smartlist_add(remaining_utopic_guards, g2);
-		smartlist_add(remaining_utopic_guards, g3);
+    remaining_utopic_guards = smartlist_new();
+    smartlist_add(remaining_utopic_guards, g2);
+    smartlist_add(remaining_utopic_guards, g3);
 
-		guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-		guard_selection->state = STATE_TRY_UTOPIC;
-		guard_selection->used_guards = used_guards;
-		guard_selection->primary_guards = primary_guards;
-		guard_selection->remaining_utopic_guards = remaining_utopic_guards;
+    guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+    guard_selection->state = STATE_TRY_UTOPIC;
+    guard_selection->used_guards = used_guards;
+    guard_selection->primary_guards = primary_guards;
+    guard_selection->remaining_utopic_guards = remaining_utopic_guards;
 
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g2);
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g2);
 
-		g2->unreachable_since = 1;
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g3);
-		tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards, g2))
+    g2->unreachable_since = 1;
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g3);
+    tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards, g2))
 
 done:
-		tor_free(guard_selection);
-		tor_free(primary_guards);
-		tor_free(used_guards);
-		tor_free(remaining_utopic_guards);
-		UNMOCK(node_sl_choose_by_bandwidth);
+    tor_free(guard_selection);
+    tor_free(primary_guards);
+    tor_free(used_guards);
+    tor_free(remaining_utopic_guards);
+    UNMOCK(node_sl_choose_by_bandwidth);
 }
 
 static void
 test_TRY_UTOPIC_transitions_to_TRY_DYSTOPIC(void *arg) {
-		entry_guard_t* guard = NULL;
-		guard_selection_t *guard_selection = NULL;
-		smartlist_t *primary_guards = NULL;
-		smartlist_t *used_guards = NULL;
-		smartlist_t *remaining_utopic_guards = NULL;
-		(void) arg;
+    entry_guard_t* guard = NULL;
+    guard_selection_t *guard_selection = NULL;
+    smartlist_t *primary_guards = NULL;
+    smartlist_t *used_guards = NULL;
+    smartlist_t *remaining_utopic_guards = NULL;
+    (void) arg;
 
-		primary_guards = smartlist_new();
-		used_guards = smartlist_new();
-		remaining_utopic_guards = smartlist_new();
+    primary_guards = smartlist_new();
+    used_guards = smartlist_new();
+    remaining_utopic_guards = smartlist_new();
 
-		guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-		guard_selection->state = STATE_TRY_UTOPIC;
-		guard_selection->used_guards = used_guards;
-		guard_selection->primary_guards = primary_guards;
-		guard_selection->remaining_utopic_guards = remaining_utopic_guards;
+    guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+    guard_selection->state = STATE_TRY_UTOPIC;
+    guard_selection->used_guards = used_guards;
+    guard_selection->primary_guards = primary_guards;
+    guard_selection->remaining_utopic_guards = remaining_utopic_guards;
 
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, NULL);
-		tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_DYSTOPIC);
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, NULL);
+    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_DYSTOPIC);
 
 done:
-		tor_free(guard_selection);
-		tor_free(primary_guards);
-		tor_free(used_guards);
-		tor_free(remaining_utopic_guards);
+    tor_free(guard_selection);
+    tor_free(primary_guards);
+    tor_free(used_guards);
+    tor_free(remaining_utopic_guards);
 }
 
 static void
 test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg) {
-		entry_guard_t* guard = NULL;
-		smartlist_t *used_guards = NULL; 
-		smartlist_t *primary_guards = NULL; 
-		smartlist_t *dystopic_guards = NULL; 
-		entry_guard_t *g1, *g2, *g3, *g4;
-		(void) arg;
+    entry_guard_t* guard = NULL;
+    smartlist_t *used_guards = NULL; 
+    smartlist_t *primary_guards = NULL; 
+    smartlist_t *dystopic_guards = NULL; 
+    entry_guard_t *g1, *g2, *g3, *g4;
+    (void) arg;
 
-		g1 = tor_malloc_zero(sizeof(entry_guard_t));
-		g2 = tor_malloc_zero(sizeof(entry_guard_t));
-		g3 = tor_malloc_zero(sizeof(entry_guard_t));
-		g4 = tor_malloc_zero(sizeof(entry_guard_t));
+    g1 = tor_malloc_zero(sizeof(entry_guard_t));
+    g2 = tor_malloc_zero(sizeof(entry_guard_t));
+    g3 = tor_malloc_zero(sizeof(entry_guard_t));
+    g4 = tor_malloc_zero(sizeof(entry_guard_t));
 
-		primary_guards = smartlist_new();
-		smartlist_add(primary_guards, g1);
+    primary_guards = smartlist_new();
+    smartlist_add(primary_guards, g1);
 
-		used_guards = smartlist_new();
-		smartlist_add(used_guards, g1);
-		smartlist_add(used_guards, g2);
-		smartlist_add(used_guards, g3);
-		smartlist_add(used_guards, g4);
+    used_guards = smartlist_new();
+    smartlist_add(used_guards, g1);
+    smartlist_add(used_guards, g2);
+    smartlist_add(used_guards, g3);
+    smartlist_add(used_guards, g4);
 
-		dystopic_guards = smartlist_new();
-		smartlist_add(dystopic_guards, g3);
-		smartlist_add(dystopic_guards, g4);
+    dystopic_guards = smartlist_new();
+    smartlist_add(dystopic_guards, g3);
+    smartlist_add(dystopic_guards, g4);
 
-		guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-		guard_selection->state = STATE_TRY_DYSTOPIC;
-		guard_selection->used_guards = used_guards;
-		guard_selection->primary_guards = primary_guards;
-		guard_selection->dystopic_guards = dystopic_guards;
+    guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+    guard_selection->state = STATE_TRY_DYSTOPIC;
+    guard_selection->used_guards = used_guards;
+    guard_selection->primary_guards = primary_guards;
+    guard_selection->dystopic_guards = dystopic_guards;
 
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g3);
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g3);
 
-		g3->unreachable_since = 1;
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g4);
+    g3->unreachable_since = 1;
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g4);
 
-		//XXX this seems to be unrealistic
-		g3->unreachable_since = 0;
-		guard = algo_choose_entry_guard_next(guard_selection);
-		tt_ptr_op(guard, OP_EQ, g3);
+    //XXX this seems to be unrealistic
+    g3->unreachable_since = 0;
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, g3);
 
 done:
-		tor_free(g1);
-		tor_free(g2);
-		tor_free(g3);
-		tor_free(g4);
-		tor_free(guard_selection);
-		tor_free(used_guards);
-		tor_free(primary_guards);
+    tor_free(g1);
+    tor_free(g2);
+    tor_free(g3);
+    tor_free(g4);
+    tor_free(guard_selection);
+    tor_free(used_guards);
+    tor_free(primary_guards);
 }
 
 
@@ -484,7 +484,7 @@ fake_network_cleanup(const struct testcase_t *testcase, void *ptr)
 }
 
 static const struct testcase_setup_t fake_network = {
-		fake_network_setup, fake_network_cleanup
+    fake_network_setup, fake_network_cleanup
 };
 
 static void
@@ -520,7 +520,7 @@ test_ON_NEW_CONSENSUS(void *arg){
   tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g5);
 
 done:
-		tor_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 struct testcase_t entrynodes_new_tests[] = {
@@ -529,7 +529,7 @@ struct testcase_t entrynodes_new_tests[] = {
     0, NULL, NULL },
   { "next_by_bandwidth",
     test_next_by_bandwidth_return_each_entry,
-		TT_FORK, &fake_network, NULL },
+    TT_FORK, &fake_network, NULL },
   { "state_machine_transfer",
     test_state_machine_should_use_new_state_as_current_state,
     0, NULL, NULL },
@@ -547,10 +547,10 @@ struct testcase_t entrynodes_new_tests[] = {
     0, NULL, NULL },
   { "STATE_TRY_UTOPIC_returns_REMAINING_UTOPIC",
     test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights,
-		TT_FORK, &fake_network, NULL },
+    TT_FORK, &fake_network, NULL },
   { "STATE_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC",
     test_TRY_UTOPIC_transitions_to_TRY_DYSTOPIC,
-		TT_FORK, &fake_network, NULL },
+    TT_FORK, &fake_network, NULL },
   { "STATE_TRY_DYSTOPIC_returns_dystopic_USED_NOT_PRIMARY",
     test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS,
     0, NULL, NULL },
