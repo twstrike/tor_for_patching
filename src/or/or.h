@@ -4475,6 +4475,8 @@ typedef struct {
 
   /** Autobool: Do we try to retain capabilities if we can? */
   int KeepBindCapabilities;
+
+  int PrimaryGuardsRetryInterval;
 } or_options_t;
 
 /** Persistent state for an onion router, as saved to disk. */

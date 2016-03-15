@@ -233,8 +233,11 @@ state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
 }
 
 MOCK_IMPL(entry_guard_t *,
-    algo_choose_entry_guard_next,(guard_selection_t *guard_selection))
+algo_choose_entry_guard_next,(guard_selection_t *guard_selection, const or_options_t *options, time_t now))
 {
+		(void) options;
+		(void) now;
+
     switch (guard_selection->state) {
     case STATE_INVALID:
         tor_assert(NULL); //XXX how to panic?

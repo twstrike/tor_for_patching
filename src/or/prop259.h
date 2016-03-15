@@ -34,7 +34,8 @@ typedef struct {
 
 #endif
 
-MOCK_DECL(entry_guard_t *,algo_choose_entry_guard_next,(guard_selection_t *));
+MOCK_DECL(entry_guard_t *,
+algo_choose_entry_guard_next,(guard_selection_t *guard_selection, const or_options_t *options, time_t now));
 
 #ifdef PROP259_PRIVATE
 
