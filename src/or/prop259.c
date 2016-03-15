@@ -35,7 +35,14 @@ is_live(entry_guard_t *guard)
 {
     //XXX using entry_is_live() would introduce the current progressive retry
     //behavior. I suspect we should evaluate using this at some point.
-    return (guard->unreachable_since == 0);
+
+    if (guard->can_retry)
+        return 1;
+
+    if (guard->unreachable_since == 0)
+        return 1;
+
+    return 0;
 }
 
 //XXX review whether bad_since is appropriate to know if a guard is listed
@@ -91,6 +98,21 @@ smartlist_remove_keeporder(smartlist_t *sl, const void *e)
 {
     int pos = smartlist_pos(sl, e);
     smartlist_del_keeporder(sl, pos);
+}
+
+STATIC void
+transition_to(guard_selection_t *guard_selection,
+              guard_selection_state_t state)
+{
+    guard_selection->state = state;
+}
+
+static void
+transition_to_and_save_state(guard_selection_t *guard_selection,
+                             guard_selection_state_t state)
+{
+    guard_selection->previous_state = guard_selection->state;
+    transition_to(guard_selection, state);
 }
 
 STATIC entry_guard_t*
@@ -232,11 +254,46 @@ state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
     return NULL;
 }
 
-MOCK_IMPL(entry_guard_t *,
-algo_choose_entry_guard_next,(guard_selection_t *guard_selection, const or_options_t *options, time_t now))
+static int
+has_any_been_tried_before(const smartlist_t *guards, time_t time)
 {
-		(void) options;
-		(void) now;
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        //XXX review if unreachable since is the right property
+        if (e->unreachable_since != 0 && e->unreachable_since <= time) {
+            return 1;
+        }
+
+    } SMARTLIST_FOREACH_END(e);
+
+    return 0;
+}
+
+static void
+mark_for_retry(const smartlist_t *guards)
+{
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        e->can_retry = 1;
+    } SMARTLIST_FOREACH_END(e);
+}
+
+static void
+check_primary_guards_retry_interval(guard_selection_t *guard_selection,
+                                    const or_options_t *options, time_t now)
+{
+    const smartlist_t *guards = guard_selection->primary_guards;
+    time_t primary_retry_time = now - options->PrimaryGuardsRetryInterval * 60;
+
+    if (has_any_been_tried_before(guards, primary_retry_time)) {
+        mark_for_retry(guards);
+        transition_to_and_save_state(guard_selection, STATE_PRIMARY_GUARDS);
+    }
+}
+
+MOCK_IMPL(entry_guard_t *,
+algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
+                              const or_options_t *options, time_t now))
+{
+    check_primary_guards_retry_interval(guard_selection, options, now);
 
     switch (guard_selection->state) {
     case STATE_INVALID:
@@ -276,12 +333,6 @@ algo_choose_entry_guard_start(
     (void) dir;
 
     return guard_selection;
-}
-
-STATIC void
-transition_to(guard_selection_t *guard_selection, guard_selection_state_t state)
-{
-    guard_selection->state = state;
 }
 
 void

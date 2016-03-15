@@ -193,41 +193,42 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 static void
 test_NEXT_transitions_to_PRIMARY_GUARDS_and_saves_previous_state(void *arg)
 {
-    guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));;
+    guard_selection_t *guard_selection = tor_malloc_zero(
+        sizeof(guard_selection_t));
     smartlist_t *primary_guards = smartlist_new();
     smartlist_t *used_guards = smartlist_new();
     smartlist_t *remaining_utopic_guards = smartlist_new();
     smartlist_t *remaining_dystopic_guards = smartlist_new();
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
 
-		entry_guard_t *chosen = NULL;
+    entry_guard_t *chosen = NULL;
     entry_guard_t *g1 = NULL, *g2 = NULL, *g3 = NULL;
     (void) arg;
 
     MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
 
-		time_t now = 100;
+    time_t now = 100;
     options->PrimaryGuardsRetryInterval = 3;
 
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
     g3 = tor_malloc_zero(sizeof(entry_guard_t));
 
-		smartlist_add(primary_guards, g1);
-		smartlist_add(used_guards, g1);
-		smartlist_add(used_guards, g3); //used not in primary
+    smartlist_add(primary_guards, g1);
+    smartlist_add(used_guards, g1);
+    smartlist_add(used_guards, g3); //used not in primary
 
-		g1->unreachable_since = now - 3*60;
-		g2->unreachable_since = now - 10;
+    g1->unreachable_since = now - 3*60;
+    g2->unreachable_since = now - 10;
 
     guard_selection->state = STATE_TRY_UTOPIC;
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
-		guard_selection->remaining_utopic_guards = remaining_utopic_guards;
-		guard_selection->remaining_dystopic_guards = remaining_dystopic_guards;
+    guard_selection->remaining_utopic_guards = remaining_utopic_guards;
+    guard_selection->remaining_dystopic_guards = remaining_dystopic_guards;
 
     chosen = algo_choose_entry_guard_next(guard_selection, options, now-1);
-		tt_ptr_op(chosen, OP_EQ, g3);
+    tt_ptr_op(chosen, OP_EQ, g3);
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
 
     chosen = algo_choose_entry_guard_next(guard_selection, options, now);

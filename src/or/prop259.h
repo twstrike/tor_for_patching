@@ -35,7 +35,8 @@ typedef struct {
 #endif
 
 MOCK_DECL(entry_guard_t *,
-algo_choose_entry_guard_next,(guard_selection_t *guard_selection, const or_options_t *options, time_t now));
+algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
+                              const or_options_t *options, time_t now));
 
 #ifdef PROP259_PRIVATE
 
@@ -47,7 +48,9 @@ guard_selection_t* algo_choose_entry_guard_start(
         int n_primary_guards,
         int dir);
 
-STATIC void transition_to(guard_selection_t *algo, guard_selection_state_t state);
+STATIC void transition_to(guard_selection_t *algo,
+                          guard_selection_state_t state);
+
 void algo_on_new_consensus(guard_selection_t *guard_selection);
 entry_guard_t *next_primary_guard(guard_selection_t *guard_selection);
 
