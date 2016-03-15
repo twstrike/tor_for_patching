@@ -274,7 +274,8 @@ algo_on_new_consensus(guard_selection_t *guard_selection)
 {
     if (guard_selection->primary_guards_log == NULL) {
         guard_selection->primary_guards_log = smartlist_new();
-        smartlist_add_all(guard_selection->primary_guards_log, guard_selection->primary_guards);
+        smartlist_add_all(guard_selection->primary_guards_log,
+            guard_selection->primary_guards);
     }
     smartlist_t *guards_log = guard_selection->primary_guards_log;
     guard_selection->primary_guards = smartlist_new();
@@ -287,9 +288,9 @@ algo_on_new_consensus(guard_selection_t *guard_selection)
 
     while (smartlist_len(guard_selection->primary_guards) < 3) {
         entry_guard_t *guard = next_primary_guard(guard_selection);
-        if (guard != NULL){
+        if (guard != NULL) {
             smartlist_add(guards, guard);
-            if (!smartlist_contains(guards_log, guard)){
+            if (!smartlist_contains(guards_log, guard)) {
                 smartlist_add(guards_log, guard);
             }
         } else {
