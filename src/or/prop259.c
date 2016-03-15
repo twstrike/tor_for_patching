@@ -218,6 +218,8 @@ state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
         return guard;
     }
 
+    transition_to(guard_selection, STATE_PRIMARY_GUARDS);
+
     return NULL;
 }
 

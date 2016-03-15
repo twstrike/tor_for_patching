@@ -587,6 +587,41 @@ test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard(void *arg)
 }
 
 static void
+test_TRY_DYSTOPIC_transitions_to_PRIMARY_GUARDS(void *arg)
+{
+    guard_selection_t *guard_selection = NULL;
+    entry_guard_t* guard = NULL;
+    smartlist_t *used_guards = NULL;
+    smartlist_t *primary_guards = NULL;
+    smartlist_t *dystopic_guards = NULL;
+    smartlist_t *remaining_dystopic = NULL;
+    (void) arg;
+
+    primary_guards = smartlist_new();
+    used_guards = smartlist_new();
+    dystopic_guards = smartlist_new();
+    remaining_dystopic = smartlist_new();
+
+    guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+    guard_selection->state = STATE_TRY_DYSTOPIC;
+    guard_selection->used_guards = used_guards;
+    guard_selection->primary_guards = primary_guards;
+    guard_selection->dystopic_guards = dystopic_guards;
+    guard_selection->remaining_dystopic_guards = remaining_dystopic;
+
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, NULL);
+    tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
+
+  done:
+    tor_free(guard_selection);
+    tor_free(used_guards);
+    tor_free(primary_guards);
+    tor_free(dystopic_guards);
+    tor_free(remaining_dystopic);
+}
+
+static void
 test_ON_NEW_CONSENSUS(void *arg)
 {
     (void) arg;
@@ -663,6 +698,9 @@ struct testcase_t entrynodes_new_tests[] = {
     { "STATE_TRY_DYSTOPIC_returns_REMAINING_DYSTOPIC",
         test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard,
         TT_FORK, &fake_network, NULL },
+    { "STATE_TRY_DYSTOPIC_transitions_to_STATE_PRIMARY_GUARDS",
+        test_TRY_DYSTOPIC_transitions_to_PRIMARY_GUARDS,
+        0, NULL, NULL },
     { "ON_NEW_CONSENSUS",
         test_ON_NEW_CONSENSUS,
         0, NULL, NULL },
