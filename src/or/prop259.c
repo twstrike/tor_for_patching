@@ -93,13 +93,6 @@ node_to_guard(const node_t *node)
     return entry_guard_get_by_id_digest(node->identity);
 }
 
-static void
-smartlist_remove_keeporder(smartlist_t *sl, const void *e)
-{
-    int pos = smartlist_pos(sl, e);
-    smartlist_del_keeporder(sl, pos);
-}
-
 STATIC void
 transition_to(guard_selection_t *guard_selection,
               guard_selection_state_t state)
@@ -121,6 +114,8 @@ next_by_bandwidth(smartlist_t *guards)
     entry_guard_t *guard = NULL;
     smartlist_t *nodes = smartlist_new();
 
+    //Bandwidth is an information on the node descriptors. We need to convert
+    //guards to nodes.
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         const node_t *node = guard_to_node(e);
         if (!node) {
@@ -131,15 +126,12 @@ next_by_bandwidth(smartlist_t *guards)
     } SMARTLIST_FOREACH_END(e);
 
     const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
-    if (!node) {
-        goto done;
+    if (node) {
+        guard = node_to_guard(node);
+        tor_assert(guard);
+        smartlist_remove(guards, guard);
     }
 
-    guard = node_to_guard(node);
-    tor_assert(guard);
-    smartlist_remove_keeporder(guards, guard);
-
-    done:
     tor_free(nodes);
     return guard;
 }
@@ -192,7 +184,7 @@ each_remaining_by_bandwidth(guard_selection_t* guard_selection,
             break;
         }
 
-        smartlist_remove_keeporder(guards, g);
+        smartlist_remove(guards, g);
     }
 
     tor_free(remaining);
