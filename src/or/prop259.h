@@ -20,6 +20,8 @@ typedef struct {
     smartlist_t *remaining_dystopic_guards;
     smartlist_t *primary_guards;
 
+    smartlist_t *primary_guards_log;
+
     // Context
     smartlist_t *used_guards;
 } guard_selection_t;

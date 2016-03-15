@@ -272,15 +272,23 @@ transition_to(guard_selection_t *guard_selection, const unsigned int new_state)
 void
 algo_on_new_consensus(guard_selection_t *guard_selection)
 {
-    smartlist_t* guards = guard_selection->primary_guards;
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (e->bad_since) {
-            SMARTLIST_DEL_CURRENT(guards, e);
+    if (guard_selection->primary_guards_log == NULL) {
+        guard_selection->primary_guards_log = smartlist_new();
+        smartlist_add_all(guard_selection->primary_guards_log, guard_selection->primary_guards);
+    }
+    smartlist_t *guards_log = guard_selection->primary_guards_log;
+    guard_selection->primary_guards = smartlist_new();
+    smartlist_t *guards = guard_selection->primary_guards;
+    SMARTLIST_FOREACH_BEGIN(guards_log, entry_guard_t *, e) {
+        if (!e->bad_since && smartlist_len(guards) < 3) {
+            smartlist_add(guards,e);
         }
     } SMARTLIST_FOREACH_END(e);
 
-    while (smartlist_len(guards) < 3) {
-        smartlist_add(guards, next_primary_guard(guard_selection));
+    while (smartlist_len(guard_selection->primary_guards) < 3) {
+        entry_guard_t *guard = next_primary_guard(guard_selection);
+        smartlist_add(guards, guard);
+        smartlist_add(guards_log, guard);
     }
 }
 
