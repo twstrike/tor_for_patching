@@ -30,6 +30,14 @@
 #include "transports.h"
 #include "statefile.h"
 
+static int
+is_live(entry_guard_t *guard)
+{
+    //XXX using entry_is_live() would introduce the current progressive retry
+    //behavior. I suspect we should evaluate using this at some point.
+    return !guard->unreachable_since;
+}
+
 static void
 transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection)
 {
@@ -45,7 +53,7 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 {
     smartlist_t *guards = guard_selection->primary_guards;
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (!e->unreachable_since) {
+        if (is_live(e)) {
             return e;
         }
     } SMARTLIST_FOREACH_END(e);
@@ -117,7 +125,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection,
             continue;
         }
 
-        if (!e->unreachable_since && !e->bad_since) {
+        if (is_live(e) && !e->bad_since) {
             return e;
         }
     } SMARTLIST_FOREACH_END(e);
@@ -139,7 +147,7 @@ each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
             break;
         }
 
-        if (!g->unreachable_since) {
+        if (is_live(g)) {
             guard = g;
             break;
         }
