@@ -350,7 +350,8 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     smartlist_add(guard_selection->primary_guards, entry1);
     smartlist_add(guard_selection->primary_guards, entry2);
 
-    entry_guard_t *chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    entry_guard_t *chosen = algo_choose_entry_guard_next(
+        guard_selection, options, 0);
     tt_ptr_op(entry1, OP_EQ, chosen);
     chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
     tt_ptr_op(entry1, OP_EQ, chosen);
