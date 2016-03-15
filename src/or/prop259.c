@@ -35,7 +35,16 @@ is_live(entry_guard_t *guard)
 {
     //XXX using entry_is_live() would introduce the current progressive retry
     //behavior. I suspect we should evaluate using this at some point.
-    return !guard->unreachable_since;
+    return (guard->unreachable_since == 0);
+}
+
+//XXX review whether bad_since is appropriate to know if a guard is listed
+//in the latest consensus. entry_guard_set_status suggests an unlisted guard
+//is a guard which we fail to find a node with node_get_by_id(entry->identity)
+static int
+is_bad(entry_guard_t *guard)
+{
+    return (guard->bad_since != 0);
 }
 
 static void
@@ -127,7 +136,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection,
             continue;
         }
 
-        if (is_live(e) && !e->bad_since) {
+        if (is_live(e) && !is_bad(e)) {
             return e;
         }
     } SMARTLIST_FOREACH_END(e);
