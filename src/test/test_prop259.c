@@ -32,6 +32,43 @@ get_or_state_replacement(void)
     return dummy_state;
 }
 
+/* Unittest setup function: Setup a fake network. */
+static void *
+fake_network_setup(const struct testcase_t *testcase)
+{
+    (void) testcase;
+
+    /* Setup fake state */
+    dummy_state = tor_malloc_zero(sizeof(or_state_t));
+    MOCK(get_or_state,
+        get_or_state_replacement);
+
+    /* Setup fake routerlist. */
+    helper_setup_fake_routerlist();
+
+    /* Return anything but NULL (it's interpreted as test fail) */
+    return dummy_state;
+}
+
+/* Unittest cleanup function: Cleanup the fake network. */
+static int
+fake_network_cleanup(const struct testcase_t *testcase, void *ptr)
+{
+    (void) testcase;
+    (void) ptr;
+
+    routerlist_free_all();
+    nodelist_free_all();
+    entry_guards_free_all();
+    or_state_free(dummy_state);
+
+    return 1; /* NOP */
+}
+
+static const struct testcase_setup_t fake_network = {
+    fake_network_setup, fake_network_cleanup
+};
+
 /* TODO:
  * algo_choose_entry_guard_next() test with state machine.
  *
@@ -458,43 +495,6 @@ test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS(
     tor_free(used_guards);
     tor_free(primary_guards);
 }
-
-/* Unittest setup function: Setup a fake network. */
-static void *
-fake_network_setup(const struct testcase_t *testcase)
-{
-    (void) testcase;
-
-    /* Setup fake state */
-    dummy_state = tor_malloc_zero(sizeof(or_state_t));
-    MOCK(get_or_state,
-        get_or_state_replacement);
-
-    /* Setup fake routerlist. */
-    helper_setup_fake_routerlist();
-
-    /* Return anything but NULL (it's interpreted as test fail) */
-    return dummy_state;
-}
-
-/* Unittest cleanup function: Cleanup the fake network. */
-static int
-fake_network_cleanup(const struct testcase_t *testcase, void *ptr)
-{
-    (void) testcase;
-    (void) ptr;
-
-    routerlist_free_all();
-    nodelist_free_all();
-    entry_guards_free_all();
-    or_state_free(dummy_state);
-
-    return 1; /* NOP */
-}
-
-static const struct testcase_setup_t fake_network = {
-    fake_network_setup, fake_network_cleanup
-};
 
 static void
 test_ON_NEW_CONSENSUS(void *arg)
