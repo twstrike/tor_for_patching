@@ -678,6 +678,14 @@ test_ON_NEW_CONSENSUS(void *arg)
     tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g4);
     tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g5);
 
+    g3->bad_since = 1;
+
+    algo_on_new_consensus(guard_selection);
+
+    tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 2);
+    tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
+    tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g4);
+    tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g5);
   done:
     tor_free(g1);
     tor_free(g2);
