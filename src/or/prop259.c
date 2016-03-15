@@ -128,7 +128,7 @@ next_by_bandwidth(smartlist_t *guards)
         smartlist_remove(guards, guard);
     }
 
-    tor_free(nodes);
+    smartlist_free(nodes);
     return guard;
 }
 
@@ -310,6 +310,7 @@ algo_choose_entry_guard_start(
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
     guard_selection->state = STATE_PRIMARY_GUARDS;
+    //XXX make sure this memory leak is addressed
     guard_selection->primary_guards = smartlist_new();
 
     //XXX fill remaining sets from sampled
