@@ -236,6 +236,9 @@ MOCK_IMPL(entry_guard_t *,
     algo_choose_entry_guard_next,(guard_selection_t *guard_selection))
 {
     switch (guard_selection->state) {
+    case STATE_INVALID:
+        tor_assert(NULL); //XXX how to panic?
+        return NULL;
     case STATE_PRIMARY_GUARDS:
         return state_PRIMARY_GUARDS_next(guard_selection);
     case STATE_TRY_UTOPIC:
@@ -273,9 +276,9 @@ algo_choose_entry_guard_start(
 }
 
 STATIC void
-transition_to(guard_selection_t *guard_selection, const unsigned int new_state)
+transition_to(guard_selection_t *guard_selection, guard_selection_state_t state)
 {
-    guard_selection->state = new_state;
+    guard_selection->state = state;
 }
 
 void
