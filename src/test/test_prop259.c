@@ -193,6 +193,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 static void
 test_state_machine_should_return_primary_guard_by_order(void *arg)
 {
+    entry_guard_t *entry1 = NULL, *entry2 = NULL;
     (void) arg;
 
     guard_selection_t *guard_selection;
@@ -212,8 +213,8 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
         n_primary_guards,
         dir);
 
-    entry_guard_t *entry1 = tor_malloc_zero(sizeof(entry_guard_t));
-    entry_guard_t *entry2 = tor_malloc_zero(sizeof(entry_guard_t));
+    entry1 = tor_malloc_zero(sizeof(entry_guard_t));
+    entry2 = tor_malloc_zero(sizeof(entry_guard_t));
     smartlist_add(guard_selection->primary_guards, entry1);
     smartlist_add(guard_selection->primary_guards, entry2);
 
@@ -230,6 +231,8 @@ test_state_machine_should_return_primary_guard_by_order(void *arg)
     chosen = algo_choose_entry_guard_next(guard_selection);
 
   done:
+    tor_free(entry1);
+    tor_free(entry2);
     tor_free(guard_selection);
     tor_free(used_guards);
     tor_free(exclude_nodes);
@@ -301,9 +304,9 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
     entry_guard_t* guard = NULL;
     smartlist_t *used_guards = NULL;
     smartlist_t *primary_guards = NULL;
+    entry_guard_t *g1 = NULL, *g2 = NULL, *g3 = NULL;
     (void) arg;
 
-    entry_guard_t *g1, *g2, *g3;
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
     g3 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -353,6 +356,7 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg)
     smartlist_t *primary_guards = NULL;
     smartlist_t *used_guards = NULL;
     smartlist_t *remaining_utopic_guards = NULL;
+    entry_guard_t *g1, *g2, *g3, *g4 = NULL;
     (void) arg;
 
     MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
@@ -366,13 +370,13 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg)
         tt_assert(node_tmp);
     } SMARTLIST_FOREACH_END(node);
 
-    entry_guard_t *g1, *g2, *g3;
     node = smartlist_get(our_nodelist, 0);
     g1 = entry_guard_get_by_id_digest(node->identity);
     node = smartlist_get(our_nodelist, 1);
     g2 = entry_guard_get_by_id_digest(node->identity);
     node = smartlist_get(our_nodelist, 2);
     g3 = entry_guard_get_by_id_digest(node->identity);
+    g4 = tor_malloc_zero(sizeof(entry_guard_t));
 
     primary_guards = smartlist_new();
     smartlist_add(primary_guards, g1);
@@ -383,6 +387,7 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg)
     remaining_utopic_guards = smartlist_new();
     smartlist_add(remaining_utopic_guards, g2);
     smartlist_add(remaining_utopic_guards, g3);
+    smartlist_add(remaining_utopic_guards, g4); // this should be ignored
 
     guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
     guard_selection->state = STATE_TRY_UTOPIC;
@@ -399,7 +404,14 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg)
     tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards,
         g2));
 
+    g3->unreachable_since = 1;
+    guard = algo_choose_entry_guard_next(guard_selection);
+    tt_ptr_op(guard, OP_EQ, NULL);
+    tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards,
+        g3));
+
   done:
+    tor_free(g4);
     tor_free(guard_selection);
     tor_free(primary_guards);
     tor_free(used_guards);
@@ -446,7 +458,7 @@ test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS(
     smartlist_t *used_guards = NULL;
     smartlist_t *primary_guards = NULL;
     smartlist_t *dystopic_guards = NULL;
-    entry_guard_t *g1, *g2, *g3, *g4;
+    entry_guard_t *g1 = NULL, *g2 = NULL, *g3 = NULL, *g4 = NULL;
     (void) arg;
 
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -609,6 +621,11 @@ test_ON_NEW_CONSENSUS(void *arg)
     tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g5);
 
   done:
+    tor_free(g1);
+    tor_free(g2);
+    tor_free(g3);
+    tor_free(g4);
+    tor_free(g5);
     tor_free(guard_selection);
 }
 
