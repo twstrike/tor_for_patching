@@ -63,12 +63,14 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
     return NULL;
 }
 
+//XXX review if this is the right way of doing this
 static const node_t*
 guard_to_node(const entry_guard_t *guard)
 {
     return node_get_by_id(guard->identity);
 }
 
+//XXX review if this is the right way of doing this
 static entry_guard_t*
 node_to_guard(const node_t *node)
 {
@@ -134,13 +136,20 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection,
 }
 
 static entry_guard_t*
-each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
+each_remaining_by_bandwidth(guard_selection_t* guard_selection,
+                            int require_dystopic)
 {
     entry_guard_t *guard = NULL;
-    smartlist_t *guards = guard_selection->remaining_utopic_guards;
+    smartlist_t *guards = NULL;
     smartlist_t *remaining = smartlist_new();
-    smartlist_add_all(remaining, guards);
 
+    if (require_dystopic == 1) {
+        guards = guard_selection->remaining_dystopic_guards;
+    } else {
+        guards = guard_selection->remaining_utopic_guards;
+    }
+
+    smartlist_add_all(remaining, guards);
     while (smartlist_len(remaining) > 0) {
         entry_guard_t *g = next_by_bandwidth(remaining);
         if (!g) {
@@ -157,6 +166,18 @@ each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
 
     tor_free(remaining);
     return guard;
+}
+
+static entry_guard_t*
+each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
+{
+    return each_remaining_by_bandwidth(guard_selection, 0);
+}
+
+static entry_guard_t*
+each_remaining_dystopic_by_bandwidth(guard_selection_t* guard_selection)
+{
+    return each_remaining_by_bandwidth(guard_selection, 1);
 }
 
 static entry_guard_t*
@@ -184,7 +205,20 @@ static entry_guard_t*
 state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
 {
     int dystopic = 1;
-    return each_used_guard_not_in_primary_guards(guard_selection, dystopic);
+    entry_guard_t *guard = each_used_guard_not_in_primary_guards(
+        guard_selection, dystopic);
+
+    if (guard) {
+        return guard;
+    }
+
+    guard = each_remaining_dystopic_by_bandwidth(guard_selection);
+
+    if (guard) {
+        return guard;
+    }
+
+    return NULL;
 }
 
 MOCK_IMPL(entry_guard_t *,
