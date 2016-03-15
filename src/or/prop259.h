@@ -20,8 +20,8 @@ typedef struct {
     smartlist_t *remaining_dystopic_guards;
     smartlist_t *primary_guards;
 
-	// Context
-	smartlist_t *used_guards;
+    // Context
+    smartlist_t *used_guards;
 } guard_selection_t;
 
 #endif
@@ -42,9 +42,10 @@ guard_selection_t* algo_choose_entry_guard_start(
         int n_primary_guards,
         int dir);
 
-void transition_to(guard_selection_t *algo, const unsigned int state);
+STATIC void transition_to(guard_selection_t *algo, const unsigned int state);
 void algo_on_new_consensus(guard_selection_t *guard_selection);
 entry_guard_t *next_primary_guard(guard_selection_t *guard_selection);
 
 STATIC entry_guard_t* next_by_bandwidth(smartlist_t *guards);
 #endif
+
