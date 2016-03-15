@@ -17,19 +17,16 @@ typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
 
-    smartlist_t *guards;
-    smartlist_t *utopic_guards;
-    smartlist_t *dystopic_guards;
+    const smartlist_t *guards;
+    const smartlist_t *utopic_guards;
+    const smartlist_t *dystopic_guards;
 
-    //should be changed by the algo
     smartlist_t *remaining_utopic_guards;
     smartlist_t *remaining_dystopic_guards;
     smartlist_t *primary_guards;
-
+    smartlist_t *used_guards;
     smartlist_t *primary_guards_log;
 
-    // Context
-    smartlist_t *used_guards;
 } guard_selection_t;
 
 #endif
