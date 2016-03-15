@@ -69,9 +69,8 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 {
     smartlist_t *guards = guard_selection->primary_guards;
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (is_live(e)) {
+        if (is_live(e))
             return e;
-        }
     } SMARTLIST_FOREACH_END(e);
 
     transition_to_previous_state_or_try_utopic(guard_selection);
@@ -118,11 +117,8 @@ next_by_bandwidth(smartlist_t *guards)
     //guards to nodes.
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         const node_t *node = guard_to_node(e);
-        if (!node) {
-            continue; // not listed
-        }
-
-        smartlist_add(nodes, (void *)node);
+        if (node)
+            smartlist_add(nodes, (void *)node);
     } SMARTLIST_FOREACH_END(e);
 
     const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
@@ -357,15 +353,25 @@ algo_on_new_consensus(guard_selection_t *guard_selection)
     }
 }
 
-entry_guard_t*
+STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection)
 {
-    SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
-        if (!smartlist_contains(guard_selection->primary_guards, e)) {
+    const smartlist_t *used = guard_selection->used_guards;
+    const smartlist_t *primary = guard_selection->primary_guards;
+
+    SMARTLIST_FOREACH_BEGIN(used, entry_guard_t *, e) {
+        if (!smartlist_contains(primary, e) && !is_bad(e))
             return e;
-        }
     } SMARTLIST_FOREACH_END(e);
 
-    return NULL;//return NEXT_BY_BANDWIDTH(REMAINING_UTOPIC_GUARDS);
+    smartlist_t *remaining = smartlist_new();
+    smartlist_add_all(remaining, guard_selection->remaining_utopic_guards);
+    smartlist_subtract(remaining, used);
+    smartlist_subtract(remaining, primary);
+
+    entry_guard_t *guard = next_by_bandwidth(remaining);
+
+    tor_free(remaining);
+    return guard;
 }
 

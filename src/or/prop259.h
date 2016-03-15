@@ -49,8 +49,7 @@ STATIC void transition_to(guard_selection_t *algo,
                           guard_selection_state_t state);
 
 void algo_on_new_consensus(guard_selection_t *guard_selection);
-entry_guard_t *next_primary_guard(guard_selection_t *guard_selection);
-
+STATIC entry_guard_t *next_primary_guard(guard_selection_t *guard_selection);
 STATIC entry_guard_t* next_by_bandwidth(smartlist_t *guards);
 #endif
 
