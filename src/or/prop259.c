@@ -55,11 +55,32 @@ is_bad(entry_guard_t *guard)
 }
 
 static void
+mark_for_retry(const smartlist_t *guards)
+{
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        e->can_retry = 1;
+    } SMARTLIST_FOREACH_END(e);
+}
+
+static void
+mark_remaining_used_for_retry(guard_selection_t *guard_selection)
+{
+    SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
+        if (smartlist_contains(guard_selection->primary_guards, e)) {
+            continue;
+        }
+
+        e->can_retry = 1;
+    } SMARTLIST_FOREACH_END(e);
+}
+
+static void
 transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection)
 {
     if (guard_selection->previous_state != 0) {
         transition_to(guard_selection, guard_selection->previous_state);
     } else {
+        mark_remaining_used_for_retry(guard_selection);
         transition_to(guard_selection, STATE_TRY_UTOPIC);
     }
 }
@@ -74,7 +95,6 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
     } SMARTLIST_FOREACH_END(e);
 
     transition_to_previous_state_or_try_utopic(guard_selection);
-
     return NULL;
 }
 
@@ -243,14 +263,6 @@ has_any_been_tried_before(const smartlist_t *guards, time_t time)
 }
 
 static void
-mark_for_retry(const smartlist_t *guards)
-{
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        e->can_retry = 1;
-    } SMARTLIST_FOREACH_END(e);
-}
-
-static void
 check_primary_guards_retry_interval(guard_selection_t *guard_selection,
                                     const or_options_t *options, time_t now)
 {
@@ -296,11 +308,14 @@ algo_choose_entry_guard_start(
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
     guard_selection->state = STATE_PRIMARY_GUARDS;
+    guard_selection->used_guards = used_guards;
+
     //XXX make sure this memory leak is addressed
     guard_selection->primary_guards = smartlist_new();
 
     //XXX fill remaining sets from sampled
-    (void) used_guards;
+    //algo_on_new_consensus(guard_selection, n_primary_guards);
+
     (void) sampled_utopic;
     (void) sampled_dystopic;
     (void) exclude_nodes;
