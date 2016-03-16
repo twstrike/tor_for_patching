@@ -133,16 +133,10 @@ next_by_bandwidth(smartlist_t *guards)
 }
 
 static entry_guard_t*
-each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection,
-                                      int require_dystopic)
+each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 {
     SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
         if (smartlist_contains(guard_selection->primary_guards, e)) {
-            continue;
-        }
-
-        if (require_dystopic &&
-            !smartlist_contains(guard_selection->dystopic_guards, e)) {
             continue;
         }
 
@@ -202,9 +196,8 @@ each_remaining_dystopic_by_bandwidth(guard_selection_t* guard_selection)
 static entry_guard_t*
 state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
 {
-    int dystopic = 0;
     entry_guard_t *guard = each_used_guard_not_in_primary_guards(
-        guard_selection, dystopic);
+        guard_selection);
 
     if (guard) {
         return guard;
@@ -223,15 +216,8 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
 static entry_guard_t*
 state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
 {
-    int dystopic = 1;
-    entry_guard_t *guard = each_used_guard_not_in_primary_guards(
-        guard_selection, dystopic);
-
-    if (guard) {
-        return guard;
-    }
-
-    guard = each_remaining_dystopic_by_bandwidth(guard_selection);
+    entry_guard_t *guard = each_remaining_dystopic_by_bandwidth(
+        guard_selection);
 
     if (guard) {
         return guard;

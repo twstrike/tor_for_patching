@@ -598,67 +598,6 @@ test_TRY_UTOPIC_transitions_to_TRY_DYSTOPIC(void *arg)
 }
 
 static void
-test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS(
-                                                                    void *arg)
-{
-    entry_guard_t* guard = NULL;
-    smartlist_t *used_guards = NULL;
-    smartlist_t *primary_guards = NULL;
-    smartlist_t *dystopic_guards = NULL;
-    entry_guard_t *g1 = NULL, *g2 = NULL, *g3 = NULL, *g4 = NULL;
-    or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
-    (void) arg;
-
-    g1 = tor_malloc_zero(sizeof(entry_guard_t));
-    g2 = tor_malloc_zero(sizeof(entry_guard_t));
-    g3 = tor_malloc_zero(sizeof(entry_guard_t));
-    g4 = tor_malloc_zero(sizeof(entry_guard_t));
-
-    primary_guards = smartlist_new();
-    smartlist_add(primary_guards, g1);
-
-    used_guards = smartlist_new();
-    smartlist_add(used_guards, g1);
-    smartlist_add(used_guards, g2);
-    smartlist_add(used_guards, g3);
-    smartlist_add(used_guards, g4);
-
-    dystopic_guards = smartlist_new();
-    smartlist_add(dystopic_guards, g3);
-    smartlist_add(dystopic_guards, g4);
-
-    guard_selection_t *guard_selection = tor_malloc_zero(
-        sizeof(guard_selection_t));
-    guard_selection->state = STATE_TRY_DYSTOPIC;
-    guard_selection->used_guards = used_guards;
-    guard_selection->primary_guards = primary_guards;
-    guard_selection->dystopic_guards = dystopic_guards;
-
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
-    tt_ptr_op(guard, OP_EQ, g3);
-
-    g3->unreachable_since = 1;
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
-    tt_ptr_op(guard, OP_EQ, g4);
-
-    //XXX this seems to be unrealistic
-    g3->unreachable_since = 0;
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
-    tt_ptr_op(guard, OP_EQ, g3);
-
-  done:
-    tor_free(g1);
-    tor_free(g2);
-    tor_free(g3);
-    tor_free(g4);
-    tor_free(guard_selection);
-    tor_free(used_guards);
-    tor_free(primary_guards);
-    tor_free(dystopic_guards);
-    tor_free(options);
-}
-
-static void
 test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard(void *arg)
 {
     guard_selection_t *guard_selection = NULL;
@@ -886,9 +825,6 @@ struct testcase_t entrynodes_new_tests[] = {
         TT_FORK, &fake_network, NULL },
     { "STATE_TRY_UTOPIC_transitions_to_STATE_TRY_DYSTOPIC",
         test_TRY_UTOPIC_transitions_to_TRY_DYSTOPIC,
-        0, NULL, NULL },
-    { "STATE_TRY_DYSTOPIC_returns_dystopic_USED_NOT_PRIMARY",
-     test_TRY_DYSTOPIC_returns_each_dystopic_USED_GUARDS_not_in_PRIMARY_GUARDS,
         0, NULL, NULL },
     { "STATE_TRY_DYSTOPIC_returns_REMAINING_DYSTOPIC",
         test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard,
