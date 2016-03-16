@@ -45,11 +45,17 @@ guard_selection_t* algo_choose_entry_guard_start(
         int n_primary_guards,
         int dir);
 
+void
+guard_selection_free(guard_selection_t *guard_selection);
+
 STATIC void transition_to(guard_selection_t *algo,
                           guard_selection_state_t state);
 
-void algo_on_new_consensus(guard_selection_t *guard_selection);
+void algo_on_new_consensus(guard_selection_t *guard_selection, int num_guards);
 STATIC entry_guard_t *next_primary_guard(guard_selection_t *guard_selection);
 STATIC entry_guard_t* next_by_bandwidth(smartlist_t *guards);
+
+STATIC void
+fill_in_primary_guards(guard_selection_t *guard_selection, int num_guards);
 #endif
 

@@ -296,6 +296,25 @@ algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
     return NULL;
 }
 
+STATIC void
+fill_in_primary_guards(guard_selection_t *guard_selection, int num_guards)
+{
+    smartlist_t *primary = guard_selection->primary_guards;
+    while (smartlist_len(primary) < num_guards) {
+        entry_guard_t *guard = next_primary_guard(guard_selection);
+        if (guard && !is_bad(guard))
+            smartlist_add(primary, guard);
+    }
+}
+
+void
+guard_selection_free(guard_selection_t *guard_selection)
+{
+    smartlist_free(guard_selection->primary_guards);
+    smartlist_free(guard_selection->remaining_utopic_guards);
+    smartlist_free(guard_selection->remaining_dystopic_guards);
+}
+
 guard_selection_t*
 algo_choose_entry_guard_start(
     smartlist_t *used_guards,
@@ -309,40 +328,45 @@ algo_choose_entry_guard_start(
         sizeof(guard_selection_t));
     guard_selection->state = STATE_PRIMARY_GUARDS;
     guard_selection->used_guards = used_guards;
-
-    //XXX make sure this memory leak is addressed
     guard_selection->primary_guards = smartlist_new();
+    guard_selection->remaining_utopic_guards = smartlist_new();
+    guard_selection->remaining_dystopic_guards = smartlist_new();
+
+    fill_in_primary_guards(guard_selection, n_primary_guards);
 
     //XXX fill remaining sets from sampled
-    //algo_on_new_consensus(guard_selection, n_primary_guards);
 
     (void) sampled_utopic;
     (void) sampled_dystopic;
     (void) exclude_nodes;
-    (void) n_primary_guards;
+
+    //XXX make sure is directory is used appropriately
     (void) dir;
 
     return guard_selection;
 }
 
 void
-algo_on_new_consensus(guard_selection_t *guard_selection)
+algo_on_new_consensus(guard_selection_t *guard_selection, int num_guards)
 {
     if (guard_selection->primary_guards_log == NULL) {
         guard_selection->primary_guards_log = smartlist_new();
         smartlist_add_all(guard_selection->primary_guards_log,
             guard_selection->primary_guards);
     }
+
     smartlist_t *guards_log = guard_selection->primary_guards_log;
     guard_selection->primary_guards = smartlist_new();
     smartlist_t *guards = guard_selection->primary_guards;
     SMARTLIST_FOREACH_BEGIN(guards_log, entry_guard_t *, e) {
-        if (!e->bad_since && smartlist_len(guards) < 3) {
-            smartlist_add(guards,e);
+        if (!e->bad_since && smartlist_len(guards) < num_guards) {
+            smartlist_add(guards, e);
         }
     } SMARTLIST_FOREACH_END(e);
 
-    while (smartlist_len(guard_selection->primary_guards) < 3) {
+    //XXX review this log
+    //This is fill_in_primary_guards() with a "log".
+    while (smartlist_len(guard_selection->primary_guards) < num_guards) {
         entry_guard_t *guard = next_primary_guard(guard_selection);
         if (guard != NULL) {
             smartlist_add(guards, guard);
