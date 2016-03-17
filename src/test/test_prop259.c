@@ -765,11 +765,20 @@ test_ON_NEW_CONSENSUS(void *arg)
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
     g3 = tor_malloc_zero(sizeof(entry_guard_t));
+    g4 = tor_malloc_zero(sizeof(entry_guard_t));
+    g5 = tor_malloc_zero(sizeof(entry_guard_t));
+
+    g1->bad_since = 0;
+    g2->bad_since = 0;
+    g3->bad_since = 0;
+    g4->bad_since = 1;
+    g5->bad_since = 1;
+
     smartlist_add(primary_guards, g1);
     smartlist_add(primary_guards, g2);
     smartlist_add(primary_guards, g3);
-    g4 = tor_malloc_zero(sizeof(entry_guard_t));
-    g5 = tor_malloc_zero(sizeof(entry_guard_t));
+    smartlist_add(used_guards, g1);
+    smartlist_add(used_guards, g2);
     smartlist_add(used_guards, g4);
     smartlist_add(used_guards, g5);
 
@@ -779,6 +788,9 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     g1->bad_since = 1;
     g2->bad_since = 1;
+    g3->bad_since = 0;
+    g4->bad_since = 0;
+    g5->bad_since = 0;
 
     algo_on_new_consensus(guard_selection, 3);
 
@@ -790,6 +802,9 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     g1->bad_since = 0;
     g2->bad_since = 0;
+    g3->bad_since = 0;
+    g4->bad_since = 0;
+    g5->bad_since = 0;
 
     algo_on_new_consensus(guard_selection, 3);
 
@@ -799,25 +814,19 @@ test_ON_NEW_CONSENSUS(void *arg)
     tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g2);
     tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g3);
 
-    g1->bad_since = 1;
+    g1->bad_since = 0;
     g2->bad_since = 1;
+    g3->bad_since = 0;
+    g4->bad_since = 1;
+    g5->bad_since = 0;
 
     algo_on_new_consensus(guard_selection, 3);
 
     tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
     tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g3);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g4);
+    tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g1);
+    tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g3);
     tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g5);
-
-    g3->bad_since = 1;
-
-    algo_on_new_consensus(guard_selection, 3);
-
-    tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 2);
-    tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g4);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g5);
   done:
     tor_free(g1);
     tor_free(g2);
