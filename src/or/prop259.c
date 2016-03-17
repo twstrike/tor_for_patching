@@ -359,7 +359,7 @@ algo_on_new_consensus(guard_selection_t *guard_selection, int num_guards)
     guard_selection->primary_guards = smartlist_new();
     smartlist_t *guards = guard_selection->primary_guards;
     SMARTLIST_FOREACH_BEGIN(guards_log, entry_guard_t *, e) {
-        if (!e->bad_since && smartlist_len(guards) < num_guards) {
+        if (!is_bad(e) && smartlist_len(guards) < num_guards) {
             smartlist_add(guards, e);
         }
     } SMARTLIST_FOREACH_END(e);
