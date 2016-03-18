@@ -54,6 +54,18 @@ is_bad(entry_guard_t *guard)
     return (guard->bad_since != 0);
 }
 
+static int
+should_try(entry_guard_t* guard)
+{
+    if (guard->can_retry)
+        return 1;
+
+    if (is_live(guard) && !is_bad(guard))
+        return 1;
+
+    return 0;
+}
+
 static void
 mark_for_retry(const smartlist_t *guards)
 {
@@ -90,7 +102,7 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 {
     smartlist_t *guards = guard_selection->primary_guards;
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (is_live(e))
+        if (should_try(e))
             return e;
     } SMARTLIST_FOREACH_END(e);
 
@@ -136,6 +148,9 @@ next_by_bandwidth(smartlist_t *guards)
     //Bandwidth is an information on the node descriptors. We need to convert
     //guards to nodes.
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        if (is_bad(e))
+            continue;
+
         const node_t *node = guard_to_node(e);
         if (node)
             smartlist_add(nodes, (void *)node);
@@ -160,9 +175,8 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
             continue;
         }
 
-        if (is_live(e) && !is_bad(e)) {
+        if (should_try(e))
             return e;
-        }
     } SMARTLIST_FOREACH_END(e);
 
     return NULL;
@@ -189,7 +203,7 @@ each_remaining_by_bandwidth(guard_selection_t* guard_selection,
             break;
         }
 
-        if (is_live(g)) {
+        if (should_try(g)) {
             guard = g;
             break;
         }
@@ -302,7 +316,7 @@ fill_in_primary_guards(guard_selection_t *guard_selection, int num_guards)
     smartlist_t *primary = guard_selection->primary_guards;
     while (smartlist_len(primary) < num_guards) {
         entry_guard_t *guard = next_primary_guard(guard_selection);
-        if (guard && !is_bad(guard))
+        if (guard)
             smartlist_add(primary, guard);
     }
 }
