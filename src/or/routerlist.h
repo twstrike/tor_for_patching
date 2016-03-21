@@ -70,7 +70,7 @@ uint32_t router_get_advertised_bandwidth_capped(const routerinfo_t *router);
 
 MOCK_DECL(const node_t*,
 node_sl_choose_by_bandwidth,(const smartlist_t *sl,
-														 bandwidth_weight_rule_t rule));
+                             bandwidth_weight_rule_t rule));
 
 double frac_nodes_with_descriptors(const smartlist_t *sl,
                                    bandwidth_weight_rule_t rule);
