@@ -257,8 +257,9 @@ test_fill_in_primary_guards(void *arg)
 
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
+    guard_selection->num_primary_guards = 2;
 
-    fill_in_primary_guards(guard_selection, 2);
+    fill_in_primary_guards(guard_selection);
     tt_int_op(2, OP_EQ, smartlist_len(primary_guards));
     tt_ptr_op(g2, OP_EQ, smartlist_get(primary_guards, 0));
     tt_ptr_op(g3, OP_EQ, smartlist_get(primary_guards, 1));

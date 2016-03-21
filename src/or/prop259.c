@@ -304,8 +304,9 @@ algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
 }
 
 STATIC void
-fill_in_primary_guards(guard_selection_t *guard_selection, int num_guards)
+fill_in_primary_guards(guard_selection_t *guard_selection)
 {
+    int num_guards = guard_selection->num_primary_guards;
     smartlist_t *primary = guard_selection->primary_guards;
     while (smartlist_len(primary) < num_guards) {
         entry_guard_t *guard = next_primary_guard(guard_selection);
@@ -340,7 +341,7 @@ algo_choose_entry_guard_start(
     guard_selection->remaining_dystopic_guards = smartlist_new();
     guard_selection->num_primary_guards = n_primary_guards;
 
-    fill_in_primary_guards(guard_selection, n_primary_guards);
+    fill_in_primary_guards(guard_selection);
 
     //XXX fill remaining sets from sampled
 

@@ -71,7 +71,7 @@ STATIC entry_guard_t*
 next_by_bandwidth(smartlist_t *guards);
 
 STATIC void
-fill_in_primary_guards(guard_selection_t *guard_selection, int num_guards);
+fill_in_primary_guards(guard_selection_t *guard_selection);
 #endif
 
 #endif
