@@ -67,6 +67,7 @@
 #endif
 #include "memarea.h"
 #include "sandbox.h"
+#include "prop259.h"
 
 #ifdef HAVE_EVENT2_EVENT_H
 #include <event2/event.h>
@@ -1022,6 +1023,8 @@ directory_info_has_arrived(time_t now, int from_cache, int suppress_logs)
     /* if we have enough dir info, then update our guard status with
      * whatever we just learned. */
     entry_guards_compute_status(options, now);
+    entry_guards_update_profiles(options);
+
     /* Don't even bother trying to get extrainfo until the rest of our
      * directory info is up-to-date */
     if (options->DownloadExtraInfo)

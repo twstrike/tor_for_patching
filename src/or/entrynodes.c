@@ -36,6 +36,7 @@
 #include "routerset.h"
 #include "transports.h"
 #include "statefile.h"
+#include "prop259.h"
 
 /** Information about a configured bridge. Currently this just matches the
  * ones in the torrc file, but one day we may be able to learn about new
@@ -472,7 +473,7 @@ add_an_entry_guard(const node_t *chosen, int reset_status, int prepend,
 /** Choose how many entry guards or directory guards we'll use. If
  * <b>for_directory</b> is true, we return how many directory guards to
  * use; else we return how many entry guards to use. */
-STATIC int
+int
 decide_num_guards(const or_options_t *options, int for_directory)
 {
   if (for_directory) {
@@ -986,7 +987,11 @@ entry_list_is_constrained(const or_options_t *options)
 const node_t *
 choose_random_entry(cpath_build_state_t *state)
 {
+#ifdef USE_PROP_259
+  return choose_random_entry_prop259(state, 0, NO_DIRINFO, NULL);
+#else
   return choose_random_entry_impl(state, 0, NO_DIRINFO, NULL);
+#endif
 }
 
 /** Pick a live (up and listed) directory guard from entry_guards for
@@ -994,7 +999,11 @@ choose_random_entry(cpath_build_state_t *state)
 const node_t *
 choose_random_dirguard(dirinfo_type_t type)
 {
+#ifdef USE_PROP_259
+  return choose_random_entry_prop259(NULL, 1, type, NULL);
+#else
   return choose_random_entry_impl(NULL, 1, type, NULL);
+#endif
 }
 
 /** Filter <b>all_entry_guards</b> for usable entry guards and put them

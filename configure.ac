@@ -106,6 +106,13 @@ AC_ARG_ENABLE(systemd,
       esac], [systemd=auto])
 
 
+AC_ARG_ENABLE(prop259,
+      AS_HELP_STRING(--enable-prop259, [enable systemd notification support]),
+      [case "${enableval}" in
+        "yes") prop259=true ;;
+        "no")  prop259=false ;;
+        * ) AC_MSG_ERROR(bad value for --enable-prop259) ;;
+      esac], [prop259=auto])
 
 # systemd support
 if test "x$enable_systemd" = "xno"; then
@@ -1099,6 +1106,10 @@ if test "x$transparent" = "xtrue"; then
    else
      AC_MSG_NOTICE([Transparent proxy support enabled, but missing headers.])
    fi
+fi
+
+if test "x$prop259" = "xtrue"; then
+    AC_DEFINE(USE_PROP_259, 1, "Define to enable prop259 support")
 fi
 
 AC_CHECK_MEMBERS([struct timeval.tv_sec], , ,
