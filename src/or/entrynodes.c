@@ -987,10 +987,10 @@ entry_list_is_constrained(const or_options_t *options)
 const node_t *
 choose_random_entry(cpath_build_state_t *state)
 {
-#ifndef USE_PROP_259
-  return choose_random_entry_impl(state, 0, NO_DIRINFO, NULL);
-#else
+#ifdef USE_PROP_259
   return choose_random_entry_prop259(state, 0, NO_DIRINFO, NULL);
+#else
+  return choose_random_entry_impl(state, 0, NO_DIRINFO, NULL);
 #endif
 }
 
@@ -999,10 +999,10 @@ choose_random_entry(cpath_build_state_t *state)
 const node_t *
 choose_random_dirguard(dirinfo_type_t type)
 {
-#ifndef USE_PROP_259
-  return choose_random_entry_impl(NULL, 1, type, NULL);
-#else
+#ifdef USE_PROP_259
   return choose_random_entry_prop259(NULL, 1, type, NULL);
+#else
+  return choose_random_entry_impl(NULL, 1, type, NULL);
 #endif
 }
 

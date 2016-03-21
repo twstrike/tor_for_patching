@@ -32,11 +32,12 @@ typedef struct {
 
 } guard_selection_t;
 
-#endif
-
 const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
                          dirinfo_type_t dirinfo_type, int *n_options_out);
+
+void
+entry_guards_update_profiles(const or_options_t *options);
 
 #ifdef PROP259_PRIVATE
 
@@ -70,5 +71,7 @@ next_by_bandwidth(smartlist_t *guards);
 
 STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection, int num_guards);
+#endif
+
 #endif
 

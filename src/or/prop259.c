@@ -412,7 +412,7 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
-    log_info(LD_CIRC, "Now using *prop259* impl");
+    log_info(LD_CIRC, "Using proposal 259 to choose entry guards.");
 
     const or_options_t *options = get_options();
     const node_t *node = NULL;
@@ -422,7 +422,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
     //XXX we ignore this information while selecting a guard
     const node_t *chosen_exit =
-        state?build_state_get_exit_node(state) : NULL;
+        state ? build_state_get_exit_node(state) : NULL;
     int need_uptime = state ? state->need_uptime : 0;
     int need_capacity = state ? state->need_capacity : 0;
     (void) chosen_exit;
@@ -463,3 +463,22 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     return node;
 }
 
+void
+entry_guards_update_profiles(const or_options_t *options)
+{
+#ifndef USE_PROP_259
+  return; //do nothing
+#endif
+
+    int for_directory = 0;
+    const int num_needed = decide_num_guards(options, for_directory);
+
+    if (!entry_guard_selection)
+        entry_guard_selection = algo_choose_entry_guard_start(
+            used_guards, sampled_utopic_guards, sampled_dystopic_guards,
+            NULL, //XXX should be options->ExcludeNodes,
+            num_needed, for_directory);
+
+    //XXX get num_needed from context
+    algo_on_new_consensus(entry_guard_selection, num_needed);
+}
