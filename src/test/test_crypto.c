@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #include "orconfig.h"
@@ -147,8 +147,14 @@ test_crypto_rng_engine(void *arg)
 
   /* We should correct the method if it's a dummy. */
   RAND_set_rand_method(&dummy_method);
+#ifdef LIBRESSL_VERSION_NUMBER
+  /* On libressl, you can't override the RNG. */
+  tt_assert(RAND_get_rand_method() == RAND_OpenSSL());
+  tt_int_op(0, ==, crypto_force_rand_ssleay());
+#else
   tt_assert(RAND_get_rand_method() == &dummy_method);
   tt_int_op(1, ==, crypto_force_rand_ssleay());
+#endif
   tt_assert(RAND_get_rand_method() == RAND_OpenSSL());
 
   /* Make sure we aren't calling dummy_method */
@@ -1084,7 +1090,7 @@ test_crypto_digests(void *arg)
 {
   crypto_pk_t *k = NULL;
   ssize_t r;
-  digests_t pkey_digests;
+  common_digests_t pkey_digests;
   char digest[DIGEST_LEN];
 
   (void)arg;
@@ -1098,7 +1104,7 @@ test_crypto_digests(void *arg)
   tt_mem_op(hex_str(digest, DIGEST_LEN),OP_EQ,
              AUTHORITY_SIGNKEY_A_DIGEST, HEX_DIGEST_LEN);
 
-  r = crypto_pk_get_all_digests(k, &pkey_digests);
+  r = crypto_pk_get_common_digests(k, &pkey_digests);
 
   tt_mem_op(hex_str(pkey_digests.d[DIGEST_SHA1], DIGEST_LEN),OP_EQ,
              AUTHORITY_SIGNKEY_A_DIGEST, HEX_DIGEST_LEN);
@@ -1108,6 +1114,11 @@ test_crypto_digests(void *arg)
   crypto_pk_free(k);
 }
 
+#ifndef OPENSSL_1_1_API
+#define EVP_ENCODE_CTX_new() tor_malloc_zero(sizeof(EVP_ENCODE_CTX))
+#define EVP_ENCODE_CTX_free(ctx) tor_free(ctx)
+#endif
+
 /** Encode src into dest with OpenSSL's EVP Encode interface, returning the
  * length of the encoded data in bytes.
  */
@@ -1115,12 +1126,13 @@ static int
 base64_encode_evp(char *dest, char *src, size_t srclen)
 {
   const unsigned char *s = (unsigned char*)src;
-  EVP_ENCODE_CTX ctx;
+  EVP_ENCODE_CTX *ctx = EVP_ENCODE_CTX_new();
   int len, ret;
 
-  EVP_EncodeInit(&ctx);
-  EVP_EncodeUpdate(&ctx, (unsigned char *)dest, &len, s, (int)srclen);
-  EVP_EncodeFinal(&ctx, (unsigned char *)(dest + len), &ret);
+  EVP_EncodeInit(ctx);
+  EVP_EncodeUpdate(ctx, (unsigned char *)dest, &len, s, (int)srclen);
+  EVP_EncodeFinal(ctx, (unsigned char *)(dest + len), &ret);
+  EVP_ENCODE_CTX_free(ctx);
   return ret+ len;
 }
 
@@ -1733,7 +1745,6 @@ ed25519_testcase_cleanup(const struct testcase_t *testcase, void *ptr)
 static const struct testcase_setup_t ed25519_test_setup = {
   ed25519_testcase_setup, ed25519_testcase_cleanup
 };
-
 
 static void
 test_crypto_ed25519_simple(void *arg)

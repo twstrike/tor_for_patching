@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -190,10 +190,12 @@ static config_var_t option_vars_[] = {
   V(CircuitPriorityHalflife,     DOUBLE,  "-100.0"), /*negative:'Use default'*/
   V(ClientDNSRejectInternalAddresses, BOOL,"1"),
   V(ClientOnly,                  BOOL,     "0"),
-  V(ClientPreferIPv6ORPort,      BOOL,     "0"),
+  V(ClientPreferIPv6ORPort,      AUTOBOOL, "auto"),
+  V(ClientPreferIPv6DirPort,     AUTOBOOL, "auto"),
   V(ClientRejectInternalAddresses, BOOL,   "1"),
   V(ClientTransportPlugin,       LINELIST, NULL),
   V(ClientUseIPv6,               BOOL,     "0"),
+  V(ClientUseIPv4,               BOOL,     "1"),
   V(ConsensusParams,             STRING,   NULL),
   V(ConnLimit,                   UINT,     "1000"),
   V(ConnDirectionStatistics,     BOOL,     "0"),
@@ -590,7 +592,6 @@ static const config_var_t testing_tor_network_defaults[] = {
 static char *get_windows_conf_root(void);
 #endif
 static int options_act_reversible(const or_options_t *old_options, char **msg);
-static int options_act(const or_options_t *old_options);
 static int options_transition_allowed(const or_options_t *old,
                                       const or_options_t *new,
                                       char **msg);
@@ -671,9 +672,9 @@ get_dirportfrontpage, (void))
   return global_dirfrontpagecontents;
 }
 
-/** Return the currently configured options. */
-or_options_t *
-get_options_mutable(void)
+/** Returns the currently configured options. */
+MOCK_IMPL(or_options_t *,
+get_options_mutable, (void))
 {
   tor_assert(global_options);
   return global_options;
@@ -833,7 +834,6 @@ config_free_all(void)
 
   tor_free(torrc_fname);
   tor_free(torrc_defaults_fname);
-  tor_free(the_tor_version);
   tor_free(global_dirfrontpagecontents);
 
   tor_free(the_short_tor_version);
@@ -1446,7 +1446,7 @@ options_transition_requires_fresh_tls_context(const or_options_t *old_options,
  * Note: We haven't moved all the "act on new configuration" logic
  * here yet.  Some is still in do_hup() and other places.
  */
-static int
+STATIC int
 options_act(const or_options_t *old_options)
 {
   config_line_t *cl;
@@ -1468,10 +1468,12 @@ options_act(const or_options_t *old_options)
     if (options->DisableDebuggerAttachment && !disabled_debugger_attach &&
         running_tor) {
       int ok = tor_disable_debugger_attach();
+      /* LCOV_EXCL_START the warned_debugger_attach is 0 can't reach inside. */
       if (warned_debugger_attach && ok == 1) {
         log_notice(LD_CONFIG, "Disabled attaching debuggers for unprivileged "
                    "users.");
       }
+      /* LCOV_EXCL_STOP */
       disabled_debugger_attach = (ok == 1);
     } else if (!options->DisableDebuggerAttachment &&
                !warned_debugger_attach) {
@@ -1498,12 +1500,14 @@ options_act(const or_options_t *old_options)
 #endif
 
 #ifdef ENABLE_TOR2WEB_MODE
+/* LCOV_EXCL_START */
   if (!options->Tor2webMode) {
     log_err(LD_CONFIG, "This copy of Tor was compiled to run in "
             "'tor2web mode'. It can only be run with the Tor2webMode torrc "
             "option enabled.");
     return -1;
   }
+/* LCOV_EXCL_STOP */
 #else
   if (options->Tor2webMode) {
     log_err(LD_CONFIG, "This copy of Tor was not compiled to run in "
@@ -1515,7 +1519,7 @@ options_act(const or_options_t *old_options)
 #endif
 
   /* If we are a bridge with a pluggable transport proxy but no
-     Extended ORPort, inform the user that she is missing out. */
+     Extended ORPort, inform the user that they are missing out. */
   if (server_mode(options) && options->ServerTransportPlugin &&
       !options->ExtORPort_lines) {
     log_notice(LD_CONFIG, "We use pluggable transports but the Extended "
@@ -1767,8 +1771,8 @@ options_act(const or_options_t *old_options)
     if (revise_trackexithosts)
       addressmap_clear_excluded_trackexithosts(options);
 
-    if (!options->AutomapHostsOnResolve) {
-      if (old_options->AutomapHostsOnResolve)
+    if (!options->AutomapHostsOnResolve &&
+        old_options->AutomapHostsOnResolve) {
         revise_automap_entries = 1;
     } else {
       if (!smartlist_strings_eq(old_options->AutomapHostsSuffixes,
@@ -1907,8 +1911,8 @@ options_act(const or_options_t *old_options)
       print_notice = 1;
     }
     if (print_notice)
-      log_notice(LD_CONFIG, "Configured to measure statistics. Look for "
-                 "the *-stats files that will first be written to the "
+        log_notice(LD_CONFIG, "Configured to measure statistics. Look for "
+                "the *-stats files that will first be written to the "
                  "data directory in 24 hours from now.");
   }
 
@@ -2191,7 +2195,7 @@ print_usage(void)
   printf(
 "Copyright (c) 2001-2004, Roger Dingledine\n"
 "Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson\n"
-"Copyright (c) 2007-2015, The Tor Project, Inc.\n\n"
+"Copyright (c) 2007-2016, The Tor Project, Inc.\n\n"
 "tor -f <torrc> [args]\n"
 "See man page for options, or https://www.torproject.org/ for "
 "documentation.\n");
@@ -2689,7 +2693,7 @@ options_validate_cb(void *old_options, void *options, void *default_options,
 
 /** Log a warning message iff <b>filepath</b> is not absolute.
  * Warning message must contain option name <b>option</b> and
- * an absolute path that <b>filepath<b> will resolve to.
+ * an absolute path that <b>filepath</b> will resolve to.
  *
  * In case <b>filepath</b> is absolute, do nothing.
  */
@@ -2857,7 +2861,7 @@ options_validate(or_options_t *old_options, or_options_t *options,
       options->TransProxyType_parsed = TPT_TPROXY;
 #endif
     } else if (!strcasecmp(options->TransProxyType, "ipfw")) {
-#if !defined(__FreeBSD__) && !defined( DARWIN )
+#ifndef KERNEL_MAY_SUPPORT_IPFW
       /* Earlier versions of OS X have ipfw */
       REJECT("ipfw is a FreeBSD-specific"
              "and OS X/Darwin-specific feature.");
@@ -3076,6 +3080,8 @@ options_validate(or_options_t *old_options, or_options_t *options,
     }
   }
 
+  /* Terminate Reachable*Addresses with reject *
+   */
   for (i=0; i<3; i++) {
     config_line_t **linep =
       (i==0) ? &options->ReachableAddresses :
@@ -3085,8 +3091,6 @@ options_validate(or_options_t *old_options, or_options_t *options,
       continue;
     /* We need to end with a reject *:*, not an implicit accept *:* */
     for (;;) {
-      if (!strcmp((*linep)->value, "reject *:*")) /* already there */
-        break;
       linep = &((*linep)->next);
       if (!*linep) {
         *linep = tor_malloc_zero(sizeof(config_line_t));
@@ -3102,11 +3106,29 @@ options_validate(or_options_t *old_options, or_options_t *options,
 
   if ((options->ReachableAddresses ||
        options->ReachableORAddresses ||
-       options->ReachableDirAddresses) &&
+       options->ReachableDirAddresses ||
+       options->ClientUseIPv4 == 0) &&
       server_mode(options))
     REJECT("Servers must be able to freely connect to the rest "
            "of the Internet, so they must not set Reachable*Addresses "
-           "or FascistFirewall.");
+           "or FascistFirewall or FirewallPorts or ClientUseIPv4 0.");
+
+  /* We check if Reachable*Addresses blocks all addresses in
+   * parse_reachable_addresses(). */
+
+#define WARN_PLEASE_USE_IPV6_LOG_MSG \
+        "ClientPreferIPv6%sPort 1 is ignored unless tor is using IPv6. " \
+        "Please set ClientUseIPv6 1, ClientUseIPv4 0, or configure bridges."
+
+  if (!fascist_firewall_use_ipv6(options)
+      && options->ClientPreferIPv6ORPort == 1)
+    log_warn(LD_CONFIG, WARN_PLEASE_USE_IPV6_LOG_MSG, "OR");
+
+  if (!fascist_firewall_use_ipv6(options)
+      && options->ClientPreferIPv6DirPort == 1)
+    log_warn(LD_CONFIG, WARN_PLEASE_USE_IPV6_LOG_MSG, "Dir");
+
+#undef WARN_PLEASE_USE_IPV6_LOG_MSG
 
   if (options->UseBridges &&
       server_mode(options))
@@ -4245,6 +4267,7 @@ options_transition_allowed(const or_options_t *old,
       }                                                                 \
     } while (0)
 
+    SB_NOCHANGE_STR(Address);
     SB_NOCHANGE_STR(PidFile);
     SB_NOCHANGE_STR(ServerDNSResolvConfFile);
     SB_NOCHANGE_STR(DirPortFrontPage);
@@ -6072,15 +6095,6 @@ warn_nonlocal_controller_ports(smartlist_t *ports, unsigned forbid_nonlocal)
   } SMARTLIST_FOREACH_END(port);
 }
 
-#define CL_PORT_NO_STREAM_OPTIONS (1u<<0)
-#define CL_PORT_WARN_NONLOCAL (1u<<1)
-#define CL_PORT_ALLOW_EXTRA_LISTENADDR (1u<<2)
-#define CL_PORT_SERVER_OPTIONS (1u<<3)
-#define CL_PORT_FORBID_NONLOCAL (1u<<4)
-#define CL_PORT_TAKES_HOSTNAMES (1u<<5)
-#define CL_PORT_IS_UNIXSOCKET (1u<<6)
-#define CL_PORT_DFLT_GROUP_WRITABLE (1u<<7)
-
 #ifdef HAVE_SYS_UN_H
 
 /** Parse the given <b>addrport</b> and set <b>path_out</b> if a Unix socket
@@ -6168,7 +6182,7 @@ config_parse_unix_port(const char *addrport, char **path_out)
  * <b>out</b> for every port that the client should listen on.  Return 0
  * on success, -1 on failure.
  */
-static int
+STATIC int
 parse_port_config(smartlist_t *out,
                   const config_line_t *ports,
                   const config_line_t *listenaddrs,
@@ -6312,7 +6326,9 @@ parse_port_config(smartlist_t *out,
       ipv4_traffic = 1, ipv6_traffic = 0, prefer_ipv6 = 0,
       cache_ipv4 = 1, use_cached_ipv4 = 0,
       cache_ipv6 = 0, use_cached_ipv6 = 0,
-      prefer_ipv6_automap = 1, world_writable = 0, group_writable = 0;
+      prefer_ipv6_automap = 1, world_writable = 0, group_writable = 0,
+      relax_dirmode_check = 0,
+      has_used_unix_socket_only_option = 0;
 
     smartlist_split_string(elts, ports->value, NULL,
                            SPLIT_SKIP_SPACE|SPLIT_IGNORE_BLANK, 0);
@@ -6360,6 +6376,7 @@ parse_port_config(smartlist_t *out,
         tor_free(addrtmp);
         goto err;
       }
+      tor_free(addrtmp);
     } else {
       /* Try parsing integer port before address, because, who knows?
          "9050" might be a valid address. */
@@ -6464,9 +6481,15 @@ parse_port_config(smartlist_t *out,
 
         if (!strcasecmp(elt, "GroupWritable")) {
           group_writable = !no;
+          has_used_unix_socket_only_option = 1;
           continue;
         } else if (!strcasecmp(elt, "WorldWritable")) {
           world_writable = !no;
+          has_used_unix_socket_only_option = 1;
+          continue;
+        } else if (!strcasecmp(elt, "RelaxDirModeCheck")) {
+          relax_dirmode_check = !no;
+          has_used_unix_socket_only_option = 1;
           continue;
         }
 
@@ -6554,9 +6577,10 @@ parse_port_config(smartlist_t *out,
       goto err;
     }
 
-    if ( (world_writable || group_writable) && ! unix_socket_path) {
-      log_warn(LD_CONFIG, "You have a %sPort entry with GroupWritable "
-               "or WorldWritable set, but it is not a unix socket.", portname);
+    if ( has_used_unix_socket_only_option && ! unix_socket_path) {
+      log_warn(LD_CONFIG, "You have a %sPort entry with GroupWritable, "
+               "WorldWritable, or RelaxDirModeCheck, but it is not a "
+               "unix socket.", portname);
       goto err;
     }
 
@@ -6582,6 +6606,7 @@ parse_port_config(smartlist_t *out,
       cfg->type = listener_type;
       cfg->is_world_writable = world_writable;
       cfg->is_group_writable = group_writable;
+      cfg->relax_dirmode_check = relax_dirmode_check;
       cfg->entry_cfg.isolation_flags = isolation;
       cfg->entry_cfg.session_group = sessiongroup;
       cfg->server_cfg.no_advertise = no_advertise;

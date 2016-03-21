@@ -1,7 +1,7 @@
  /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -538,7 +538,7 @@ static int router_get_hash_impl(const char *s, size_t s_len, char *digest,
                                 char end_char,
                                 digest_algorithm_t alg);
 static int router_get_hashes_impl(const char *s, size_t s_len,
-                                  digests_t *digests,
+                                  common_digests_t *digests,
                                   const char *start_str, const char *end_str,
                                   char end_char);
 static void token_clear(directory_token_t *tok);
@@ -638,7 +638,7 @@ router_get_router_hash(const char *s, size_t s_len, char *digest)
 /** Set <b>digests</b> to all the digests of the consensus document in
  * <b>s</b> */
 int
-router_get_networkstatus_v3_hashes(const char *s, digests_t *digests)
+router_get_networkstatus_v3_hashes(const char *s, common_digests_t *digests)
 {
   return router_get_hashes_impl(s,strlen(s),digests,
                                 "network-status-version",
@@ -2847,7 +2847,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
   smartlist_t *rs_tokens = NULL, *footer_tokens = NULL;
   networkstatus_voter_info_t *voter = NULL;
   networkstatus_t *ns = NULL;
-  digests_t ns_digests;
+  common_digests_t ns_digests;
   const char *cert, *end_of_header, *end_of_footer, *s_dup = s;
   directory_token_t *tok;
   int ok;
@@ -2873,7 +2873,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
                       (ns_type == NS_TYPE_CONSENSUS) ?
                       networkstatus_consensus_token_table :
                       networkstatus_token_table, 0)) {
-    log_warn(LD_DIR, "Error tokenizing network-status vote header");
+    log_warn(LD_DIR, "Error tokenizing network-status header");
     goto err;
   }
 
@@ -3096,7 +3096,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
           base16_decode(voter->identity_digest, sizeof(voter->identity_digest),
                         tok->args[1], HEX_DIGEST_LEN) < 0) {
         log_warn(LD_DIR, "Error decoding identity digest %s in "
-                 "network-status vote.", escaped(tok->args[1]));
+                 "network-status document.", escaped(tok->args[1]));
         goto err;
       }
       if (ns->type != NS_TYPE_CONSENSUS &&
@@ -3155,7 +3155,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
     voter = NULL;
   }
   if (smartlist_len(ns->voters) == 0) {
-    log_warn(LD_DIR, "Missing dir-source elements in a vote networkstatus.");
+    log_warn(LD_DIR, "Missing dir-source elements in a networkstatus.");
     goto err;
   } else if (ns->type != NS_TYPE_CONSENSUS && smartlist_len(ns->voters) != 1) {
     log_warn(LD_DIR, "Too many dir-source elements in a vote networkstatus.");
@@ -3216,8 +3216,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
     }
     if (fast_memcmp(rs1->identity_digest, rs2->identity_digest, DIGEST_LEN)
         >= 0) {
-      log_warn(LD_DIR, "Vote networkstatus entries not sorted by identity "
-               "digest");
+      log_warn(LD_DIR, "Networkstatus entries not sorted by identity digest");
       goto err;
     }
   }
@@ -3330,12 +3329,12 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
         base16_decode(declared_identity, sizeof(declared_identity),
                       id_hexdigest, HEX_DIGEST_LEN) < 0) {
       log_warn(LD_DIR, "Error decoding declared identity %s in "
-               "network-status vote.", escaped(id_hexdigest));
+               "network-status document.", escaped(id_hexdigest));
       goto err;
     }
     if (!(v = networkstatus_get_voter_by_id(ns, declared_identity))) {
-      log_warn(LD_DIR, "ID on signature on network-status vote does not match "
-               "any declared directory source.");
+      log_warn(LD_DIR, "ID on signature on network-status document does "
+               "not match any declared directory source.");
       goto err;
     }
     sig = tor_malloc_zero(sizeof(document_signature_t));
@@ -3345,7 +3344,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
         base16_decode(sig->signing_key_digest, sizeof(sig->signing_key_digest),
                       sk_hexdigest, HEX_DIGEST_LEN) < 0) {
       log_warn(LD_DIR, "Error decoding declared signing key digest %s in "
-               "network-status vote.", escaped(sk_hexdigest));
+               "network-status document.", escaped(sk_hexdigest));
       tor_free(sig);
       goto err;
     }
@@ -3364,8 +3363,8 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
       /* We already parsed a vote with this algorithm from this voter. Use the
          first one. */
       log_fn(LOG_PROTOCOL_WARN, LD_DIR, "We received a networkstatus "
-             "that contains two votes from the same voter with the same "
-             "algorithm. Ignoring the second vote.");
+             "that contains two signatures from the same voter with the same "
+             "algorithm. Ignoring the second signature.");
       tor_free(sig);
       continue;
     }
@@ -3373,7 +3372,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
     if (ns->type != NS_TYPE_CONSENSUS) {
       if (check_signature_token(ns_digests.d[DIGEST_SHA1], DIGEST_LEN,
                                 tok, ns->cert->signing_key, 0,
-                                "network-status vote")) {
+                                "network-status document")) {
         tor_free(sig);
         goto err;
       }
@@ -3392,7 +3391,7 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
   } SMARTLIST_FOREACH_END(_tok);
 
   if (! n_signatures) {
-    log_warn(LD_DIR, "No signatures on networkstatus vote.");
+    log_warn(LD_DIR, "No signatures on networkstatus document.");
     goto err;
   } else if (ns->type == NS_TYPE_VOTE && n_signatures != 1) {
     log_warn(LD_DIR, "Received more than one signature on a "
@@ -3443,15 +3442,16 @@ networkstatus_parse_vote_from_string(const char *s, const char **eos_out,
   return ns;
 }
 
-/** Return the digests_t that holds the digests of the
+/** Return the common_digests_t that holds the digests of the
  * <b>flavor_name</b>-flavored networkstatus according to the detached
- * signatures document <b>sigs</b>, allocating a new digests_t as neeeded. */
-static digests_t *
+ * signatures document <b>sigs</b>, allocating a new common_digests_t as
+ * neeeded. */
+static common_digests_t *
 detached_get_digests(ns_detached_signatures_t *sigs, const char *flavor_name)
 {
-  digests_t *d = strmap_get(sigs->digests, flavor_name);
+  common_digests_t *d = strmap_get(sigs->digests, flavor_name);
   if (!d) {
-    d = tor_malloc_zero(sizeof(digests_t));
+    d = tor_malloc_zero(sizeof(common_digests_t));
     strmap_set(sigs->digests, flavor_name, d);
   }
   return d;
@@ -3459,7 +3459,7 @@ detached_get_digests(ns_detached_signatures_t *sigs, const char *flavor_name)
 
 /** Return the list of signatures of the <b>flavor_name</b>-flavored
  * networkstatus according to the detached signatures document <b>sigs</b>,
- * allocating a new digests_t as neeeded. */
+ * allocating a new common_digests_t as neeeded. */
 static smartlist_t *
 detached_get_signatures(ns_detached_signatures_t *sigs,
                         const char *flavor_name)
@@ -3481,7 +3481,7 @@ networkstatus_parse_detached_signatures(const char *s, const char *eos)
    * networkstatus_parse_vote_from_string(). */
   directory_token_t *tok;
   memarea_t *area = NULL;
-  digests_t *digests;
+  common_digests_t *digests;
 
   smartlist_t *tokens = smartlist_new();
   ns_detached_signatures_t *sigs =
@@ -3679,7 +3679,7 @@ networkstatus_parse_detached_signatures(const char *s, const char *eos)
  *
  * Returns NULL on policy errors.
  *
- * Set *<b>malformed_list>/b> to true if the entire policy list should be
+ * Set *<b>malformed_list</b> to true if the entire policy list should be
  * discarded. Otherwise, set it to false, and only this item should be ignored
  * on error - the rest of the policy list can continue to be processed and
  * used.
@@ -4444,7 +4444,7 @@ router_get_hash_impl(const char *s, size_t s_len, char *digest,
 
 /** As router_get_hash_impl, but compute all hashes. */
 static int
-router_get_hashes_impl(const char *s, size_t s_len, digests_t *digests,
+router_get_hashes_impl(const char *s, size_t s_len, common_digests_t *digests,
                        const char *start_str,
                        const char *end_str, char end_c)
 {
@@ -4453,7 +4453,7 @@ router_get_hashes_impl(const char *s, size_t s_len, digests_t *digests,
                                   &start,&end)<0)
     return -1;
 
-  if (crypto_digest_all(digests, start, end-start)) {
+  if (crypto_common_digests(digests, start, end-start)) {
     log_warn(LD_BUG,"couldn't compute digests");
     return -1;
   }

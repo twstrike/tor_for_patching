@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -319,11 +319,7 @@ test_circuit_timeout(void *arg)
   int i, runs;
   double close_ms;
   (void)arg;
-  tor_libevent_cfg cfg;
 
-  memset(&cfg, 0, sizeof(cfg));
-
-  tor_libevent_initialize(&cfg);
   initialize_periodic_events();
 
   circuit_build_times_init(&initial);

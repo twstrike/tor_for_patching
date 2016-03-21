@@ -1,5 +1,5 @@
 /* Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -182,7 +182,7 @@ rend_client_send_introduction(origin_circuit_t *introcirc,
     goto cleanup;
   }
 
-  /* first 20 bytes of payload are the hash of Bob's pk */
+  /* first 20 bytes of payload are the hash of the service's pk */
   intro_key = NULL;
   SMARTLIST_FOREACH(entry->parsed->intro_nodes, rend_intro_point_t *,
                     intro, {
@@ -892,7 +892,6 @@ rend_client_fetch_v2_desc(rend_data_t *query, smartlist_t *hsdirs)
 void
 rend_client_refetch_v2_renddesc(rend_data_t *rend_query)
 {
-  int ret;
   rend_cache_entry_t *e = NULL;
 
   tor_assert(rend_query);
@@ -912,11 +911,10 @@ rend_client_refetch_v2_renddesc(rend_data_t *rend_query)
   log_debug(LD_REND, "Fetching v2 rendezvous descriptor for service %s",
             safe_str_client(rend_query->onion_address));
 
-  ret = rend_client_fetch_v2_desc(rend_query, NULL);
-  if (ret <= 0) {
-    /* Close pending connections on error or if no hsdir can be found. */
-    rend_client_desc_trynow(rend_query->onion_address);
-  }
+  rend_client_fetch_v2_desc(rend_query, NULL);
+  /* We don't need to look the error code because either on failure or
+   * success, the necessary steps to continue the HS connection will be
+   * triggered once the descriptor arrives or if all fetch failed. */
   return;
 }
 
@@ -1096,9 +1094,9 @@ rend_client_rendezvous_acked(origin_circuit_t *circ, const uint8_t *request,
   circ->base_.timestamp_dirty = time(NULL);
 
   /* From a path bias point of view, this circuit is now successfully used.
-   * Waiting any longer opens us up to attacks from Bob. He could induce
-   * Alice to attempt to connect to his hidden service and never reply
-   * to her rend requests */
+   * Waiting any longer opens us up to attacks from malicious hidden services.
+   * They could induce the client to attempt to connect to their hidden
+   * service and never reply to the client's rend requests */
   pathbias_mark_use_success(circ);
 
   /* XXXX This is a pretty brute-force approach. It'd be better to
@@ -1110,7 +1108,7 @@ rend_client_rendezvous_acked(origin_circuit_t *circ, const uint8_t *request,
   return 0;
 }
 
-/** Bob sent us a rendezvous cell; join the circuits. */
+/** The service sent us a rendezvous cell; join the circuits. */
 int
 rend_client_receive_rendezvous(origin_circuit_t *circ, const uint8_t *request,
                                size_t request_len)
@@ -1135,7 +1133,8 @@ rend_client_receive_rendezvous(origin_circuit_t *circ, const uint8_t *request,
 
   log_info(LD_REND,"Got RENDEZVOUS2 cell from hidden service.");
 
-  /* first DH_KEY_LEN bytes are g^y from bob. Finish the dh handshake...*/
+  /* first DH_KEY_LEN bytes are g^y from the service. Finish the dh
+   * handshake...*/
   tor_assert(circ->build_state);
   tor_assert(circ->build_state->pending_final_cpath);
   hop = circ->build_state->pending_final_cpath;
@@ -1164,7 +1163,7 @@ rend_client_receive_rendezvous(origin_circuit_t *circ, const uint8_t *request,
   circuit_change_purpose(TO_CIRCUIT(circ), CIRCUIT_PURPOSE_C_REND_JOINED);
   hop->state = CPATH_STATE_OPEN;
   /* set the windows to default. these are the windows
-   * that alice thinks bob has.
+   * that the client thinks the service has.
    */
   hop->package_window = circuit_initial_package_window();
   hop->deliver_window = CIRCWINDOW_START;
@@ -1366,11 +1365,19 @@ rend_client_get_random_intro_impl(const rend_cache_entry_t *entry,
       smartlist_del(usable_nodes, i);
       goto again;
     }
+#ifdef ENABLE_TOR2WEB_MODE
+    new_extend_info = extend_info_from_node(node, options->Tor2webMode);
+#else
     new_extend_info = extend_info_from_node(node, 0);
+#endif
     if (!new_extend_info) {
+      const char *alternate_reason = "";
+#ifdef ENABLE_TOR2WEB_MODE
+      alternate_reason = ", or we cannot connect directly to it";
+#endif
       log_info(LD_REND, "We don't have a descriptor for the intro-point relay "
-               "'%s'; trying another.",
-               extend_info_describe(intro->extend_info));
+               "'%s'%s; trying another.",
+               extend_info_describe(intro->extend_info), alternate_reason);
       smartlist_del(usable_nodes, i);
       goto again;
     } else {

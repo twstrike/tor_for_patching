@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -190,32 +190,6 @@ int quiet_level = 0;
  * variables (which are global within this file and unavailable outside it).
  *
  ****************************************************************************/
-
-#if 0 && defined(USE_BUFFEREVENTS)
-static void
-free_old_inbuf(connection_t *conn)
-{
-  if (! conn->inbuf)
-    return;
-
-  tor_assert(conn->outbuf);
-  tor_assert(buf_datalen(conn->inbuf) == 0);
-  tor_assert(buf_datalen(conn->outbuf) == 0);
-  buf_free(conn->inbuf);
-  buf_free(conn->outbuf);
-  conn->inbuf = conn->outbuf = NULL;
-
-  if (conn->read_event) {
-    event_del(conn->read_event);
-    tor_event_free(conn->read_event);
-  }
-  if (conn->write_event) {
-    event_del(conn->read_event);
-    tor_event_free(conn->write_event);
-  }
-  conn->read_event = conn->write_event = NULL;
-}
-#endif
 
 #if defined(_WIN32) && defined(USE_BUFFEREVENTS)
 /** Remove the kernel-space send and receive buffers for <b>s</b>. For use
@@ -569,6 +543,46 @@ connection_is_reading(connection_t *conn)
     (conn->read_event && event_pending(conn->read_event, EV_READ, NULL));
 }
 
+/** Check whether <b>conn</b> is correct in having (or not having) a
+ * read/write event (passed in <b>ev</b). On success, return 0. On failure,
+ * log a warning and return -1. */
+static int
+connection_check_event(connection_t *conn, struct event *ev)
+{
+  int bad;
+
+  if (conn->type == CONN_TYPE_AP && TO_EDGE_CONN(conn)->is_dns_request) {
+    /* DNS requests which we launch through the dnsserv.c module do not have
+     * any underlying socket or any underlying linked connection, so they
+     * shouldn't have any attached events either.
+     */
+    bad = ev != NULL;
+  } else {
+    /* Everytyhing else should have an underlying socket, or a linked
+     * connection (which is also tracked with a read_event/write_event pair).
+     */
+    bad = ev == NULL;
+  }
+
+  if (bad) {
+    log_warn(LD_BUG, "Event missing on connection %p [%s;%s]. "
+             "socket=%d. linked=%d. "
+             "is_dns_request=%d. Marked_for_close=%s:%d",
+             conn,
+             conn_type_to_string(conn->type),
+             conn_state_to_string(conn->type, conn->state),
+             (int)conn->s, (int)conn->linked,
+             (conn->type == CONN_TYPE_AP &&
+                               TO_EDGE_CONN(conn)->is_dns_request),
+             conn->marked_for_close_file ? conn->marked_for_close_file : "-",
+             conn->marked_for_close
+             );
+    log_backtrace(LOG_WARN, LD_BUG, "Backtrace attached.");
+    return -1;
+  }
+  return 0;
+}
+
 /** Tell the main loop to stop notifying <b>conn</b> of any read events. */
 MOCK_IMPL(void,
 connection_stop_reading,(connection_t *conn))
@@ -580,7 +594,9 @@ connection_stop_reading,(connection_t *conn))
       return;
   });
 
-  tor_assert(conn->read_event);
+  if (connection_check_event(conn, conn->read_event) < 0) {
+    return;
+  }
 
   if (conn->linked) {
     conn->reading_from_linked_conn = 0;
@@ -605,7 +621,9 @@ connection_start_reading,(connection_t *conn))
       return;
   });
 
-  tor_assert(conn->read_event);
+  if (connection_check_event(conn, conn->read_event) < 0) {
+    return;
+  }
 
   if (conn->linked) {
     conn->reading_from_linked_conn = 1;
@@ -645,7 +663,9 @@ connection_stop_writing,(connection_t *conn))
       return;
   });
 
-  tor_assert(conn->write_event);
+  if (connection_check_event(conn, conn->write_event) < 0) {
+    return;
+  }
 
   if (conn->linked) {
     conn->writing_to_linked_conn = 0;
@@ -671,7 +691,9 @@ connection_start_writing,(connection_t *conn))
       return;
   });
 
-  tor_assert(conn->write_event);
+  if (connection_check_event(conn, conn->write_event) < 0) {
+    return;
+  }
 
   if (conn->linked) {
     conn->writing_to_linked_conn = 1;
@@ -946,18 +968,6 @@ conn_close_if_marked(int i)
            * would make much more sense to react in
            * connection_handle_read_impl, or to just stop reading in
            * mark_and_flush */
-#if 0
-#define MARKED_READING_RATE 180
-          static ratelim_t marked_read_lim = RATELIM_INIT(MARKED_READING_RATE);
-          char *m;
-          if ((m = rate_limit_log(&marked_read_lim, now))) {
-            log_warn(LD_BUG, "Marked connection (fd %d, type %s, state %s) "
-                     "is still reading; that shouldn't happen.%s",
-                     (int)conn->s, conn_type_to_string(conn->type),
-                     conn_state_to_string(conn->type, conn->state), m);
-            tor_free(m);
-          }
-#endif
           conn->read_blocked_on_bw = 1;
           connection_stop_reading(conn);
         }
@@ -1040,12 +1050,12 @@ directory_all_unreachable(time_t now)
 /** This function is called whenever we successfully pull down some new
  * network statuses or server descriptors. */
 void
-directory_info_has_arrived(time_t now, int from_cache)
+directory_info_has_arrived(time_t now, int from_cache, int suppress_logs)
 {
   const or_options_t *options = get_options();
 
   if (!router_have_minimum_dir_info()) {
-    int quiet = from_cache ||
+    int quiet = suppress_logs || from_cache ||
                 directory_too_idle_to_fetch_descriptors(options, now);
     tor_log(quiet ? LOG_INFO : LOG_NOTICE, LD_DIR,
         "I learned some more directory information, but not enough to "
@@ -1414,11 +1424,23 @@ reschedule_directory_downloads(void)
   periodic_event_reschedule(launch_descriptor_fetches_event);
 }
 
+#define LONGEST_TIMER_PERIOD (30 * 86400)
+/** Helper: Return the number of seconds between <b>now</b> and <b>next</b>,
+ * clipped to the range [1 second, LONGEST_TIMER_PERIOD]. */
 static inline int
 safe_timer_diff(time_t now, time_t next)
 {
   if (next > now) {
-    tor_assert(next - now <= INT_MAX);
+    /* There were no computers at signed TIME_MIN (1902 on 32-bit systems),
+     * and nothing that could run Tor. It's a bug if 'next' is around then.
+     * On 64-bit systems with signed TIME_MIN, TIME_MIN is before the Big
+     * Bang. We cannot extrapolate past a singularity, but there was probably
+     * nothing that could run Tor then, either.
+     **/
+    tor_assert(next > TIME_MIN + LONGEST_TIMER_PERIOD);
+
+    if (next - LONGEST_TIMER_PERIOD > now)
+      return LONGEST_TIMER_PERIOD;
     return (int)(next - now);
   } else {
     return 1;
@@ -2069,8 +2091,9 @@ second_elapsed_callback(periodic_timer_t *timer, void *arg)
     if (me && !check_whether_orport_reachable()) {
       char *address = tor_dup_ip(me->addr);
       log_warn(LD_CONFIG,"Your server (%s:%d) has not managed to confirm that "
-               "its ORPort is reachable. Please check your firewalls, ports, "
-               "address, /etc/hosts file, etc.",
+               "its ORPort is reachable. Relays do not publish descriptors "
+               "until their ORPort and DirPort are reachable. Please check "
+               "your firewalls, ports, address, /etc/hosts file, etc.",
                address, me->or_port);
       control_event_server_status(LOG_WARN,
                                   "REACHABILITY_FAILED ORADDRESS=%s:%d",
@@ -2082,8 +2105,9 @@ second_elapsed_callback(periodic_timer_t *timer, void *arg)
       char *address = tor_dup_ip(me->addr);
       log_warn(LD_CONFIG,
                "Your server (%s:%d) has not managed to confirm that its "
-               "DirPort is reachable. Please check your firewalls, ports, "
-               "address, /etc/hosts file, etc.",
+               "DirPort is reachable. Relays do not publish descriptors "
+               "until their ORPort and DirPort are reachable. Please check "
+               "your firewalls, ports, address, /etc/hosts file, etc.",
                address, me->dir_port);
       control_event_server_status(LOG_WARN,
                                   "REACHABILITY_FAILED DIRADDRESS=%s:%d",
@@ -2193,7 +2217,10 @@ got_libevent_error(void)
 void
 ip_address_changed(int at_interface)
 {
-  int server = server_mode(get_options());
+  const or_options_t *options = get_options();
+  int server = server_mode(options);
+  int exit_reject_private = (server && options->ExitRelay
+                             && options->ExitPolicyRejectPrivate);
 
   if (at_interface) {
     if (! server) {
@@ -2207,8 +2234,13 @@ ip_address_changed(int at_interface)
         reset_bandwidth_test();
       stats_n_seconds_working = 0;
       router_reset_reachability();
-      mark_my_descriptor_dirty("IP address changed");
     }
+  }
+
+  /* Exit relays incorporate interface addresses in their exit policies when
+   * ExitPolicyRejectPrivate is set */
+  if (exit_reject_private || (server && !at_interface)) {
+    mark_my_descriptor_dirty("IP address changed");
   }
 
   dns_servers_relaunch_checks();
@@ -2407,7 +2439,7 @@ do_main_loop(void)
    * appropriate.)
    */
   now = time(NULL);
-  directory_info_has_arrived(now, 1);
+  directory_info_has_arrived(now, 1, 0);
 
   if (server_mode(get_options())) {
     /* launch cpuworkers. Need to do this *after* we've read the onion key. */
@@ -3116,7 +3148,6 @@ tor_free_all(int postfork)
   connection_free_all();
   connection_edge_free_all();
   scheduler_free_all();
-  memarea_clear_freelist();
   nodelist_free_all();
   microdesc_free_all();
   ext_orport_free_all();
@@ -3281,6 +3312,13 @@ do_dump_config(void)
 static void
 init_addrinfo(void)
 {
+  if (! server_mode(get_options()) ||
+      (get_options()->Address && strlen(get_options()->Address) > 0)) {
+    /* We don't need to seed our own hostname, because we won't be calling
+     * resolve_my_address on it.
+     */
+    return;
+  }
   char hname[256];
 
   // host name to sandbox
@@ -3317,6 +3355,8 @@ sandbox_init_filter(void)
     OPEN_DATADIR2(name, name2 suffix);                  \
   } while (0)
 
+  OPEN(options->DataDirectory);
+  OPEN_DATADIR("keys");
   OPEN_DATADIR_SUFFIX("cached-certs", ".tmp");
   OPEN_DATADIR_SUFFIX("cached-consensus", ".tmp");
   OPEN_DATADIR_SUFFIX("unverified-consensus", ".tmp");

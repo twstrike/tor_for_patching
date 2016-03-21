@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -61,7 +61,8 @@ void router_reset_status_download_failures(void);
 int routers_have_same_or_addrs(const routerinfo_t *r1, const routerinfo_t *r2);
 void router_add_running_nodes_to_smartlist(smartlist_t *sl, int allow_invalid,
                                            int need_uptime, int need_capacity,
-                                           int need_guard, int need_desc);
+                                           int need_guard, int need_desc,
+                                           int pref_addr);
 
 const routerinfo_t *routerlist_find_my_routerinfo(void);
 uint32_t router_get_advertised_bandwidth(const routerinfo_t *router);
@@ -201,11 +202,6 @@ void routers_sort_by_identity(smartlist_t *routers);
 
 void refresh_all_country_info(void);
 
-int hid_serv_get_responsible_directories(smartlist_t *responsible_dirs,
-                                         const char *id);
-int hid_serv_acting_as_directory(void);
-MOCK_DECL(int, hid_serv_responsible_for_desc_id, (const char *id));
-
 void list_pending_microdesc_downloads(digest256map_t *result);
 void launch_descriptor_downloads(int purpose,
                                  smartlist_t *downloadable,
@@ -245,6 +241,8 @@ MOCK_DECL(STATIC was_router_added_t, extrainfo_insert,
 MOCK_DECL(STATIC void, initiate_descriptor_downloads,
           (const routerstatus_t *source, int purpose, smartlist_t *digests,
            int lo, int hi, int pds_flags));
+STATIC int router_is_already_dir_fetching(const tor_addr_port_t *ap,
+                                          int serverdesc, int microdesc);
 
 #endif
 

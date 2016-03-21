@@ -1,5 +1,17 @@
-/* Copyright (c) 2013-2015, The Tor Project, Inc. */
+/* Copyright (c) 2013-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file backtrace.c
+ *
+ * \brief Functions to produce backtraces on bugs, crashes, or assertion
+ * failures.
+ *
+ * Currently, we've only got an implementation here using the backtrace()
+ * family of functions, which are sometimes provided by libc and sometimes
+ * provided by libexecinfo.  We tie into the sigaction() backend in order to
+ * detect crashes.
+ */
 
 #define __USE_GNU
 #define _GNU_SOURCE 1

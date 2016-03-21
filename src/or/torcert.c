@@ -1,5 +1,12 @@
-/* Copyright (c) 2014, The Tor Project, Inc. */
+/* Copyright (c) 2014-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file torcert.c
+ *
+ * \brief Implementation for ed25519-signed certificates as used in the Tor
+ * protocol.
+ */
 
 #include "crypto.h"
 #include "torcert.h"

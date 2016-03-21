@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2014, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #include "orconfig.h"
@@ -362,7 +362,8 @@ dir_common_construct_vote_2(networkstatus_t **vote, authority_cert_t *cert,
    */
   smartlist_add((*vote)->voters, voter);
   (*vote)->cert = authority_cert_dup(cert);
-  (*vote)->net_params = smartlist_new();
+  if (! (*vote)->net_params)
+    (*vote)->net_params = smartlist_new();
   smartlist_split_string((*vote)->net_params,
                          "bar=2000000000 circuitwindow=20",
                          NULL, 0, 0);

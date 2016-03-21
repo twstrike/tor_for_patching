@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -2951,8 +2951,8 @@ connection_exit_begin_conn(cell_t *cell, circuit_t *circ)
       return 0;
     }
     /* Make sure to get the 'real' address of the previous hop: the
-     * caller might want to know whether his IP address has changed, and
-     * we might already have corrected base_.addr[ess] for the relay's
+     * caller might want to know whether the remote IP address has changed,
+     * and we might already have corrected base_.addr[ess] for the relay's
      * canonical IP address. */
     if (or_circ && or_circ->p_chan)
       address = tor_strdup(channel_get_actual_remote_address(or_circ->p_chan));

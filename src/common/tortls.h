@@ -1,6 +1,6 @@
 /* Copyright (c) 2003, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #ifndef TOR_TORTLS_H
@@ -82,8 +82,8 @@ struct tor_x509_cert_t {
   uint8_t *encoded;
   size_t encoded_len;
   unsigned pkey_digests_set : 1;
-  digests_t cert_digests;
-  digests_t pkey_digests;
+  common_digests_t cert_digests;
+  common_digests_t pkey_digests;
 };
 
 /** Holds a SSL object and its associated data.  Members are only
@@ -143,9 +143,10 @@ STATIC size_t SSL_SESSION_get_master_key(SSL_SESSION *s, uint8_t *out,
 STATIC void tor_tls_debug_state_callback(const SSL *ssl, int type, int val);
 STATIC void tor_tls_server_info_callback(const SSL *ssl, int type, int val);
 STATIC int tor_tls_session_secret_cb(SSL *ssl, void *secret,
-                                     int *secret_len,
-                                     STACK_OF(SSL_CIPHER) *peer_ciphers,
-                                     SSL_CIPHER **cipher, void *arg);
+                            int *secret_len,
+                            STACK_OF(SSL_CIPHER) *peer_ciphers,
+                            CONST_IF_OPENSSL_1_1_API SSL_CIPHER **cipher,
+                            void *arg);
 STATIC int find_cipher_by_id(const SSL *ssl, const SSL_METHOD *m,
                              uint16_t cipher);
 MOCK_DECL(STATIC X509*, tor_tls_create_certificate,(crypto_pk_t *rsa,
@@ -237,8 +238,10 @@ tor_x509_cert_t *tor_x509_cert_decode(const uint8_t *certificate,
                             size_t certificate_len);
 void tor_x509_cert_get_der(const tor_x509_cert_t *cert,
                       const uint8_t **encoded_out, size_t *size_out);
-const digests_t *tor_x509_cert_get_id_digests(const tor_x509_cert_t *cert);
-const digests_t *tor_x509_cert_get_cert_digests(const tor_x509_cert_t *cert);
+const common_digests_t *tor_x509_cert_get_id_digests(
+                      const tor_x509_cert_t *cert);
+const common_digests_t *tor_x509_cert_get_cert_digests(
+                      const tor_x509_cert_t *cert);
 int tor_tls_get_my_certs(int server,
                          const tor_x509_cert_t **link_cert_out,
                          const tor_x509_cert_t **id_cert_out);

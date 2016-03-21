@@ -1,6 +1,6 @@
 /* Copyright (c) 2003, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -685,13 +685,13 @@ MOCK_IMPL(STATIC tor_x509_cert_t *,
 
   cert->cert = x509_cert;
 
-  crypto_digest_all(&cert->cert_digests,
+  crypto_common_digests(&cert->cert_digests,
                     (char*)cert->encoded, cert->encoded_len);
 
   if ((pkey = X509_get_pubkey(x509_cert)) &&
       (rsa = EVP_PKEY_get1_RSA(pkey))) {
     crypto_pk_t *pk = crypto_new_pk_from_rsa_(rsa);
-    crypto_pk_get_all_digests(pk, &cert->pkey_digests);
+    crypto_pk_get_common_digests(pk, &cert->pkey_digests);
     cert->pkey_digests_set = 1;
     crypto_pk_free(pk);
     EVP_PKEY_free(pkey);
@@ -754,7 +754,7 @@ tor_x509_cert_get_der(const tor_x509_cert_t *cert,
 
 /** Return a set of digests for the public key in <b>cert</b>, or NULL if this
  * cert's public key is not one we know how to take the digest of. */
-const digests_t *
+const common_digests_t *
 tor_x509_cert_get_id_digests(const tor_x509_cert_t *cert)
 {
   if (cert->pkey_digests_set)
@@ -764,7 +764,7 @@ tor_x509_cert_get_id_digests(const tor_x509_cert_t *cert)
 }
 
 /** Return a set of digests for the public key in <b>cert</b>. */
-const digests_t *
+const common_digests_t *
 tor_x509_cert_get_cert_digests(const tor_x509_cert_t *cert)
 {
   return &cert->cert_digests;
@@ -911,7 +911,7 @@ tor_tls_cert_is_valid(int severity,
   } else if (cert_key) {
     int min_bits = 1024;
 #ifdef EVP_PKEY_EC
-    if (EVP_PKEY_type(cert_key->type) == EVP_PKEY_EC)
+    if (EVP_PKEY_base_id(cert_key) == EVP_PKEY_EC)
       min_bits = 128;
 #endif
     if (EVP_PKEY_bits(cert_key) >= min_bits)
@@ -1338,7 +1338,7 @@ find_cipher_by_id(const SSL *ssl, const SSL_METHOD *m, uint16_t cipher)
     return c != NULL;
   }
 # endif
-# if OPENSSL_VERSION_NUMBER < OPENSSL_V_SERIES(1,1,0)
+# ifndef OPENSSL_1_1_API
   if (m && m->get_cipher && m->num_ciphers) {
     /* It would seem that some of the "let's-clean-up-openssl" forks have
      * removed the get_cipher_by_char function.  Okay, so now you get a
@@ -1414,7 +1414,7 @@ tor_tls_classify_client_ciphers(const SSL *ssl,
   /* Now we need to see if there are any ciphers whose presence means we're
    * dealing with an updated Tor. */
   for (i = 0; i < sk_SSL_CIPHER_num(peer_ciphers); ++i) {
-    SSL_CIPHER *cipher = sk_SSL_CIPHER_value(peer_ciphers, i);
+    const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(peer_ciphers, i);
     const char *ciphername = SSL_CIPHER_get_name(cipher);
     if (strcmp(ciphername, TLS1_TXT_DHE_RSA_WITH_AES_128_SHA) &&
         strcmp(ciphername, TLS1_TXT_DHE_RSA_WITH_AES_256_SHA) &&
@@ -1431,7 +1431,7 @@ tor_tls_classify_client_ciphers(const SSL *ssl,
   {
     const uint16_t *v2_cipher = v2_cipher_list;
     for (i = 0; i < sk_SSL_CIPHER_num(peer_ciphers); ++i) {
-      SSL_CIPHER *cipher = sk_SSL_CIPHER_value(peer_ciphers, i);
+      const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(peer_ciphers, i);
       uint16_t id = SSL_CIPHER_get_id(cipher) & 0xffff;
       if (id == 0x00ff) /* extended renegotiation indicator. */
         continue;
@@ -1453,7 +1453,7 @@ tor_tls_classify_client_ciphers(const SSL *ssl,
     smartlist_t *elts = smartlist_new();
     char *s;
     for (i = 0; i < sk_SSL_CIPHER_num(peer_ciphers); ++i) {
-      SSL_CIPHER *cipher = sk_SSL_CIPHER_value(peer_ciphers, i);
+      const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(peer_ciphers, i);
       const char *ciphername = SSL_CIPHER_get_name(cipher);
       smartlist_add(elts, (char*)ciphername);
     }
@@ -1562,7 +1562,8 @@ tor_tls_server_info_callback(const SSL *ssl, int type, int val)
 STATIC int
 tor_tls_session_secret_cb(SSL *ssl, void *secret, int *secret_len,
                           STACK_OF(SSL_CIPHER) *peer_ciphers,
-                          SSL_CIPHER **cipher, void *arg)
+                          CONST_IF_OPENSSL_1_1_API SSL_CIPHER **cipher,
+                          void *arg)
 {
   (void) secret;
   (void) secret_len;
@@ -1733,8 +1734,13 @@ tor_tls_block_renegotiation(tor_tls_t *tls)
 void
 tor_tls_assert_renegotiation_unblocked(tor_tls_t *tls)
 {
+#if defined(SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION) && \
+  SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION != 0
   long options = SSL_get_options(tls->ssl);
   tor_assert(0 != (options & SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION));
+#else
+  (void) tls;
+#endif
 }
 
 /** Return whether this tls initiated the connect (client) or

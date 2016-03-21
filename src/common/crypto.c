@@ -1,13 +1,14 @@
 /* Copyright (c) 2001, Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
  * \file crypto.c
  * \brief Wrapper functions to present a consistent interface to
- * public-key and symmetric cryptography operations from OpenSSL.
+ * public-key and symmetric cryptography operations from OpenSSL and
+ * other places.
  **/
 
 #include "orconfig.h"
@@ -373,8 +374,12 @@ crypto_global_init(int useAccel, const char *accelName, const char *accelDir)
          used by Tor and the set of algorithms available in the engine */
       log_engine("RSA", ENGINE_get_default_RSA());
       log_engine("DH", ENGINE_get_default_DH());
+#ifdef OPENSSL_1_1_API
+      log_engine("EC", ENGINE_get_default_EC());
+#else
       log_engine("ECDH", ENGINE_get_default_ECDH());
       log_engine("ECDSA", ENGINE_get_default_ECDSA());
+#endif
       log_engine("RAND", ENGINE_get_default_RAND());
       log_engine("RAND (which we will not use)", ENGINE_get_default_RAND());
       log_engine("SHA1", ENGINE_get_digest_engine(NID_sha1));
@@ -1323,7 +1328,7 @@ crypto_pk_get_digest(const crypto_pk_t *pk, char *digest_out)
 /** Compute all digests of the DER encoding of <b>pk</b>, and store them
  * in <b>digests_out</b>.  Return 0 on success, -1 on failure. */
 int
-crypto_pk_get_all_digests(crypto_pk_t *pk, digests_t *digests_out)
+crypto_pk_get_common_digests(crypto_pk_t *pk, common_digests_t *digests_out)
 {
   unsigned char *buf = NULL;
   int len;
@@ -1331,7 +1336,7 @@ crypto_pk_get_all_digests(crypto_pk_t *pk, digests_t *digests_out)
   len = i2d_RSAPublicKey(pk->key, &buf);
   if (len < 0 || buf == NULL)
     return -1;
-  if (crypto_digest_all(digests_out, (char*)buf, len) < 0) {
+  if (crypto_common_digests(digests_out, (char*)buf, len) < 0) {
     OPENSSL_free(buf);
     return -1;
   }
@@ -1505,7 +1510,8 @@ crypto_cipher_encrypt(crypto_cipher_t *env, char *to,
   tor_assert(to);
   tor_assert(fromlen < SIZE_T_CEILING);
 
-  aes_crypt(env->cipher, from, fromlen, to);
+  memcpy(to, from, fromlen);
+  aes_crypt_inplace(env->cipher, to, fromlen);
   return 0;
 }
 
@@ -1522,19 +1528,19 @@ crypto_cipher_decrypt(crypto_cipher_t *env, char *to,
   tor_assert(to);
   tor_assert(fromlen < SIZE_T_CEILING);
 
-  aes_crypt(env->cipher, from, fromlen, to);
+  memcpy(to, from, fromlen);
+  aes_crypt_inplace(env->cipher, to, fromlen);
   return 0;
 }
 
 /** Encrypt <b>len</b> bytes on <b>from</b> using the cipher in <b>env</b>;
- * on success, return 0. Does not check for failure.
+ * on success. Does not check for failure.
  */
-int
+void
 crypto_cipher_crypt_inplace(crypto_cipher_t *env, char *buf, size_t len)
 {
   tor_assert(len < SIZE_T_CEILING);
   aes_crypt_inplace(env->cipher, buf, len);
-  return 0;
 }
 
 /** Encrypt <b>fromlen</b> bytes (at least 1) from <b>from</b> with the key in
@@ -1644,33 +1650,19 @@ crypto_digest512(char *digest, const char *m, size_t len,
             == -1);
 }
 
-/** Set the digests_t in <b>ds_out</b> to contain every digest on the
+/** Set the common_digests_t in <b>ds_out</b> to contain every digest on the
  * <b>len</b> bytes in <b>m</b> that we know how to compute.  Return 0 on
  * success, -1 on failure. */
 int
-crypto_digest_all(digests_t *ds_out, const char *m, size_t len)
+crypto_common_digests(common_digests_t *ds_out, const char *m, size_t len)
 {
-  int i;
   tor_assert(ds_out);
   memset(ds_out, 0, sizeof(*ds_out));
   if (crypto_digest(ds_out->d[DIGEST_SHA1], m, len) < 0)
     return -1;
-  for (i = DIGEST_SHA256; i < N_DIGEST_ALGORITHMS; ++i) {
-      switch (i) {
-        case DIGEST_SHA256: /* FALLSTHROUGH */
-        case DIGEST_SHA3_256:
-          if (crypto_digest256(ds_out->d[i], m, len, i) < 0)
-            return -1;
-          break;
-        case DIGEST_SHA512:
-        case DIGEST_SHA3_512: /* FALLSTHROUGH */
-          if (crypto_digest512(ds_out->d[i], m, len, i) < 0)
-            return -1;
-          break;
-        default:
-          return -1;
-      }
-  }
+  if (crypto_digest256(ds_out->d[DIGEST_SHA256], m, len, DIGEST_SHA256) < 0)
+    return -1;
+
   return 0;
 }
 
@@ -2084,6 +2076,71 @@ static BIGNUM *dh_param_p_tls = NULL;
 /** Shared G parameter for our DH key exchanges. */
 static BIGNUM *dh_param_g = NULL;
 
+/** Validate a given set of Diffie-Hellman parameters.  This is moderately
+ * computationally expensive (milliseconds), so should only be called when
+ * the DH parameters change. Returns 0 on success, * -1 on failure.
+ */
+static int
+crypto_validate_dh_params(const BIGNUM *p, const BIGNUM *g)
+{
+  DH *dh = NULL;
+  int ret = -1;
+
+  /* Copy into a temporary DH object. */
+  if (!(dh = DH_new()))
+      goto out;
+  if (!(dh->p = BN_dup(p)))
+    goto out;
+  if (!(dh->g = BN_dup(g)))
+    goto out;
+
+  /* Perform the validation. */
+  int codes = 0;
+  if (!DH_check(dh, &codes))
+    goto out;
+  if (BN_is_word(dh->g, DH_GENERATOR_2)) {
+    /* Per https://wiki.openssl.org/index.php/Diffie-Hellman_parameters
+     *
+     * OpenSSL checks the prime is congruent to 11 when g = 2; while the
+     * IETF's primes are congruent to 23 when g = 2.
+     */
+    BN_ULONG residue = BN_mod_word(dh->p, 24);
+    if (residue == 11 || residue == 23)
+      codes &= ~DH_NOT_SUITABLE_GENERATOR;
+  }
+  if (codes != 0) /* Specifics on why the params suck is irrelevant. */
+    goto out;
+
+  /* Things are probably not evil. */
+  ret = 0;
+
+ out:
+  if (dh)
+    DH_free(dh);
+  return ret;
+}
+
+/** Set the global Diffie-Hellman generator, used for both TLS and internal
+ * DH stuff.
+ */
+static void
+crypto_set_dh_generator(void)
+{
+  BIGNUM *generator;
+  int r;
+
+  if (dh_param_g)
+    return;
+
+  generator = BN_new();
+  tor_assert(generator);
+
+  r = BN_set_word(generator, DH_GENERATOR);
+  tor_assert(r);
+
+  dh_param_g = generator;
+}
+
 /** Set the global TLS Diffie-Hellman modulus.  Use the Apache mod_ssl DH
  * modulus. */
 void
@@ -2116,6 +2173,8 @@ crypto_set_tls_dh_prime(void)
   tor_assert(tls_prime);
 
   dh_param_p_tls = tls_prime;
+  crypto_set_dh_generator();
+  tor_assert(0 == crypto_validate_dh_params(dh_param_p_tls, dh_param_g));
 }
 
 /** Initialize dh_param_p and dh_param_g if they are not already
@@ -2123,18 +2182,13 @@ crypto_set_tls_dh_prime(void)
 static void
 init_dh_param(void)
 {
-  BIGNUM *circuit_dh_prime, *generator;
+  BIGNUM *circuit_dh_prime;
   int r;
   if (dh_param_p && dh_param_g)
     return;
 
   circuit_dh_prime = BN_new();
-  generator = BN_new();
-  tor_assert(circuit_dh_prime && generator);
-
-  /* Set our generator for all DH parameters */
-  r = BN_set_word(generator, DH_GENERATOR);
-  tor_assert(r);
+  tor_assert(circuit_dh_prime);
 
   /* This is from rfc2409, section 6.2.  It's a safe prime, and
      supposedly it equals:
@@ -2150,7 +2204,8 @@ init_dh_param(void)
 
   /* Set the new values as the global DH parameters. */
   dh_param_p = circuit_dh_prime;
-  dh_param_g = generator;
+  crypto_set_dh_generator();
+  tor_assert(0 == crypto_validate_dh_params(dh_param_p, dh_param_g));
 
   if (!dh_param_p_tls) {
     crypto_set_tls_dh_prime();
@@ -2939,6 +2994,7 @@ smartlist_shuffle(smartlist_t *sl)
 /**
  * Destroy the <b>sz</b> bytes of data stored at <b>mem</b>, setting them to
  * the value <b>byte</b>.
+ * If <b>mem</b> is NULL or <b>sz</b> is zero, nothing happens.
  *
  * This function is preferable to memset, since many compilers will happily
  * optimize out memset() when they can convince themselves that the data being
@@ -2956,6 +3012,15 @@ smartlist_shuffle(smartlist_t *sl)
 void
 memwipe(void *mem, uint8_t byte, size_t sz)
 {
+  if (sz == 0) {
+    return;
+  }
+  /* If sz is nonzero, then mem must not be NULL. */
+  tor_assert(mem != NULL);
+
+  /* Data this large is likely to be an underflow. */
+  tor_assert(sz < SIZE_T_CEILING);
+
   /* Because whole-program-optimization exists, we may not be able to just
    * have this function call "memset".  A smart compiler could inline it, then
    * eliminate dead memsets, and declare itself to be clever. */

@@ -1,6 +1,6 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define RENDCOMMON_PRIVATE
@@ -389,10 +389,8 @@ test_dir_handle_get_rendezvous2_not_found(void *data)
 }
 
 NS_DECL(const routerinfo_t *, router_get_my_routerinfo, (void));
-NS_DECL(int, hid_serv_responsible_for_desc_id, (const char *id));
 
 static routerinfo_t *mock_routerinfo;
-static int hid_serv_responsible_for_desc_id_response;
 
 static const routerinfo_t *
 NS(router_get_my_routerinfo)(void)
@@ -402,13 +400,6 @@ NS(router_get_my_routerinfo)(void)
   }
 
   return mock_routerinfo;
-}
-
-static int
-NS(hid_serv_responsible_for_desc_id)(const char *id)
-{
-  (void)id;
-  return hid_serv_responsible_for_desc_id_response;
 }
 
 static void
@@ -428,17 +419,15 @@ test_dir_handle_get_rendezvous2_on_encrypted_conn_success(void *data)
 
   MOCK(connection_write_to_buf_impl_, connection_write_to_buf_mock);
   NS_MOCK(router_get_my_routerinfo);
-  NS_MOCK(hid_serv_responsible_for_desc_id);
 
   rend_cache_init();
-  hid_serv_responsible_for_desc_id_response = 1;
 
   /* create a valid rend service descriptor */
   #define RECENT_TIME -10
   generate_desc(RECENT_TIME, &desc_holder, &service_id, 3);
 
   tt_int_op(rend_cache_store_v2_desc_as_dir(desc_holder->desc_str),
-            OP_EQ, RCS_OKAY);
+            OP_EQ, 0);
 
   base32_encode(desc_id_base32, sizeof(desc_id_base32), desc_holder->desc_id,
                 DIGEST_LEN);
@@ -473,9 +462,6 @@ test_dir_handle_get_rendezvous2_on_encrypted_conn_success(void *data)
   done:
     UNMOCK(connection_write_to_buf_impl_);
     NS_UNMOCK(router_get_my_routerinfo);
-    NS_UNMOCK(hid_serv_responsible_for_desc_id);
-    tor_free(mock_routerinfo->cache_info.signed_descriptor_body);
-    tor_free(mock_routerinfo);
 
     connection_free_(TO_CONN(conn));
     tor_free(header);
@@ -1764,7 +1750,7 @@ static void
 status_vote_current_consensus_ns_test(char **header, char **body,
                                       size_t *body_len)
 {
-  digests_t digests;
+  common_digests_t digests;
   dir_connection_t *conn = NULL;
 
   #define NETWORK_STATUS "some network status string"
@@ -2255,7 +2241,6 @@ status_vote_next_consensus_signatures_test(char **header, char **body,
 static void
 test_dir_handle_get_status_vote_next_consensus_signatures_not_found(void* data)
 {
-  dir_connection_t *conn = NULL;
   char *header = NULL, *body = NULL;
   size_t body_used;
   (void) data;
@@ -2266,7 +2251,6 @@ test_dir_handle_get_status_vote_next_consensus_signatures_not_found(void* data)
   tt_str_op(NOT_FOUND, OP_EQ, header);
 
   done:
-    connection_free_(TO_CONN(conn));
     tor_free(header);
     tor_free(body);
 }
@@ -2308,7 +2292,6 @@ test_dir_handle_get_status_vote_next_consensus_signatures(void* data)
 static void
 test_dir_handle_get_status_vote_next_consensus_signatures_busy(void* data)
 {
-  dir_connection_t *conn = NULL;
   char *header = NULL, *body = NULL;
   size_t body_used;
   (void) data;
@@ -2328,7 +2311,6 @@ test_dir_handle_get_status_vote_next_consensus_signatures_busy(void* data)
   done:
     UNMOCK(get_options);
     NS_UNMOCK(dirvote_get_pending_detached_signatures);
-    connection_free_(TO_CONN(conn));
     tor_free(header);
     tor_free(body);
     or_options_free(mock_options); mock_options = NULL;

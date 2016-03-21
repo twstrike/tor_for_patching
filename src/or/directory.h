@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -39,14 +39,16 @@ typedef enum {
   DIRIND_ANON_DIRPORT,
 } dir_indirection_t;
 
-void directory_initiate_command_routerstatus(const routerstatus_t *status,
-                                             uint8_t dir_purpose,
-                                             uint8_t router_purpose,
-                                             dir_indirection_t indirection,
-                                             const char *resource,
-                                             const char *payload,
-                                             size_t payload_len,
-                                             time_t if_modified_since);
+MOCK_DECL(void, directory_initiate_command_routerstatus,
+                (const routerstatus_t *status,
+                 uint8_t dir_purpose,
+                 uint8_t router_purpose,
+                 dir_indirection_t indirection,
+                 const char *resource,
+                 const char *payload,
+                 size_t payload_len,
+                 time_t if_modified_since));
+
 void directory_initiate_command_routerstatus_rend(const routerstatus_t *status,
                                                   uint8_t dir_purpose,
                                                   uint8_t router_purpose,
@@ -66,8 +68,8 @@ int connection_dir_process_inbuf(dir_connection_t *conn);
 int connection_dir_finished_flushing(dir_connection_t *conn);
 int connection_dir_finished_connecting(dir_connection_t *conn);
 void connection_dir_about_to_close(dir_connection_t *dir_conn);
-void directory_initiate_command(const tor_addr_t *addr,
-                                uint16_t or_port, uint16_t dir_port,
+void directory_initiate_command(const tor_addr_t *or_addr, uint16_t or_port,
+                                const tor_addr_t *dir_addr, uint16_t dir_port,
                                 const char *digest,
                                 uint8_t dir_purpose, uint8_t router_purpose,
                                 dir_indirection_t indirection,
@@ -147,6 +149,13 @@ STATIC int connection_dir_would_close_consensus_conn_helper(void);
 STATIC int download_status_schedule_get_delay(download_status_t *dls,
                                               const smartlist_t *schedule,
                                               time_t now);
+
+STATIC char* authdir_type_to_string(dirinfo_type_t auth);
+STATIC const char * dir_conn_purpose_to_string(int purpose);
+STATIC int should_use_directory_guards(const or_options_t *options);
+STATIC zlib_compression_level_t choose_compression_level(ssize_t n_bytes);
+STATIC const smartlist_t *find_dl_schedule(download_status_t *dls,
+                                           const or_options_t *options);
 #endif
 
 #endif

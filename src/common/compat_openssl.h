@@ -1,7 +1,7 @@
 /* Copyright (c) 2001, Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #ifndef TOR_COMPAT_OPENSSL_H
@@ -35,9 +35,11 @@
   (((st) == SSL3_ST_SW_SRVR_HELLO_A) ||    \
    ((st) == SSL3_ST_SW_SRVR_HELLO_B))
 #define OSSL_HANDSHAKE_STATE int
+#define CONST_IF_OPENSSL_1_1_API
 #else
 #define STATE_IS_SW_SERVER_HELLO(st) \
   ((st) == TLS_ST_SW_SRVR_HELLO)
+#define CONST_IF_OPENSSL_1_1_API const
 #endif
 
 #endif

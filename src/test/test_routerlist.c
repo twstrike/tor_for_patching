@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Tor Project, Inc. */
+/* Copyright (c) 2014-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #include "orconfig.h"
@@ -11,6 +11,7 @@
 #define TOR_UNIT_TESTING
 #include "or.h"
 #include "config.h"
+#include "connection.h"
 #include "container.h"
 #include "directory.h"
 #include "dirvote.h"
@@ -29,7 +30,7 @@ extern const char AUTHORITY_SIGNKEY_2[];
 extern const char AUTHORITY_CERT_3[];
 extern const char AUTHORITY_SIGNKEY_3[];
 
-void construct_consensus(const char **consensus_text_md);
+void construct_consensus(char **consensus_text_md);
 
 /* 4 digests + 3 sep + pre + post + NULL */
 static char output[4*BASE64_DIGEST256_LEN+3+2+2+1];
@@ -119,7 +120,7 @@ test_routerlist_launch_descriptor_downloads(void *arg)
 }
 
 void
-construct_consensus(const char **consensus_text_md)
+construct_consensus(char **consensus_text_md)
 {
   networkstatus_t *vote = NULL;
   networkstatus_t *v1 = NULL, *v2 = NULL, *v3 = NULL;
@@ -129,7 +130,6 @@ construct_consensus(const char **consensus_text_md)
   crypto_pk_t *sign_skey_leg=NULL;
   time_t now = time(NULL);
   smartlist_t *votes = NULL;
-  addr_policy_t *pol1 = NULL, *pol2 = NULL, *pol3 = NULL;
   int n_vrs;
 
   tt_assert(!dir_common_authority_pk_init(&cert1, &cert2, &cert3,
@@ -140,7 +140,7 @@ construct_consensus(const char **consensus_text_md)
   dir_common_construct_vote_1(&vote, cert1, sign_skey_1,
                               &dir_common_gen_routerstatus_for_v3ns,
                               &v1, &n_vrs, now, 1);
-
+  networkstatus_vote_free(vote);
   tt_assert(v1);
   tt_int_op(n_vrs, ==, 4);
   tt_int_op(smartlist_len(v1->routerstatus_list), ==, 4);
@@ -148,7 +148,7 @@ construct_consensus(const char **consensus_text_md)
   dir_common_construct_vote_2(&vote, cert2, sign_skey_2,
                               &dir_common_gen_routerstatus_for_v3ns,
                               &v2, &n_vrs, now, 1);
-
+  networkstatus_vote_free(vote);
   tt_assert(v2);
   tt_int_op(n_vrs, ==, 4);
   tt_int_op(smartlist_len(v2->routerstatus_list), ==, 4);
@@ -160,7 +160,7 @@ construct_consensus(const char **consensus_text_md)
   tt_assert(v3);
   tt_int_op(n_vrs, ==, 4);
   tt_int_op(smartlist_len(v3->routerstatus_list), ==, 4);
-
+  networkstatus_vote_free(vote);
   votes = smartlist_new();
   smartlist_add(votes, v1);
   smartlist_add(votes, v2);
@@ -176,16 +176,18 @@ construct_consensus(const char **consensus_text_md)
   tt_assert(*consensus_text_md);
 
  done:
-  if (vote)
-    tor_free(vote);
-  if (voter)
-    tor_free(voter);
-  if (pol1)
-    tor_free(pol1);
-  if (pol2)
-    tor_free(pol2);
-  if (pol3)
-    tor_free(pol3);
+  tor_free(voter);
+  networkstatus_vote_free(v1);
+  networkstatus_vote_free(v2);
+  networkstatus_vote_free(v3);
+  smartlist_free(votes);
+  authority_cert_free(cert1);
+  authority_cert_free(cert2);
+  authority_cert_free(cert3);
+  crypto_pk_free(sign_skey_1);
+  crypto_pk_free(sign_skey_2);
+  crypto_pk_free(sign_skey_3);
+  crypto_pk_free(sign_skey_leg);
 }
 
 static void
@@ -194,7 +196,7 @@ test_router_pick_directory_server_impl(void *arg)
   (void)arg;
 
   networkstatus_t *con_md = NULL;
-  const char *consensus_text_md = NULL;
+  char *consensus_text_md = NULL;
   int flags = PDS_IGNORE_FASCISTFIREWALL|PDS_RETRY_IF_NO_SERVERS;
   or_options_t *options = get_options_mutable();
   const routerstatus_t *rs = NULL;
@@ -311,7 +313,7 @@ test_router_pick_directory_server_impl(void *arg)
   node_router3->rs->last_dir_503_at = 0;
 
   /* Set a Fascist firewall */
-  flags &= ! PDS_IGNORE_FASCISTFIREWALL;
+  flags &= ~ PDS_IGNORE_FASCISTFIREWALL;
   policy_line = tor_malloc_zero(sizeof(config_line_t));
   policy_line->key = tor_strdup("ReachableORAddresses");
   policy_line->value = tor_strdup("accept *:442, reject *:*");
@@ -369,7 +371,82 @@ test_router_pick_directory_server_impl(void *arg)
   if (options->ReachableORAddresses ||
       options->ReachableDirAddresses)
     policies_free_all();
+  tor_free(consensus_text_md);
+  networkstatus_vote_free(con_md);
 }
+
+connection_t *mocked_connection = NULL;
+
+/* Mock connection_get_by_type_addr_port_purpose by returning
+ * mocked_connection. */
+static connection_t *
+mock_connection_get_by_type_addr_port_purpose(int type,
+                                              const tor_addr_t *addr,
+                                              uint16_t port, int purpose)
+{
+  (void)type;
+  (void)addr;
+  (void)port;
+  (void)purpose;
+
+  return mocked_connection;
+}
+
+#define TEST_ADDR_STR "127.0.0.1"
+#define TEST_DIR_PORT 12345
+
+static void
+test_routerlist_router_is_already_dir_fetching(void *arg)
+{
+  (void)arg;
+  tor_addr_port_t test_ap, null_addr_ap, zero_port_ap;
+
+  /* Setup */
+  tor_addr_parse(&test_ap.addr, TEST_ADDR_STR);
+  test_ap.port = TEST_DIR_PORT;
+  tor_addr_make_null(&null_addr_ap.addr, AF_INET6);
+  null_addr_ap.port = TEST_DIR_PORT;
+  tor_addr_parse(&zero_port_ap.addr, TEST_ADDR_STR);
+  zero_port_ap.port = 0;
+  MOCK(connection_get_by_type_addr_port_purpose,
+       mock_connection_get_by_type_addr_port_purpose);
+
+  /* Test that we never get 1 from a NULL connection */
+  mocked_connection = NULL;
+  tt_assert(router_is_already_dir_fetching(&test_ap, 1, 1) == 0);
+  tt_assert(router_is_already_dir_fetching(&test_ap, 1, 0) == 0);
+  tt_assert(router_is_already_dir_fetching(&test_ap, 0, 1) == 0);
+  /* We always expect 0 in these cases */
+  tt_assert(router_is_already_dir_fetching(&test_ap, 0, 0) == 0);
+  tt_assert(router_is_already_dir_fetching(NULL, 1, 1) == 0);
+  tt_assert(router_is_already_dir_fetching(&null_addr_ap, 1, 1) == 0);
+  tt_assert(router_is_already_dir_fetching(&zero_port_ap, 1, 1) == 0);
+
+  /* Test that we get 1 with a connection in the appropriate circumstances */
+  mocked_connection = connection_new(CONN_TYPE_DIR, AF_INET);
+  tt_assert(router_is_already_dir_fetching(&test_ap, 1, 1) == 1);
+  tt_assert(router_is_already_dir_fetching(&test_ap, 1, 0) == 1);
+  tt_assert(router_is_already_dir_fetching(&test_ap, 0, 1) == 1);
+
+  /* Test that we get 0 even with a connection in the appropriate
+   * circumstances */
+  tt_assert(router_is_already_dir_fetching(&test_ap, 0, 0) == 0);
+  tt_assert(router_is_already_dir_fetching(NULL, 1, 1) == 0);
+  tt_assert(router_is_already_dir_fetching(&null_addr_ap, 1, 1) == 0);
+  tt_assert(router_is_already_dir_fetching(&zero_port_ap, 1, 1) == 0);
+
+ done:
+  /* If a connection is never set up, connection_free chokes on it. */
+  if (mocked_connection) {
+    buf_free(mocked_connection->inbuf);
+    buf_free(mocked_connection->outbuf);
+  }
+  tor_free(mocked_connection);
+  UNMOCK(connection_get_by_type_addr_port_purpose);
+}
+
+#undef TEST_ADDR_STR
+#undef TEST_DIR_PORT
 
 #define NODE(name, flags) \
   { #name, test_routerlist_##name, (flags), NULL, NULL }
@@ -379,6 +456,7 @@ test_router_pick_directory_server_impl(void *arg)
 struct testcase_t routerlist_tests[] = {
   NODE(initiate_descriptor_downloads, 0),
   NODE(launch_descriptor_downloads, 0),
+  NODE(router_is_already_dir_fetching, TT_FORK),
   ROUTER(pick_directory_server_impl, TT_FORK),
   END_OF_TESTCASES
 };

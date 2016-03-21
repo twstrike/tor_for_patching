@@ -1,6 +1,6 @@
 /* Copyright (c) 2003-2004, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -148,7 +148,9 @@ tor_addr_make_af_unix(tor_addr_t *a)
 }
 
 /** Set the tor_addr_t in <b>a</b> to contain the socket address contained in
- * <b>sa</b>. Return 0 on success and -1 on failure. */
+ * <b>sa</b>.  IF <b>port_out</b> is non-NULL and <b>sa</b> contains a port,
+ * set *<b>port_out</b> to that port. Return 0 on success and -1 on
+ * failure. */
 int
 tor_addr_from_sockaddr(tor_addr_t *a, const struct sockaddr *sa,
                        uint16_t *port_out)
@@ -908,6 +910,59 @@ tor_addr_is_loopback(const tor_addr_t *addr)
   }
 }
 
+/* Is addr valid?
+ * Checks that addr is non-NULL and not tor_addr_is_null().
+ * If for_listening is true, IPv4 addr 0.0.0.0 is allowed.
+ * It means "bind to all addresses on the local machine". */
+int
+tor_addr_is_valid(const tor_addr_t *addr, int for_listening)
+{
+  /* NULL addresses are invalid regardless of for_listening */
+  if (addr == NULL) {
+    return 0;
+  }
+
+  /* Only allow IPv4 0.0.0.0 for_listening. */
+  if (for_listening && addr->family == AF_INET
+      && tor_addr_to_ipv4h(addr) == 0) {
+    return 1;
+  }
+
+  /* Otherwise, the address is valid if it's not tor_addr_is_null() */
+  return !tor_addr_is_null(addr);
+}
+
+/* Is the network-order IPv4 address v4n_addr valid?
+ * Checks that addr is not zero.
+ * Except if for_listening is true, where IPv4 addr 0.0.0.0 is allowed. */
+int
+tor_addr_is_valid_ipv4n(uint32_t v4n_addr, int for_listening)
+{
+  /* Any IPv4 address is valid with for_listening. */
+  if (for_listening) {
+    return 1;
+  }
+
+  /* Otherwise, zero addresses are invalid. */
+  return v4n_addr != 0;
+}
+
+/* Is port valid?
+ * Checks that port is not 0.
+ * Except if for_listening is true, where port 0 is allowed.
+ * It means "OS chooses a port". */
+int
+tor_port_is_valid(uint16_t port, int for_listening)
+{
+  /* Any port value is valid with for_listening. */
+  if (for_listening) {
+    return 1;
+  }
+
+  /* Otherwise, zero ports are invalid. */
+  return port != 0;
+}
+
 /** Set <b>dest</b> to equal the IPv4 address in <b>v4addr</b> (given in
  * network order). */
 void
@@ -1470,6 +1525,7 @@ get_interface_addresses_ioctl(int severity, sa_family_t family)
 {
   /* Some older unixy systems make us use ioctl(SIOCGIFCONF) */
   struct ifconf ifc;
+  ifc.ifc_buf = NULL;
   int fd;
   smartlist_t *result = NULL;
 
@@ -1492,7 +1548,6 @@ get_interface_addresses_ioctl(int severity, sa_family_t family)
   }
 
   int mult = 1;
-  ifc.ifc_buf = NULL;
   do {
     mult *= 2;
     ifc.ifc_len = mult * IFREQ_SIZE;
@@ -1735,7 +1790,7 @@ MOCK_IMPL(smartlist_t *,get_interface_address6_list,(int severity,
     if (get_interface_address6_via_udp_socket_hack(severity,AF_INET,
                                                    &addr) == 0) {
       if (include_internal || !tor_addr_is_internal(&addr, 0)) {
-        smartlist_add(addrs, tor_dup_addr(&addr));
+        smartlist_add(addrs, tor_memdup(&addr, sizeof(addr)));
       }
     }
   }
@@ -1744,7 +1799,7 @@ MOCK_IMPL(smartlist_t *,get_interface_address6_list,(int severity,
     if (get_interface_address6_via_udp_socket_hack(severity,AF_INET6,
                                                    &addr) == 0) {
       if (include_internal || !tor_addr_is_internal(&addr, 0)) {
-        smartlist_add(addrs, tor_dup_addr(&addr));
+        smartlist_add(addrs, tor_memdup(&addr, sizeof(addr)));
       }
     }
   }

@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -486,6 +486,28 @@ var_cell_new(uint16_t payload_len)
   cell->command = 0;
   cell->circ_id = 0;
   return cell;
+}
+
+/**
+ * Copy a var_cell_t
+ */
+
+var_cell_t *
+var_cell_copy(const var_cell_t *src)
+{
+  var_cell_t *copy = NULL;
+  size_t size = 0;
+
+  if (src != NULL) {
+    size = STRUCT_OFFSET(var_cell_t, payload) + src->payload_len;
+    copy = tor_malloc_zero(size);
+    copy->payload_len = src->payload_len;
+    copy->command = src->command;
+    copy->circ_id = src->circ_id;
+    memcpy(copy->payload, src->payload, copy->payload_len);
+  }
+
+  return copy;
 }
 
 /** Release all space held by <b>cell</b>. */
@@ -1581,11 +1603,11 @@ connection_or_nonopen_was_started_here(or_connection_t *conn)
 }
 
 /** <b>Conn</b> just completed its handshake. Return 0 if all is well, and
- * return -1 if he is lying, broken, or otherwise something is wrong.
+ * return -1 if they are lying, broken, or otherwise something is wrong.
  *
  * If we initiated this connection (<b>started_here</b> is true), make sure
  * the other side sent a correctly formed certificate. If I initiated the
- * connection, make sure it's the right guy.
+ * connection, make sure it's the right relay by checking the certificate.
  *
  * Otherwise (if we _didn't_ initiate this connection), it's okay for
  * the certificate to be weird or absent.
@@ -1601,7 +1623,7 @@ connection_or_nonopen_was_started_here(or_connection_t *conn)
  * 1) Set conn->circ_id_type according to tor-spec.txt.
  * 2) If we're an authdirserver and we initiated the connection: drop all
  *    descriptors that claim to be on that IP/port but that aren't
- *    this guy; and note that this guy is reachable.
+ *    this relay; and note that this relay is reachable.
  * 3) If this is a bridge and we didn't configure its identity
  *    fingerprint, remember the keyid we just learned.
  */
@@ -1754,7 +1776,7 @@ connection_or_client_used(or_connection_t *conn)
  *
  * Make sure we are happy with the person we just handshaked with.
  *
- * If he initiated the connection, make sure he's not already connected,
+ * If they initiated the connection, make sure they're not already connected,
  * then initialize conn from the information in router.
  *
  * If all is successful, call circuit_n_conn_done() to handle events
@@ -2025,6 +2047,19 @@ static int
 connection_or_process_cells_from_inbuf(or_connection_t *conn)
 {
   var_cell_t *var_cell;
+
+  /*
+   * Note on memory management for incoming cells: below the channel layer,
+   * we shouldn't need to consider its internal queueing/copying logic.  It
+   * is safe to pass cells to it on the stack or on the heap, but in the
+   * latter case we must be sure we free them later.
+   *
+   * The incoming cell queue code in channel.c will (in the common case)
+   * decide it can pass them to the upper layer immediately, in which case
+   * those functions may run directly on the cell pointers we pass here, or
+   * it may decide to queue them, in which case it will allocate its own
+   * buffer and copy the cell.
+   */
 
   while (1) {
     log_debug(LD_OR,
@@ -2318,7 +2353,7 @@ connection_or_compute_authenticate_cell_body(or_connection_t *conn,
 
   {
     const tor_x509_cert_t *id_cert=NULL, *link_cert=NULL;
-    const digests_t *my_digests, *their_digests;
+    const common_digests_t *my_digests, *their_digests;
     const uint8_t *my_id, *their_id, *client_id, *server_id;
     if (tor_tls_get_my_certs(server, &link_cert, &id_cert))
       goto err;

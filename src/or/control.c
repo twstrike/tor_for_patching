@@ -1,5 +1,5 @@
 /* Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -2864,12 +2864,26 @@ handle_control_extendcircuit(control_connection_t *conn, uint32_t len,
   }
 
   /* now circ refers to something that is ready to be extended */
+  int first_node = zero_circ;
   SMARTLIST_FOREACH(nodes, const node_t *, node,
   {
-    extend_info_t *info = extend_info_from_node(node, 0);
-    tor_assert(info); /* True, since node_has_descriptor(node) == true */
+    extend_info_t *info = extend_info_from_node(node, first_node);
+    if (first_node && !info) {
+      log_warn(LD_CONTROL,
+               "controller tried to connect to a node that doesn't have any "
+               "addresses that are allowed by the firewall configuration; "
+               "circuit marked for closing.");
+      circuit_mark_for_close(TO_CIRCUIT(circ), -END_CIRC_REASON_CONNECTFAILED);
+      connection_write_str_to_buf("551 Couldn't start circuit\r\n", conn);
+      goto done;
+    } else {
+      /* True, since node_has_descriptor(node) == true and we are extending
+       * to the node's primary address */
+      tor_assert(info);
+    }
     circuit_append_new_exit(circ, info);
     extend_info_free(info);
+    first_node = 0;
   });
 
   /* now that we've populated the cpath, start extending */
@@ -6370,6 +6384,7 @@ control_event_hs_descriptor_receive_end(const char *action,
  */
 void
 control_event_hs_descriptor_upload_end(const char *action,
+                                       const char *onion_address,
                                        const char *id_digest,
                                        const char *reason)
 {
@@ -6386,8 +6401,9 @@ control_event_hs_descriptor_upload_end(const char *action,
   }
 
   send_control_event(EVENT_HS_DESC,
-                     "650 HS_DESC %s UNKNOWN UNKNOWN %s%s\r\n",
+                     "650 HS_DESC %s %s UNKNOWN %s%s\r\n",
                      action,
+                     rend_hsaddress_str_or_unknown(onion_address),
                      node_describe_longname_by_id(id_digest),
                      reason_field ? reason_field : "");
 
@@ -6417,14 +6433,17 @@ control_event_hs_descriptor_received(const char *onion_address,
  * called when we successfully uploaded a hidden service descriptor.
  */
 void
-control_event_hs_descriptor_uploaded(const char *id_digest)
+control_event_hs_descriptor_uploaded(const char *id_digest,
+                                     const char *onion_address)
 {
   if (!id_digest) {
     log_warn(LD_BUG, "Called with id_digest==%p",
              id_digest);
     return;
   }
-  control_event_hs_descriptor_upload_end("UPLOADED", id_digest, NULL);
+
+  control_event_hs_descriptor_upload_end("UPLOADED", onion_address,
+                                         id_digest, NULL);
 }
 
 /** Send HS_DESC event to inform controller that query <b>rend_query</b>
@@ -6486,6 +6505,7 @@ control_event_hs_descriptor_content(const char *onion_address,
  */
 void
 control_event_hs_descriptor_upload_failed(const char *id_digest,
+                                          const char *onion_address,
                                           const char *reason)
 {
   if (!id_digest) {
@@ -6493,7 +6513,7 @@ control_event_hs_descriptor_upload_failed(const char *id_digest,
              id_digest);
     return;
   }
-  control_event_hs_descriptor_upload_end("UPLOAD_FAILED",
+  control_event_hs_descriptor_upload_end("UPLOAD_FAILED", onion_address,
                                          id_digest, reason);
 }
 

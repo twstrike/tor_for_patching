@@ -1,12 +1,12 @@
 /* Copyright (c) 2003-2004, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
  * \file compat.c
  * \brief Wrappers to make calls more portable.  This code defines
- * functions such as tor_malloc, tor_snprintf, get/set various data types,
+ * functions such as tor_snprintf, get/set various data types,
  * renaming, setting socket options, switching user IDs.  It is basically
  * where the non-portable items are conditionally included depending on
  * the platform.
@@ -576,14 +576,17 @@ tor_vasprintf(char **strp, const char *fmt, va_list args)
   int len, r;
   va_list tmp_args;
   va_copy(tmp_args, args);
-  len = vsnprintf(buf, sizeof(buf), fmt, tmp_args);
+  /* vsnprintf() was properly checked but tor_vsnprintf() available so
+   * why not use it? */
+  len = tor_vsnprintf(buf, sizeof(buf), fmt, tmp_args);
   va_end(tmp_args);
   if (len < (int)sizeof(buf)) {
     *strp = tor_strdup(buf);
     return len;
   }
   strp_tmp = tor_malloc(len+1);
-  r = vsnprintf(strp_tmp, len+1, fmt, args);
+  /* use of tor_vsnprintf() will ensure string is null terminated */
+  r = tor_vsnprintf(strp_tmp, len+1, fmt, args);
   if (r != len) {
     tor_free(strp_tmp);
     *strp = NULL;
@@ -717,7 +720,8 @@ strtok_helper(char *cp, const char *sep)
 }
 
 /** Implementation of strtok_r for platforms whose coders haven't figured out
- * how to write one.  Hey guys!  You can use this code here for free! */
+ * how to write one.  Hey, retrograde libc developers!  You can use this code
+ * here for free! */
 char *
 tor_strtok_r_impl(char *str, const char *sep, char **lasts)
 {
@@ -2691,8 +2695,7 @@ static int uname_result_is_set = 0;
 
 /** Return a pointer to a description of our platform.
  */
-const char *
-get_uname(void)
+MOCK_IMPL(const char *, get_uname, (void))
 {
 #ifdef HAVE_UNAME
   struct utsname u;

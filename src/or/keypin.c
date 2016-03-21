@@ -1,5 +1,12 @@
-/* Copyright (c) 2014, The Tor Project, Inc. */
+/* Copyright (c) 2014-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file keypin.c
+ *
+ * \brief Functions and structures for associating routers' RSA key
+ * fingerprints with their ED25519 keys.
+ */
 
 #define KEYPIN_PRIVATE
 

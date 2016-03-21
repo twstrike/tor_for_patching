@@ -1,6 +1,6 @@
 /* Copyright (c) 2003-2004, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #ifndef TOR_COMPAT_H
@@ -40,6 +40,15 @@
 #endif
 #ifdef HAVE_NETINET6_IN6_H
 #include <netinet6/in6.h>
+#endif
+
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+/* Some of the fancy glibc strcmp() macros include references to memory that
+ * clang rejects because it is off the end of a less-than-3. Clang hates this,
+ * even though those references never actually happen. */
+#    undef strcmp
+#  endif
 #endif
 
 #include <stdio.h>
@@ -601,7 +610,7 @@ typedef enum {
 } socks5_reply_status_t;
 
 /* ===== OS compatibility */
-const char *get_uname(void);
+MOCK_DECL(const char *, get_uname, (void));
 
 uint16_t get_uint16(const void *cp) ATTR_NONNULL((1));
 uint32_t get_uint32(const void *cp) ATTR_NONNULL((1));

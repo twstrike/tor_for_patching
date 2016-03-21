@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #define ROUTER_PRIVATE
@@ -1293,14 +1293,15 @@ consider_testing_reachability(int test_or, int test_dir)
     extend_info_free(ei);
   }
 
+  /* XXX IPv6 self testing */
   tor_addr_from_ipv4h(&addr, me->addr);
   if (test_dir && !check_whether_dirport_reachable() &&
       !connection_get_by_type_addr_port_purpose(
                 CONN_TYPE_DIR, &addr, me->dir_port,
                 DIR_PURPOSE_FETCH_SERVERDESC)) {
     /* ask myself, via tor, for my server descriptor. */
-    directory_initiate_command(&addr,
-                               me->or_port, me->dir_port,
+    directory_initiate_command(&addr, me->or_port,
+                               &addr, me->dir_port,
                                me->cache_info.identity_digest,
                                DIR_PURPOSE_FETCH_SERVERDESC,
                                ROUTER_PURPOSE_GENERAL,
@@ -1317,7 +1318,8 @@ router_orport_found_reachable(void)
     char *address = tor_dup_ip(me->addr);
     log_notice(LD_OR,"Self-testing indicates your ORPort is reachable from "
                "the outside. Excellent.%s",
-               get_options()->PublishServerDescriptor_ != NO_DIRINFO ?
+               get_options()->PublishServerDescriptor_ != NO_DIRINFO
+               && check_whether_dirport_reachable() ?
                  " Publishing server descriptor." : "");
     can_reach_or_port = 1;
     mark_my_descriptor_dirty("ORPort found reachable");
@@ -1341,7 +1343,10 @@ router_dirport_found_reachable(void)
   if (!can_reach_dir_port && me) {
     char *address = tor_dup_ip(me->addr);
     log_notice(LD_DIRSERV,"Self-testing indicates your DirPort is reachable "
-               "from the outside. Excellent.");
+               "from the outside. Excellent.%s",
+               get_options()->PublishServerDescriptor_ != NO_DIRINFO
+               && check_whether_orport_reachable() ?
+               " Publishing server descriptor." : "");
     can_reach_dir_port = 1;
     if (decide_to_advertise_dirport(get_options(), me->dir_port)) {
       mark_my_descriptor_dirty("DirPort found reachable");
@@ -1544,7 +1549,8 @@ proxy_mode(const or_options_t *options)
  * and
  * - We have ORPort set
  * and
- * - We believe we are reachable from the outside; or
+ * - We believe both our ORPort and DirPort (if present) are reachable from
+ *   the outside; or
  * - We are an authoritative directory server.
  */
 static int
@@ -1563,7 +1569,7 @@ decide_if_publishable_server(void)
   if (!router_get_advertised_or_port(options))
     return 0;
 
-  return check_whether_orport_reachable();
+  return check_whether_orport_reachable() && check_whether_dirport_reachable();
 }
 
 /** Initiate server descriptor upload as reasonable (if server is publishable,
@@ -1734,7 +1740,8 @@ router_upload_dir_desc_to_dirservers(int force)
 int
 router_compare_to_my_exit_policy(const tor_addr_t *addr, uint16_t port)
 {
-  if (!router_get_my_routerinfo()) /* make sure desc_routerinfo exists */
+  const routerinfo_t *me = router_get_my_routerinfo();
+  if (!me) /* make sure routerinfo exists */
     return -1;
 
   /* make sure it's resolved to something. this way we can't get a
@@ -1742,20 +1749,21 @@ router_compare_to_my_exit_policy(const tor_addr_t *addr, uint16_t port)
   if (tor_addr_is_null(addr))
     return -1;
 
-  /* look at desc_routerinfo->exit_policy for both the v4 and the v6
-   * policies.  The exit_policy field in desc_routerinfo is a bit unusual,
-   * in that it contains IPv6 and IPv6 entries.  We don't want to look
-   * at desc_routerinfio->ipv6_exit_policy, since that's a port summary. */
+  /* look at router_get_my_routerinfo()->exit_policy for both the v4 and the
+   * v6 policies.  The exit_policy field in router_get_my_routerinfo() is a
+   * bit unusual, in that it contains IPv6 and IPv6 entries.  We don't want to
+   * look at router_get_my_routerinfo()->ipv6_exit_policy, since that's a port
+   * summary. */
   if ((tor_addr_family(addr) == AF_INET ||
        tor_addr_family(addr) == AF_INET6)) {
     return compare_tor_addr_to_addr_policy(addr, port,
-                    desc_routerinfo->exit_policy) != ADDR_POLICY_ACCEPTED;
+                               me->exit_policy) != ADDR_POLICY_ACCEPTED;
 #if 0
   } else if (tor_addr_family(addr) == AF_INET6) {
     return get_options()->IPv6Exit &&
       desc_routerinfo->ipv6_exit_policy &&
       compare_tor_addr_to_short_policy(addr, port,
-                  desc_routerinfo->ipv6_exit_policy) != ADDR_POLICY_ACCEPTED;
+                               me->ipv6_exit_policy) != ADDR_POLICY_ACCEPTED;
 #endif
   } else {
     return -1;
@@ -1767,10 +1775,10 @@ router_compare_to_my_exit_policy(const tor_addr_t *addr, uint16_t port)
 MOCK_IMPL(int,
 router_my_exit_policy_is_reject_star,(void))
 {
-  if (!router_get_my_routerinfo()) /* make sure desc_routerinfo exists */
+  if (!router_get_my_routerinfo()) /* make sure routerinfo exists */
     return -1;
 
-  return desc_routerinfo->policy_is_reject_star;
+  return router_get_my_routerinfo()->policy_is_reject_star;
 }
 
 /** Return true iff I'm a server and <b>digest</b> is equal to
@@ -1829,12 +1837,13 @@ const char *
 router_get_my_descriptor(void)
 {
   const char *body;
-  if (!router_get_my_routerinfo())
+  const routerinfo_t *me = router_get_my_routerinfo();
+  if (! me)
     return NULL;
-  tor_assert(desc_routerinfo->cache_info.saved_location == SAVED_NOWHERE);
-  body = signed_descriptor_get_body(&desc_routerinfo->cache_info);
+  tor_assert(me->cache_info.saved_location == SAVED_NOWHERE);
+  body = signed_descriptor_get_body(&me->cache_info);
   /* Make sure this is nul-terminated. */
-  tor_assert(!body[desc_routerinfo->cache_info.signed_descriptor_len]);
+  tor_assert(!body[me->cache_info.signed_descriptor_len]);
   log_debug(LD_GENERAL,"my desc is '%s'", body);
   return body;
 }
@@ -1932,7 +1941,11 @@ router_build_fresh_descriptor(routerinfo_t **r, extrainfo_t **e)
           ! p->server_cfg.no_advertise &&
           ! p->server_cfg.bind_ipv4_only &&
           tor_addr_family(&p->addr) == AF_INET6) {
-        if (! tor_addr_is_internal(&p->addr, 0)) {
+        /* Like IPv4, if the relay is configured using the default
+         * authorities, disallow internal IPs. Otherwise, allow them. */
+        const int default_auth = (!options->DirAuthorities &&
+                                  !options->AlternateDirAuthority);
+        if (! tor_addr_is_internal(&p->addr, 0) || ! default_auth) {
           ipv6_orport = p;
           break;
         } else {
@@ -1940,7 +1953,7 @@ router_build_fresh_descriptor(routerinfo_t **r, extrainfo_t **e)
           log_warn(LD_CONFIG,
                    "Unable to use configured IPv6 address \"%s\" in a "
                    "descriptor. Skipping it. "
-                   "Try specifying a globally reachable address explicitly. ",
+                   "Try specifying a globally reachable address explicitly.",
                    tor_addr_to_str(addrbuf, &p->addr, sizeof(addrbuf), 1));
         }
       }
@@ -2237,10 +2250,10 @@ check_descriptor_bandwidth_changed(time_t now)
 {
   static time_t last_changed = 0;
   uint64_t prev, cur;
-  if (!desc_routerinfo)
+  if (!router_get_my_routerinfo())
     return;
 
-  prev = desc_routerinfo->bandwidthcapacity;
+  prev = router_get_my_routerinfo()->bandwidthcapacity;
   cur = we_are_hibernating() ? 0 : rep_hist_bandwidth_assess();
   if ((prev != cur && (!prev || !cur)) ||
       cur > prev*2 ||
@@ -2294,11 +2307,11 @@ check_descriptor_ipaddress_changed(time_t now)
 
   (void) now;
 
-  if (!desc_routerinfo)
+  if (router_get_my_routerinfo() == NULL)
     return;
 
   /* XXXX ipv6 */
-  prev = desc_routerinfo->addr;
+  prev = router_get_my_routerinfo()->addr;
   if (resolve_my_address(LOG_INFO, options, &cur, &method, &hostname) < 0) {
     log_info(LD_CONFIG,"options->Address didn't resolve into an IP.");
     return;
@@ -2370,7 +2383,7 @@ router_new_address_suggestion(const char *suggestion,
   if (tor_addr_eq(&d_conn->base_.addr, &addr)) {
     /* Don't believe anybody who says our IP is their IP. */
     log_debug(LD_DIR, "A directory server told us our IP address is %s, "
-              "but he's just reporting his own IP address. Ignoring.",
+              "but they are just reporting their own IP address. Ignoring.",
               suggestion);
     return;
   }
@@ -3405,28 +3418,16 @@ router_free_all(void)
 
 /** Return a smartlist of tor_addr_port_t's with all the OR ports of
     <b>ri</b>. Note that freeing of the items in the list as well as
-    the smartlist itself is the callers responsibility.
-
-    XXX duplicating code from node_get_all_orports(). */
+    the smartlist itself is the callers responsibility. */
 smartlist_t *
 router_get_all_orports(const routerinfo_t *ri)
 {
-  smartlist_t *sl = smartlist_new();
   tor_assert(ri);
-
-  if (ri->addr != 0) {
-    tor_addr_port_t *ap = tor_malloc(sizeof(tor_addr_port_t));
-    tor_addr_from_ipv4h(&ap->addr, ri->addr);
-    ap->port = ri->or_port;
-    smartlist_add(sl, ap);
-  }
-  if (!tor_addr_is_null(&ri->ipv6_addr)) {
-    tor_addr_port_t *ap = tor_malloc(sizeof(tor_addr_port_t));
-    tor_addr_copy(&ap->addr, &ri->ipv6_addr);
-    ap->port = ri->or_port;
-    smartlist_add(sl, ap);
-  }
-
-  return sl;
+  node_t fake_node;
+  memset(&fake_node, 0, sizeof(fake_node));
+  /* we don't modify ri, fake_node is passed as a const node_t *
+   */
+  fake_node.ri = (routerinfo_t *)ri;
+  return node_get_all_orports(&fake_node);
 }
 

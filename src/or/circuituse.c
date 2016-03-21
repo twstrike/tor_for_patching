@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -92,7 +92,7 @@ circuit_is_acceptable(const origin_circuit_t *origin_circ,
   /* decide if this circ is suitable for this conn */
 
   /* for rend circs, circ->cpath->prev is not the last router in the
-   * circuit, it's the magical extra bob hop. so just check the nickname
+   * circuit, it's the magical extra service hop. so just check the nickname
    * of the one we meant to finish at.
    */
   build_state = origin_circ->build_state;
@@ -1493,11 +1493,11 @@ circuit_has_opened(origin_circuit_t *circ)
       circuit_try_attaching_streams(circ);
       break;
     case CIRCUIT_PURPOSE_S_ESTABLISH_INTRO:
-      /* at Bob, waiting for introductions */
+      /* at the service, waiting for introductions */
       rend_service_intro_has_opened(circ);
       break;
     case CIRCUIT_PURPOSE_S_CONNECT_REND:
-      /* at Bob, connecting to rend point */
+      /* at the service, connecting to rend point */
       rend_service_rendezvous_has_opened(circ);
       break;
     case CIRCUIT_PURPOSE_TESTING:
@@ -1617,32 +1617,32 @@ circuit_build_failed(origin_circuit_t *circ)
       circuit_testing_failed(circ, failed_at_last_hop);
       break;
     case CIRCUIT_PURPOSE_S_ESTABLISH_INTRO:
-      /* at Bob, waiting for introductions */
+      /* at the service, waiting for introductions */
       if (circ->base_.state != CIRCUIT_STATE_OPEN) {
         circuit_increment_failure_count();
       }
-      /* no need to care here, because bob will rebuild intro
+      /* no need to care here, because the service will rebuild intro
        * points periodically. */
       break;
     case CIRCUIT_PURPOSE_C_INTRODUCING:
-      /* at Alice, connecting to intro point */
-      /* Don't increment failure count, since Bob may have picked
+      /* at the client, connecting to intro point */
+      /* Don't increment failure count, since the service may have picked
        * the introduction point maliciously */
-      /* Alice will pick a new intro point when this one dies, if
+      /* The client will pick a new intro point when this one dies, if
        * the stream in question still cares. No need to act here. */
       break;
     case CIRCUIT_PURPOSE_C_ESTABLISH_REND:
-      /* at Alice, waiting for Bob */
+      /* at the client, waiting for the service */
       circuit_increment_failure_count();
-      /* Alice will pick a new rend point when this one dies, if
+      /* the client will pick a new rend point when this one dies, if
        * the stream in question still cares. No need to act here. */
       break;
     case CIRCUIT_PURPOSE_S_CONNECT_REND:
-      /* at Bob, connecting to rend point */
-      /* Don't increment failure count, since Alice may have picked
+      /* at the service, connecting to rend point */
+      /* Don't increment failure count, since the client may have picked
        * the rendezvous point maliciously */
       log_info(LD_REND,
-               "Couldn't connect to Alice's chosen rend point %s "
+               "Couldn't connect to the client's chosen rend point %s "
                "(%s hop failed).",
                escaped(build_state_get_exit_nickname(circ->build_state)),
                failed_at_last_hop?"last":"non-last");
@@ -2006,8 +2006,13 @@ circuit_get_open_circ_or_launch(entry_connection_t *conn,
         if (r && node_has_descriptor(r)) {
           /* We might want to connect to an IPv6 bridge for loading
              descriptors so we use the preferred address rather than
-             the primary.  */
+             the primary. */
           extend_info = extend_info_from_node(r, conn->want_onehop ? 1 : 0);
+          if (!extend_info) {
+            log_warn(LD_CIRC,"Could not make a one-hop connection to %s. "
+                     "Discarding this circuit.", conn->chosen_exit_name);
+            return -1;
+          }
         } else {
           log_debug(LD_DIR, "considering %d, %s",
                     want_onehop, conn->chosen_exit_name);
@@ -2241,7 +2246,7 @@ consider_recording_trackhost(const entry_connection_t *conn,
   char fp[HEX_DIGEST_LEN+1];
 
   /* Search the addressmap for this conn's destination. */
-  /* If he's not in the address map.. */
+  /* If they're not in the address map.. */
   if (!options->TrackHostExits ||
       addressmap_have_mapping(conn->socks_request->address,
                               options->TrackHostExitsExpire))
