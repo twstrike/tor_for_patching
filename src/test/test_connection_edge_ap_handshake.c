@@ -156,7 +156,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_bogu
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Invalid onion hostname bogus; rejecting\n");
+  expect_log_msg("Invalid onion hostname bogus; rejecting\n");
 
   done:
     clean_up_tests(conn);
@@ -182,7 +182,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_unal
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Stale automapped address for 'www.notgood.exit', with AllowDotExit disabled. Refusing.\n");
+  expect_log_msg("Stale automapped address for 'www.notgood.exit', with AllowDotExit disabled. Refusing.\n");
 
   done:
     clean_up_tests(conn);
@@ -207,7 +207,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_hostname_is_dns_
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'www.dns.exit', with impossible source for the .exit part. Refusing.\n");
+  expect_log_msg("Address 'www.dns.exit', with impossible source for the .exit part. Refusing.\n");
 
   done:
     clean_up_tests(conn);
@@ -233,7 +233,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Address 'www.notremapped.exit', with impossible source for the .exit part. Refusing.\n");
+  expect_log_msg("Address 'www.notremapped.exit', with impossible source for the .exit part. Refusing.\n");
 
   done:
     clean_up_tests(conn);
@@ -259,7 +259,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_when_exit_address_is_
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Malformed exit address 'malformed..exit'. Refusing.\n");
+  expect_log_msg("Malformed exit address 'malformed..exit'. Refusing.\n");
 
   done:
     clean_up_tests(conn);
@@ -284,7 +284,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_unrecognized_exit
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Unrecognized relay in exit address 'www.exit'. Refusing.\n");
+  expect_log_msg("Unrecognized relay in exit address 'www.exit'. Refusing.\n");
 
   done:
     clean_up_tests(conn);
@@ -346,7 +346,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_for_excluded_exit(voi
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'www.exit'. Refusing.\n");
+  expect_log_msg("Excluded relay in exit address 'www.exit'. Refusing.\n");
 
   done:
     clean_up_tests(conn);
@@ -380,7 +380,7 @@ test_conn_edge_ap_handshake_rewrite_and_attach_closes_conn_to_port0(void *data)
 
   tt_int_op(unattachment_reason_spy, OP_EQ, END_STREAM_REASON_TORPROTOCOL);
   tt_int_op(res, OP_EQ, -1);
-  tt_str_op(mock_saved_log_at(-1), OP_EQ, "Excluded relay in exit address 'www.exit'. Refusing.\n");
+  expect_log_msg("Excluded relay in exit address 'www.exit'. Refusing.\n");
   
 done:
     clean_up_tests(conn);
