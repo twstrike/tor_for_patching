@@ -785,6 +785,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     guard_selection->primary_guards = primary_guards;
     guard_selection->used_guards = used_guards;
     guard_selection->remaining_utopic_guards = remaining_utopic_guards;
+    guard_selection->num_primary_guards = 3;
 
     g1->bad_since = 1;
     g2->bad_since = 1;
@@ -792,7 +793,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     g4->bad_since = 0;
     g5->bad_since = 0;
 
-    algo_on_new_consensus(guard_selection, 3);
+    algo_on_new_consensus(guard_selection);
 
     tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
     tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
@@ -806,7 +807,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     g4->bad_since = 0;
     g5->bad_since = 0;
 
-    algo_on_new_consensus(guard_selection, 3);
+    algo_on_new_consensus(guard_selection);
 
     tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
     tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
@@ -820,7 +821,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     g4->bad_since = 1;
     g5->bad_since = 0;
 
-    algo_on_new_consensus(guard_selection, 3);
+    algo_on_new_consensus(guard_selection);
 
     tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
     tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);

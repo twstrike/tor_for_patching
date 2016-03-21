@@ -338,6 +338,7 @@ algo_choose_entry_guard_start(
     guard_selection->primary_guards = smartlist_new();
     guard_selection->remaining_utopic_guards = smartlist_new();
     guard_selection->remaining_dystopic_guards = smartlist_new();
+    guard_selection->num_primary_guards = n_primary_guards;
 
     fill_in_primary_guards(guard_selection, n_primary_guards);
 
@@ -354,8 +355,9 @@ algo_choose_entry_guard_start(
 }
 
 void
-algo_on_new_consensus(guard_selection_t *guard_selection, int num_guards)
+algo_on_new_consensus(guard_selection_t *guard_selection)
 {
+    int num_guards = guard_selection->num_primary_guards;
     if (guard_selection->primary_guards_log == NULL) {
         guard_selection->primary_guards_log = smartlist_new();
         smartlist_add_all(guard_selection->primary_guards_log,
@@ -408,6 +410,20 @@ next_primary_guard(guard_selection_t *guard_selection)
     return guard;
 }
 
+static void
+init_entry_guard_selection(const or_options_t *options, int for_directory)
+{
+    const int num_needed = decide_num_guards(options, for_directory);
+
+    //XXX support excluded nodes.
+    //options->ExcludeNodes is a routerset_t, not a list of guards.
+    //XXX Look at entry_guards_set_from_config  to see how it filters out ExcludeNodes
+    entry_guard_selection = algo_choose_entry_guard_start(
+        used_guards, sampled_utopic_guards, sampled_dystopic_guards,
+        NULL, //XXX should be options->ExcludeNodes,
+        num_needed, for_directory);
+}
+
 const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
@@ -417,7 +433,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     const or_options_t *options = get_options();
     const node_t *node = NULL;
     const entry_guard_t* guard = NULL;
-    const int num_needed = decide_num_guards(options, for_directory);
     time_t now = time(NULL);
 
     //XXX we ignore this information while selecting a guard
@@ -438,13 +453,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (entry_guard_selection)
         guard_selection_free(entry_guard_selection);
 
-    //XXX support excluded nodes.
-    //options->ExcludeNodes is a routerset_t, not a list of guards.
-    //XXX Look at entry_guards_set_from_config  to see how it filters out ExcludeNodes
-    entry_guard_selection = algo_choose_entry_guard_start(
-        used_guards, sampled_utopic_guards, sampled_dystopic_guards,
-        NULL, //XXX should be options->ExcludeNodes,
-        num_needed, for_directory);
+    init_entry_guard_selection(options, for_directory);
 
   retry:
     guard = algo_choose_entry_guard_next(entry_guard_selection, options, now);
@@ -470,15 +479,8 @@ entry_guards_update_profiles(const or_options_t *options)
   return; //do nothing
 #endif
 
-    int for_directory = 0;
-    const int num_needed = decide_num_guards(options, for_directory);
-
     if (!entry_guard_selection)
-        entry_guard_selection = algo_choose_entry_guard_start(
-            used_guards, sampled_utopic_guards, sampled_dystopic_guards,
-            NULL, //XXX should be options->ExcludeNodes,
-            num_needed, for_directory);
+        init_entry_guard_selection(options, 0);
 
-    //XXX get num_needed from context
-    algo_on_new_consensus(entry_guard_selection, num_needed);
+    algo_on_new_consensus(entry_guard_selection);
 }

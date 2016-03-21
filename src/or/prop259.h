@@ -23,6 +23,7 @@ typedef struct {
     const smartlist_t *guards;
     const smartlist_t *utopic_guards;
     const smartlist_t *dystopic_guards;
+    int num_primary_guards;
 
     smartlist_t *remaining_utopic_guards;
     smartlist_t *remaining_dystopic_guards;
@@ -61,7 +62,7 @@ STATIC void
 transition_to(guard_selection_t *algo, guard_selection_state_t state);
 
 void
-algo_on_new_consensus(guard_selection_t *guard_selection, int num_guards);
+algo_on_new_consensus(guard_selection_t *guard_selection);
 
 STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection);
