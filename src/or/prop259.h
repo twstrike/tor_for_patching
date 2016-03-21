@@ -40,6 +40,8 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 void
 entry_guards_update_profiles(const or_options_t *options);
 
+smartlist_t* get_all_dystopic_guards(void);
+
 #ifdef PROP259_PRIVATE
 
 guard_selection_t*
@@ -56,7 +58,6 @@ algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now));
 void
 guard_selection_free(guard_selection_t *guard_selection);
-
 
 STATIC void
 transition_to(guard_selection_t *algo, guard_selection_state_t state);

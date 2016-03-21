@@ -5395,3 +5395,53 @@ refresh_all_country_info(void)
 
   nodelist_refresh_countries();
 }
+
+//XXX Review where to put this. It is for proposal 259
+smartlist_t*
+get_all_guards(int for_directory)
+{
+    const or_options_t *options = get_options();
+
+    //XXX Ignoring for_directory for now.
+    (void) for_directory;
+
+    //XXX This comes from router_choose_random_node
+    const int need_guard = 1;
+    const int need_desc = 1;
+    const int pref_addr = 1;
+    const routerset_t *excludedset = options->ExcludeNodes;
+
+    smartlist_t *sl=smartlist_new(),
+                *excludednodes=smartlist_new();
+    const routerinfo_t *r;
+
+    //XXX review if ExcludeSingleHopRelays is needed
+
+    // exclude ourself
+    if ((r = routerlist_find_my_routerinfo()))
+        routerlist_add_node_and_family(excludednodes, r);
+
+    router_add_running_nodes_to_smartlist(sl, 0, 0, 0,
+        need_guard, need_desc, pref_addr);
+
+    log_debug(LD_CIRC,
+        "We found %d running nodes.",
+        smartlist_len(sl));
+
+    smartlist_subtract(sl, excludednodes);
+    log_debug(LD_CIRC,
+        "We removed %d excludednodes, leaving %d nodes.",
+        smartlist_len(excludednodes),
+        smartlist_len(sl));
+
+    if (excludedset) {
+        routerset_subtract_nodes(sl, excludedset);
+        log_debug(LD_CIRC,
+            "We removed excludedset, leaving %d nodes.",
+            smartlist_len(sl));
+    }
+
+    smartlist_free(excludednodes);
+    return sl;
+}
+

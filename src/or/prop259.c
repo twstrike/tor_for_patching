@@ -24,6 +24,63 @@ static smartlist_t *sampled_utopic_guards = NULL;
 static smartlist_t *sampled_dystopic_guards = NULL;
 
 static int
+is_dystopic_port(uint16_t port)
+{
+    if (port == 80)
+        return 1;
+
+    if (port == 443)
+        return 1;
+
+    return 0;
+}
+
+static int
+is_dystopic(node_t *node)
+{
+    if (!node->ri && !node->rs && !node->md) {
+        return 0;
+    }
+
+    //XXX there might be false positive if we dont support IPV6
+    //but the guard on listen to a dystopic port in IPV6
+
+    if (node->ri) {
+        if (is_dystopic_port(node->ri->or_port))
+            return 1;
+
+        if (is_dystopic_port(node->ri->ipv6_orport))
+            return 1;
+    } else if (node->rs) {
+        if (is_dystopic_port(node->rs->or_port))
+            return 1;
+
+        if (is_dystopic_port(node->rs->ipv6_orport))
+            return 1;
+    } else if (node->md) {
+        if (is_dystopic_port(node->md->ipv6_orport))
+            return 1;
+    }
+
+    return 0;
+}
+
+smartlist_t*
+get_all_dystopic_guards(void)
+{
+    smartlist_t *dystopic = smartlist_new();
+    smartlist_t *all = get_all_guards(0);
+
+    SMARTLIST_FOREACH_BEGIN(all, node_t *, node) {
+        if (is_dystopic(node))
+            smartlist_add(dystopic, node);
+    } SMARTLIST_FOREACH_END(node);
+
+    smartlist_free(all);
+    return dystopic;
+}
+
+static int
 is_live(entry_guard_t *guard)
 {
     //XXX using entry_is_live() would introduce the current progressive retry
@@ -286,6 +343,11 @@ MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now))
 {
+    //XXX choose_good_entry_server() ignores:
+    // - routers in the same family as the exit node
+    // - routers in the same family of the guards you have chosen
+    //Our proposal does not care.
+
     check_primary_guards_retry_interval(guard_selection, options, now);
 
     switch (guard_selection->state) {
@@ -341,6 +403,8 @@ algo_choose_entry_guard_start(
     guard_selection->remaining_dystopic_guards = smartlist_new();
     guard_selection->num_primary_guards = n_primary_guards;
 
+    //fill_in_remaining_utopic();
+    //fill_in_remainind_dystopic();
     fill_in_primary_guards(guard_selection);
 
     //XXX fill remaining sets from sampled
@@ -418,7 +482,8 @@ init_entry_guard_selection(const or_options_t *options, int for_directory)
 
     //XXX support excluded nodes.
     //options->ExcludeNodes is a routerset_t, not a list of guards.
-    //XXX Look at entry_guards_set_from_config  to see how it filters out ExcludeNodes
+    //XXX Look at entry_guards_set_from_config to see how it filters out
+    //ExcludeNodes
     entry_guard_selection = algo_choose_entry_guard_start(
         used_guards, sampled_utopic_guards, sampled_dystopic_guards,
         NULL, //XXX should be options->ExcludeNodes,
@@ -485,3 +550,4 @@ entry_guards_update_profiles(const or_options_t *options)
 
     algo_on_new_consensus(entry_guard_selection);
 }
+

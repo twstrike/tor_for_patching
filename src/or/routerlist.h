@@ -218,6 +218,9 @@ int hex_digest_nickname_matches(const char *hexdigest,
                                 const char *identity_digest,
                                 const char *nickname, int is_named);
 
+smartlist_t*
+get_all_guards(int for_directory);
+
 #ifdef ROUTERLIST_PRIVATE
 /** Helper type for choosing routers by bandwidth: contains a union of
  * double and uint64_t. Before we call scale_array_elements_to_u64, it holds
