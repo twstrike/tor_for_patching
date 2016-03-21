@@ -73,6 +73,10 @@ next_by_bandwidth(smartlist_t *guards);
 
 STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection);
+
+STATIC void
+fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
+                         const int size);
 #endif
 
 #endif

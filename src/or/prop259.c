@@ -538,12 +538,74 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     return node;
 }
 
+STATIC void
+fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
+                         const int size)
+{
+    smartlist_t *remaining = smartlist_new();
+
+    smartlist_add_all(remaining, set);
+    while(smartlist_len(sample) < size && smartlist_len(remaining) > 0) {
+        //this is next by bandwidth with a set of nodes
+        const node_t *node = node_sl_choose_by_bandwidth(remaining,
+            WEIGHT_FOR_GUARD);
+
+        if (!node)
+            break;
+
+        smartlist_remove(remaining, node);
+        smartlist_add(sample, (void*) node);
+    }
+    smartlist_free(remaining);
+}
+
+static void
+fill_in_sampled_sets(const smartlist_t *utopic_nodes,
+                     const smartlist_t *dystopic_nodes)
+{
+    //XXX Extract a configuration from this
+    const double sample_set_threshold = 0.02;
+
+    //XXX persist sampled sets in state file
+
+    if (!sampled_utopic_guards)
+        sampled_utopic_guards = smartlist_new();
+
+    if (!sampled_dystopic_guards)
+        sampled_dystopic_guards = smartlist_new();
+
+    fill_in_node_sampled_set(sampled_utopic_guards, utopic_nodes,
+        sample_set_threshold * smartlist_len(utopic_nodes));
+
+    log_info(LD_CIRC, "We sampled %d from %d utopic guards",
+        smartlist_len(sampled_utopic_guards), smartlist_len(utopic_nodes));
+
+    fill_in_node_sampled_set(sampled_dystopic_guards, dystopic_nodes,
+        sample_set_threshold * smartlist_len(dystopic_nodes));
+
+    log_info(LD_CIRC, "We sampled %d from %d dystopic guards",
+        smartlist_len(sampled_dystopic_guards), smartlist_len(dystopic_nodes));
+}
+
 void
 entry_guards_update_profiles(const or_options_t *options)
 {
 #ifndef USE_PROP_259
-  return; //do nothing
+    return; //do nothing
 #endif
+
+    smartlist_t *utopic = get_all_guards(0);
+    smartlist_t *dystopic = smartlist_new();
+
+    SMARTLIST_FOREACH_BEGIN(utopic, node_t *, node) {
+        if (is_dystopic(node))
+            smartlist_add(dystopic, node);
+    } SMARTLIST_FOREACH_END(node);
+
+    fill_in_sampled_sets(utopic, dystopic);
+
+    smartlist_free(utopic);
+    smartlist_free(dystopic);
 
     if (!entry_guard_selection)
         init_entry_guard_selection(options, 0);
