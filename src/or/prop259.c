@@ -6,29 +6,22 @@
 
 #define PROP259_PRIVATE
 
-#include "or.h"
-#include "circpathbias.h"
-#include "circuitbuild.h"
-#include "circuitstats.h"
-#include "config.h"
-#include "confparse.h"
-#include "connection.h"
-#include "connection_or.h"
-#include "control.h"
-#include "directory.h"
-#include "entrynodes.h"
 #include "prop259.h"
-#include "main.h"
-#include "microdesc.h"
-#include "networkstatus.h"
 #include "nodelist.h"
-#include "policies.h"
-#include "router.h"
 #include "routerlist.h"
-#include "routerparse.h"
-#include "routerset.h"
-#include "transports.h"
-#include "statefile.h"
+#include "config.h"
+#include "circuitbuild.h"
+
+//XXX Find the appropriate place for this global state
+
+/** Entry guard selection algorithm **/
+static guard_selection_t *entry_guard_selection = NULL;
+
+/** Related to guard selection algorithm. **/
+//XXX Add proper documentation
+static smartlist_t *used_guards = NULL;
+static smartlist_t *sampled_utopic_guards = NULL;
+static smartlist_t *sampled_dystopic_guards = NULL;
 
 static int
 is_live(entry_guard_t *guard)
@@ -413,5 +406,60 @@ next_primary_guard(guard_selection_t *guard_selection)
 
     tor_free(remaining);
     return guard;
+}
+
+const node_t *
+choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
+    dirinfo_type_t dirinfo_type, int *n_options_out)
+{
+    log_info(LD_CIRC, "Now using *prop259* impl");
+
+    const or_options_t *options = get_options();
+    const node_t *node = NULL;
+    const entry_guard_t* guard = NULL;
+    const int num_needed = decide_num_guards(options, for_directory);
+    time_t now = time(NULL);
+
+    //XXX we ignore this information while selecting a guard
+    const node_t *chosen_exit =
+        state?build_state_get_exit_node(state) : NULL;
+    int need_uptime = state ? state->need_uptime : 0;
+    int need_capacity = state ? state->need_capacity : 0;
+    (void) chosen_exit;
+    (void) dirinfo_type;
+    (void) need_uptime;
+    (void) need_capacity;
+
+    if (n_options_out)
+        *n_options_out = 0;
+
+    //XXX see entry_guards_set_from_config(options);
+
+    if (entry_guard_selection)
+        guard_selection_free(entry_guard_selection);
+
+    //XXX support excluded nodes.
+    //options->ExcludeNodes is a routerset_t, not a list of guards.
+    //XXX Look at entry_guards_set_from_config  to see how it filters out ExcludeNodes
+    entry_guard_selection = algo_choose_entry_guard_start(
+        used_guards, sampled_utopic_guards, sampled_dystopic_guards,
+        NULL, //XXX should be options->ExcludeNodes,
+        num_needed, for_directory);
+
+  retry:
+    guard = algo_choose_entry_guard_next(entry_guard_selection, options, now);
+    if (guard)
+        node = guard_to_node(guard);
+
+    if (!node)
+        goto retry;
+
+    //XXX check entry_guards_changed();
+
+    //XXX What is n_options_out in our case?
+    if (n_options_out)
+        *n_options_out = 1;
+
+    return node;
 }
 

@@ -74,7 +74,7 @@ entry_guard_t *entry_guard_get_by_id_digest(const char *digest);
 void entry_guards_changed(void);
 const smartlist_t *get_entry_guards(void);
 int num_live_entry_guards(int for_directory);
-
+int decide_num_guards(const or_options_t *options, int for_directory);
 #endif
 
 #ifdef ENTRYNODES_PRIVATE
@@ -88,7 +88,6 @@ STATIC int populate_live_entry_guards(smartlist_t *live_entry_guards,
                                       dirinfo_type_t dirinfo_type,
                                       int for_directory,
                                       int need_uptime, int need_capacity);
-STATIC int decide_num_guards(const or_options_t *options, int for_directory);
 
 STATIC void entry_guards_set_from_config(const or_options_t *options);
 
