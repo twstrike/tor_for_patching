@@ -480,6 +480,10 @@ init_entry_guard_selection(const or_options_t *options, int for_directory)
 {
     const int num_needed = decide_num_guards(options, for_directory);
 
+    //XXX How to load this from the state file
+    if (!used_guards)
+        used_guards = smartlist_new();
+
     //XXX support excluded nodes.
     //options->ExcludeNodes is a routerset_t, not a list of guards.
     //XXX Look at entry_guards_set_from_config to see how it filters out
