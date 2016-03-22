@@ -1005,11 +1005,11 @@ choose_random_dirguard(dirinfo_type_t type)
     //XXX Commented out because of crash scenario
     //See comment in choose_random_entry_prop259
 
-//#ifdef USE_PROP_259
-//  return choose_random_entry_prop259(NULL, 1, type, NULL);
-//#else
+#ifdef USE_PROP_259
+  return choose_random_entry_prop259(NULL, 1, type, NULL);
+#else
   return choose_random_entry_impl(NULL, 1, type, NULL);
-//#endif
+#endif
 }
 
 /** Filter <b>all_entry_guards</b> for usable entry guards and put them

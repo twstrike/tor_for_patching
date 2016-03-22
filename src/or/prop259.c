@@ -11,6 +11,7 @@
 #include "routerlist.h"
 #include "config.h"
 #include "circuitbuild.h"
+#include "networkstatus.h"
 
 //XXX Find the appropriate place for this global state
 
@@ -598,11 +599,16 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
-    //XXX This crashes because the original algo is supposed to work
-    //even before receiving the consensus. In this case, it would be called
-    //with "for_directory" = 1 and would choose the directory authorities
-    //(maybe)?
-    if (!used_guards || for_directory == 1) {
+    //router_pick_directory_server_impl return NULL when there is no consensus
+    const networkstatus_t *consensus = networkstatus_get_latest_consensus();
+    if (!consensus)
+        return NULL;
+
+    //XXX can it have only me?
+    if (smartlist_len(nodelist_get_list()) <= 1)
+        return NULL;
+
+    if (for_directory == 1) {
         log_warn(LD_CIRC, "Not yet implemented in proposal 259");
         return NULL;
     }
