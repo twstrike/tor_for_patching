@@ -434,7 +434,7 @@ guard_selection_free(guard_selection_t *guard_selection)
 }
 
 guard_selection_t*
-algo_choose_entry_guard_start(
+choose_entry_guard_algo_start(
     smartlist_t *used_guards,
     const smartlist_t *sampled_utopic,
     const smartlist_t *sampled_dystopic,
@@ -529,7 +529,7 @@ init_entry_guard_selection(const or_options_t *options, int for_directory)
     //options->ExcludeNodes is a routerset_t, not a list of guards.
     //XXX Look at entry_guards_set_from_config to see how it filters out
     //ExcludeNodes
-    entry_guard_selection = algo_choose_entry_guard_start(
+    entry_guard_selection = choose_entry_guard_algo_start(
         used_guards, sampled_utopic_guards, sampled_dystopic_guards,
         NULL, //XXX should be options->ExcludeNodes,
         num_needed, for_directory);

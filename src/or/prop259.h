@@ -51,7 +51,7 @@ void guard_selection_register_connect_status(const entry_guard_t *guard,
 #ifdef PROP259_PRIVATE
 
 guard_selection_t*
-algo_choose_entry_guard_start(
+choose_entry_guard_algo_start(
         smartlist_t *used_guards,
         const smartlist_t *sampled_utopic_guards,
         const smartlist_t *sampled_dystopic_guards,

@@ -87,7 +87,7 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     int n_primary_guards = 0;
     int dir = 0;
 
-    guard_selection = algo_choose_entry_guard_start(
+    guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
         sampled_dystopic,
@@ -389,7 +389,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
     int n_primary_guards = 0;
     int dir = 0;
 
-    guard_selection = algo_choose_entry_guard_start(
+    guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
         sampled_dystopic,
@@ -481,7 +481,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     int n_primary_guards = 0;
     int dir = 0;
 
-    guard_selection = algo_choose_entry_guard_start(
+    guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
         sampled_dystopic,
@@ -531,7 +531,7 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
     int n_primary_guards = 0;
     int dir = 0;
 
-    guard_selection = algo_choose_entry_guard_start(
+    guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
         sampled_dystopic,
@@ -562,7 +562,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     int n_primary_guards = 0;
     int dir = 0;
 
-    guard_selection = algo_choose_entry_guard_start(
+    guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
         sampled_dystopic,
