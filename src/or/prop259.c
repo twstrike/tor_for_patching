@@ -467,7 +467,7 @@ algo_on_new_consensus(guard_selection_t *guard_selection)
     int num_guards = guard_selection->num_primary_guards;
     smartlist_t *guards = guard_selection->primary_guards;
 
-    while (nonbad_guards_len(guards) < num_guards) {
+    while (smartlist_len(nonbad_guards(guards)) < num_guards) {
         entry_guard_t *guard = next_primary_guard(guard_selection);
         if (guard != NULL) {
             if (!smartlist_contains(guards, guard)) {
@@ -479,32 +479,16 @@ algo_on_new_consensus(guard_selection_t *guard_selection)
     }
 }
 
-STATIC int
-nonbad_guards_len(smartlist_t *guards)
+STATIC smartlist_t*
+nonbad_guards(smartlist_t *guards)
 {
-    int n = 0;
+    smartlist_t *nonbad_guards = smartlist_new();
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         if (!is_bad(e))
-            n++;
+            smartlist_add(nonbad_guards, e);
     } SMARTLIST_FOREACH_END(e);
 
-    return n;
-}
-
-STATIC entry_guard_t*
-nonbad_guards_get(smartlist_t *guards, int index)
-{
-    int n = 0;
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (!is_bad(e)){
-            if (n == index){
-                 return e;
-            }
-            n++;
-        }
-    } SMARTLIST_FOREACH_END(e);
-
-    return NULL;
+    return nonbad_guards;
 }
 
 STATIC entry_guard_t*
