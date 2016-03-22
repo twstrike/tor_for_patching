@@ -831,7 +831,6 @@ test_ON_NEW_CONSENSUS(void *arg)
         sizeof(guard_selection_t));
     smartlist_t *used_guards = smartlist_new();
     smartlist_t *primary_guards = smartlist_new();
-    smartlist_t *remaining_utopic_guards = smartlist_new();
     entry_guard_t *g1, *g2, *g3, *g4, *g5;
     (void) arg;
 
@@ -857,7 +856,6 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     guard_selection->primary_guards = primary_guards;
     guard_selection->used_guards = used_guards;
-    guard_selection->remaining_utopic_guards = remaining_utopic_guards;
     guard_selection->num_primary_guards = 3;
 
     g1->bad_since = 1;
@@ -906,7 +904,6 @@ test_ON_NEW_CONSENSUS(void *arg)
     tor_free(g5);
     tor_free(used_guards);
     tor_free(primary_guards);
-    tor_free(remaining_utopic_guards);
     tor_free(guard_selection);
 }
 
