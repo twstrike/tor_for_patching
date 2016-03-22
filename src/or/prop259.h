@@ -91,6 +91,12 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
 STATIC void
 fill_in_remaining_dystopic(guard_selection_t *guard_selection,
                            const smartlist_t *sampled_dystopic);
+
+STATIC int
+nonbad_guards_len(smartlist_t *guards);
+
+STATIC entry_guard_t*
+nonbad_guards_get(smartlist_t *guards, int index);
 #endif
 
 #endif

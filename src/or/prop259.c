@@ -465,34 +465,46 @@ void
 algo_on_new_consensus(guard_selection_t *guard_selection)
 {
     int num_guards = guard_selection->num_primary_guards;
-    if (guard_selection->primary_guards_log == NULL) {
-        guard_selection->primary_guards_log = smartlist_new();
-        smartlist_add_all(guard_selection->primary_guards_log,
-            guard_selection->primary_guards);
-    }
-
-    smartlist_t *guards_log = guard_selection->primary_guards_log;
-    guard_selection->primary_guards = smartlist_new();
     smartlist_t *guards = guard_selection->primary_guards;
-    SMARTLIST_FOREACH_BEGIN(guards_log, entry_guard_t *, e) {
-        if (!is_bad(e) && smartlist_len(guards) < num_guards) {
-            smartlist_add(guards, e);
-        }
-    } SMARTLIST_FOREACH_END(e);
 
-    //XXX review this log
-    //This is fill_in_primary_guards() with a "log".
-    while (smartlist_len(guard_selection->primary_guards) < num_guards) {
+    while (nonbad_guards_len(guards) < num_guards) {
         entry_guard_t *guard = next_primary_guard(guard_selection);
         if (guard != NULL) {
-            smartlist_add(guards, guard);
-            if (!smartlist_contains(guards_log, guard)) {
-                smartlist_add(guards_log, guard);
+            if (!smartlist_contains(guards, guard)) {
+                smartlist_add(guards, guard);
             }
         } else {
             break;
         }
     }
+}
+
+STATIC int
+nonbad_guards_len(smartlist_t *guards)
+{
+    int n = 0;
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        if (!is_bad(e))
+            n++;
+    } SMARTLIST_FOREACH_END(e);
+
+    return n;
+}
+
+STATIC entry_guard_t*
+nonbad_guards_get(smartlist_t *guards, int index)
+{
+    int n = 0;
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        if (!is_bad(e)){
+            if (n == index){
+                 return e;
+            }
+            n++;
+        }
+    } SMARTLIST_FOREACH_END(e);
+
+    return NULL;
 }
 
 STATIC entry_guard_t*

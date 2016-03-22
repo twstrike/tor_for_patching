@@ -868,11 +868,10 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     algo_on_new_consensus(guard_selection);
 
-    tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
-    tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g3);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g4);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g5);
+    tt_int_op(nonbad_guards_len(guard_selection->primary_guards), OP_EQ, 3);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,0), OP_EQ, g3);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,1), OP_EQ, g4);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,2), OP_EQ, g5);
 
     g1->bad_since = 0;
     g2->bad_since = 0;
@@ -882,11 +881,10 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     algo_on_new_consensus(guard_selection);
 
-    tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
-    tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g1);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g2);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g3);
+    tt_int_op(nonbad_guards_len(guard_selection->primary_guards), OP_EQ, 5);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,0), OP_EQ, g1);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,1), OP_EQ, g2);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,2), OP_EQ, g3);
 
     g1->bad_since = 0;
     g2->bad_since = 1;
@@ -896,11 +894,10 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     algo_on_new_consensus(guard_selection);
 
-    tt_int_op(smartlist_len(guard_selection->primary_guards), OP_EQ, 3);
-    tt_int_op(smartlist_len(guard_selection->primary_guards_log), OP_EQ, 5);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,0), OP_EQ, g1);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,1), OP_EQ, g3);
-    tt_ptr_op(smartlist_get(guard_selection->primary_guards,2), OP_EQ, g5);
+    tt_int_op(nonbad_guards_len(guard_selection->primary_guards), OP_EQ, 3);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,0), OP_EQ, g1);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,1), OP_EQ, g3);
+    tt_ptr_op(nonbad_guards_get(guard_selection->primary_guards,2), OP_EQ, g5);
   done:
     tor_free(g1);
     tor_free(g2);
