@@ -386,7 +386,7 @@ control_event_guard_deferred(void)
  * If <b>chosen</b> is defined, use that one, and if it's not
  * already in our entry_guards list, put it at the *beginning*.
  * Else, put the one we pick at the end of the list. */
-STATIC const node_t *
+const node_t *
 add_an_entry_guard(const node_t *chosen, int reset_status, int prepend,
                    int for_discovery, int for_directory)
 {
@@ -430,6 +430,7 @@ add_an_entry_guard(const node_t *chosen, int reset_status, int prepend,
     ((node_t*) node)->using_as_guard = 1;
     return NULL;
   }
+
   entry = tor_malloc_zero(sizeof(entry_guard_t));
   log_info(LD_CIRC, "Chose %s as new entry guard.",
            node_describe(node));

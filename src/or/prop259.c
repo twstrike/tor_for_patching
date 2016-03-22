@@ -189,6 +189,16 @@ transition_to_and_save_state(guard_selection_t *guard_selection,
     transition_to(guard_selection, state);
 }
 
+STATIC const node_t*
+next_node_by_bandwidth(smartlist_t *nodes)
+{
+    const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
+    if (node)
+        smartlist_remove(nodes, node); //otherwise it may return duplicates
+
+    return node;
+}
+
 STATIC entry_guard_t*
 next_by_bandwidth(smartlist_t *guards)
 {
@@ -241,28 +251,37 @@ each_remaining_by_bandwidth(guard_selection_t* guard_selection,
                             int require_dystopic)
 {
     entry_guard_t *guard = NULL;
-    smartlist_t *guards = NULL;
+    smartlist_t *nodes = NULL;
     smartlist_t *remaining = smartlist_new();
 
     if (require_dystopic == 1) {
-        guards = guard_selection->remaining_dystopic_guards;
+        nodes = guard_selection->remaining_dystopic_guards;
     } else {
-        guards = guard_selection->remaining_utopic_guards;
+        nodes = guard_selection->remaining_utopic_guards;
     }
 
-    smartlist_add_all(remaining, guards);
+    smartlist_add_all(remaining, nodes);
     while (smartlist_len(remaining) > 0) {
-        entry_guard_t *g = next_by_bandwidth(remaining);
-        if (!g) {
+        const node_t *node = next_node_by_bandwidth(remaining);
+        if (!node) {
             break;
         }
 
-        if (should_try(g)) {
-            guard = g;
-            break;
-        }
+        //XXX Add for directory
+        int for_directory = 0;
+        add_an_entry_guard(node, 0, 0, 0, for_directory);
 
-        smartlist_remove(guards, g);
+        entry_guard_t *g = node_to_guard(node);
+        tor_assert(g);
+
+        if (!is_live(g))
+            smartlist_remove(nodes, node);
+
+        if (!should_try(g))
+            continue;
+
+        guard = g;
+        break;
     }
 
     tor_free(remaining);
@@ -488,6 +507,9 @@ next_primary_guard(guard_selection_t *guard_selection)
     } SMARTLIST_FOREACH_END(e);
 
     smartlist_t *remaining = smartlist_new();
+
+    //XXX remaining will be a list of nodes, but used a list of guards.
+    //Need to normalize, otherwise subtract wont work
     smartlist_add_all(remaining, guard_selection->remaining_utopic_guards);
     smartlist_subtract(remaining, used);
     smartlist_subtract(remaining, primary);

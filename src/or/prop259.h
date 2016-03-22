@@ -26,8 +26,12 @@ typedef struct {
     smartlist_t *remaining_utopic_guards;
     smartlist_t *remaining_dystopic_guards;
 
+    //They should be lists of entry_guard_t because they have been used as
+    //guards
     smartlist_t *primary_guards;
     smartlist_t *used_guards;
+
+    //XXX Explain the idea of this
     smartlist_t *primary_guards_log;
 
 } guard_selection_t;
@@ -66,6 +70,9 @@ algo_on_new_consensus(guard_selection_t *guard_selection);
 
 STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection);
+
+STATIC const node_t*
+next_node_by_bandwidth(smartlist_t *nodes);
 
 STATIC entry_guard_t*
 next_by_bandwidth(smartlist_t *guards);
