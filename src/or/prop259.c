@@ -594,6 +594,11 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
+    //XXX This crashes because the original algo is supposed to work
+    //even before receiving the consensus. In this case, it would be called
+    //with "for_directory" = 1 and would choose the directory authorities
+    //(maybe)?
+
     //XXX choose_good_entry_server() ignores:
     // - routers in the same family as the exit node
     // - routers in the same family of the guards you have chosen
