@@ -219,6 +219,10 @@ next_by_bandwidth(smartlist_t *guards)
 
     const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
     if (node) {
+        //XXX Add for directory
+        int for_directory = 0;
+        add_an_entry_guard(node, 0, 0, 0, for_directory);
+
         guard = node_to_guard(node);
         tor_assert(guard);
         smartlist_remove(guards, guard);
@@ -535,14 +539,13 @@ fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
 
     smartlist_add_all(remaining, set);
     while (smartlist_len(sample) < size && smartlist_len(remaining) > 0) {
-        //this is next by bandwidth with a set of nodes
-        const node_t *node = node_sl_choose_by_bandwidth(remaining,
-            WEIGHT_FOR_GUARD);
-
+        const node_t *node = next_node_by_bandwidth(remaining);
         if (!node)
             break;
 
-        smartlist_remove(remaining, node);
+        //XXX should we crete the entry_guard at this moment?
+        //add_an_entry_guard(node, 0, 0, 0, for_directory);
+
         smartlist_add(sample, (void*) node);
     }
     smartlist_free(remaining);
