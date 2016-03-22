@@ -545,7 +545,7 @@ fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
     smartlist_t *remaining = smartlist_new();
 
     smartlist_add_all(remaining, set);
-    while(smartlist_len(sample) < size && smartlist_len(remaining) > 0) {
+    while (smartlist_len(sample) < size && smartlist_len(remaining) > 0) {
         //this is next by bandwidth with a set of nodes
         const node_t *node = node_sl_choose_by_bandwidth(remaining,
             WEIGHT_FOR_GUARD);

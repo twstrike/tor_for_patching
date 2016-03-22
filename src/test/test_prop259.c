@@ -302,7 +302,6 @@ test_fill_in_sampled_set(void *arg)
     tor_free(node3);
 }
 
-
 static void
 test_state_machine_should_use_new_state_as_current_state(void *arg)
 {
