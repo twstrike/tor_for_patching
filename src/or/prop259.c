@@ -693,6 +693,10 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
     return; //do nothing
 #endif
 
+    //XXX probably not necessary after we fix the for_directory thing
+    if (!entry_guard_selection)
+        return;
+
     //I assume shouldContinue is handled outside of this.
     //See: entry_guard_register_connect_status()
     if (succeeded)
