@@ -800,6 +800,8 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
     }
   }
 
+  guard_selection_register_connect_status(entry, succeeded);
+
   /* if the caller asked us to, also update the is_running flags for this
    * relay */
   if (mark_relay_status)

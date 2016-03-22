@@ -584,6 +584,14 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes,
         smartlist_len(sampled_dystopic_guards), smartlist_len(dystopic_nodes));
 }
 
+STATIC void
+choose_entry_guard_algo_end(guard_selection_t *guard_selection,
+                            const entry_guard_t *guard)
+{
+    if (!smartlist_contains(guard_selection->used_guards, guard))
+        smartlist_add(guard_selection->used_guards, (void*) guard);
+}
+
 //These functions adapt our proposal to current tor code
 
 const node_t *
@@ -677,3 +685,16 @@ entry_guards_update_profiles(const or_options_t *options)
     algo_on_new_consensus(entry_guard_selection);
 }
 
+void
+guard_selection_register_connect_status(const entry_guard_t *guard,
+                                        int succeeded)
+{
+#ifndef USE_PROP_259
+    return; //do nothing
+#endif
+
+    //I assume shouldContinue is handled outside of this.
+    //See: entry_guard_register_connect_status()
+    if (succeeded)
+        choose_entry_guard_algo_end(entry_guard_selection, guard);
+}

@@ -45,6 +45,9 @@ entry_guards_update_profiles(const or_options_t *options);
 
 smartlist_t* get_all_dystopic_guards(void);
 
+void guard_selection_register_connect_status(const entry_guard_t *guard,
+                                             int succeeded);
+
 #ifdef PROP259_PRIVATE
 
 guard_selection_t*
@@ -94,6 +97,10 @@ fill_in_remaining_dystopic(guard_selection_t *guard_selection,
 
 STATIC smartlist_t*
 nonbad_guards(smartlist_t *guards);
+
+STATIC void
+choose_entry_guard_algo_end(guard_selection_t *guard_selection,
+                            const entry_guard_t *guard);
 
 #endif
 
