@@ -20,13 +20,12 @@ typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
 
-    const smartlist_t *guards;
-    const smartlist_t *utopic_guards;
-    const smartlist_t *dystopic_guards;
     int num_primary_guards;
 
+    //They are lists of node_t because they havent been chosen as guards
     smartlist_t *remaining_utopic_guards;
     smartlist_t *remaining_dystopic_guards;
+
     smartlist_t *primary_guards;
     smartlist_t *used_guards;
     smartlist_t *primary_guards_log;

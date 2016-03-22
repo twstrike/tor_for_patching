@@ -745,7 +745,6 @@ test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard(void *arg)
     entry_guard_t* guard = NULL;
     smartlist_t *used_guards = NULL;
     smartlist_t *primary_guards = NULL;
-    smartlist_t *dystopic_guards = NULL;
     smartlist_t *remaining_dystopic = NULL;
     entry_guard_t *g1, *g2, *g3, *g4 = NULL;
     node_t *node = NULL;
@@ -778,7 +777,6 @@ test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard(void *arg)
     used_guards = smartlist_new();
     smartlist_add(used_guards, g1);
 
-    dystopic_guards = smartlist_new();
     remaining_dystopic = smartlist_new();
     smartlist_add(remaining_dystopic, g2);
     smartlist_add(remaining_dystopic, g3);
@@ -788,7 +786,6 @@ test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard(void *arg)
     guard_selection->state = STATE_TRY_DYSTOPIC;
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
-    guard_selection->dystopic_guards = dystopic_guards;
     guard_selection->remaining_dystopic_guards = remaining_dystopic;
 
     guard = algo_choose_entry_guard_next(guard_selection, options, 0);
@@ -811,7 +808,6 @@ test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard(void *arg)
     tor_free(g4);
     tor_free(used_guards);
     tor_free(primary_guards);
-    tor_free(dystopic_guards);
     tor_free(remaining_dystopic);
     tor_free(guard_selection);
     tor_free(options);
@@ -824,21 +820,18 @@ test_TRY_DYSTOPIC_transitions_to_PRIMARY_GUARDS(void *arg)
     entry_guard_t* guard = NULL;
     smartlist_t *used_guards = NULL;
     smartlist_t *primary_guards = NULL;
-    smartlist_t *dystopic_guards = NULL;
     smartlist_t *remaining_dystopic = NULL;
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
     (void) arg;
 
     primary_guards = smartlist_new();
     used_guards = smartlist_new();
-    dystopic_guards = smartlist_new();
     remaining_dystopic = smartlist_new();
 
     guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
     guard_selection->state = STATE_TRY_DYSTOPIC;
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
-    guard_selection->dystopic_guards = dystopic_guards;
     guard_selection->remaining_dystopic_guards = remaining_dystopic;
 
     guard = algo_choose_entry_guard_next(guard_selection, options, 0);
@@ -848,7 +841,6 @@ test_TRY_DYSTOPIC_transitions_to_PRIMARY_GUARDS(void *arg)
   done:
     tor_free(used_guards);
     tor_free(primary_guards);
-    tor_free(dystopic_guards);
     tor_free(remaining_dystopic);
     tor_free(guard_selection);
     tor_free(options);
