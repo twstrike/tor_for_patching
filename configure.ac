@@ -107,7 +107,7 @@ AC_ARG_ENABLE(systemd,
 
 
 AC_ARG_ENABLE(prop259,
-      AS_HELP_STRING(--enable-prop259, [enable systemd notification support]),
+      AS_HELP_STRING(--enable-prop259, [enable proposal 259]),
       [case "${enableval}" in
         "yes") prop259=true ;;
         "no")  prop259=false ;;

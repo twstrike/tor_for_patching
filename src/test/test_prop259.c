@@ -319,16 +319,16 @@ test_fill_in_remaining_utopic(void *arg)
     smartlist_add(sampled, node3);
     smartlist_add(used, node2);
 
-		guard_selection->used_guards = used;
+    guard_selection->used_guards = used;
 
     fill_in_remaining_utopic(guard_selection, sampled);
     tt_int_op(smartlist_len(guard_selection->remaining_utopic_guards),
-				OP_EQ, 2);
+        OP_EQ, 2);
 
     tt_ptr_op(smartlist_get(guard_selection->remaining_utopic_guards, 0),
-				OP_EQ, node1);
+        OP_EQ, node1);
     tt_ptr_op(smartlist_get(guard_selection->remaining_utopic_guards, 1),
-				OP_EQ, node3);
+        OP_EQ, node3);
 
   done:
     tor_free(node1);
@@ -336,7 +336,7 @@ test_fill_in_remaining_utopic(void *arg)
     tor_free(node3);
     smartlist_free(used);
     smartlist_free(sampled);
-		guard_selection_free(guard_selection);
+    guard_selection_free(guard_selection);
 }
 
 static void
@@ -356,16 +356,16 @@ test_fill_in_remaining_dystopic(void *arg)
     smartlist_add(sampled, node3);
     smartlist_add(used, node2);
 
-		guard_selection->used_guards = used;
+    guard_selection->used_guards = used;
 
     fill_in_remaining_dystopic(guard_selection, sampled);
     tt_int_op(smartlist_len(guard_selection->remaining_dystopic_guards),
-				OP_EQ, 2);
+        OP_EQ, 2);
 
     tt_ptr_op(smartlist_get(guard_selection->remaining_dystopic_guards, 0),
-				OP_EQ, node1);
+        OP_EQ, node1);
     tt_ptr_op(smartlist_get(guard_selection->remaining_dystopic_guards, 1),
-				OP_EQ, node3);
+        OP_EQ, node3);
 
   done:
     tor_free(node1);
@@ -373,7 +373,7 @@ test_fill_in_remaining_dystopic(void *arg)
     tor_free(node3);
     smartlist_free(used);
     smartlist_free(sampled);
-		guard_selection_free(guard_selection);
+    guard_selection_free(guard_selection);
 }
 
 static void
