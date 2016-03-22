@@ -50,7 +50,7 @@ void guard_selection_register_connect_status(const entry_guard_t *guard,
 
 #ifdef PROP259_PRIVATE
 
-guard_selection_t*
+STATIC guard_selection_t*
 choose_entry_guard_algo_start(
         smartlist_t *used_guards,
         const smartlist_t *sampled_utopic_guards,
@@ -59,10 +59,10 @@ choose_entry_guard_algo_start(
         int n_primary_guards,
         int dir);
 
-MOCK_DECL(entry_guard_t *,
+MOCK_DECL(STATIC entry_guard_t *,
 choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now));
-void
+STATIC void
 guard_selection_free(guard_selection_t *guard_selection);
 
 STATIC void

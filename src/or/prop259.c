@@ -24,6 +24,7 @@ static smartlist_t *used_guards = NULL;
 static smartlist_t *sampled_utopic_guards = NULL;
 static smartlist_t *sampled_dystopic_guards = NULL;
 
+//XXX This is wrong, we should use the FascistFirewall setting
 static int
 is_dystopic_port(uint16_t port)
 {
@@ -39,10 +40,6 @@ is_dystopic_port(uint16_t port)
 static int
 is_dystopic(node_t *node)
 {
-    if (!node->ri && !node->rs && !node->md) {
-        return 0;
-    }
-
     //XXX there might be false positive if we dont support IPV6
     //but the guard on listen to a dystopic port in IPV6
 
@@ -248,18 +245,10 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 }
 
 static entry_guard_t*
-each_remaining_by_bandwidth(guard_selection_t* guard_selection,
-                            int require_dystopic)
+each_remaining_by_bandwidth(smartlist_t *nodes)
 {
     entry_guard_t *guard = NULL;
-    smartlist_t *nodes = NULL;
     smartlist_t *remaining = smartlist_new();
-
-    if (require_dystopic == 1) {
-        nodes = guard_selection->remaining_dystopic_guards;
-    } else {
-        nodes = guard_selection->remaining_utopic_guards;
-    }
 
     smartlist_add_all(remaining, nodes);
     while (smartlist_len(remaining) > 0) {
@@ -292,13 +281,15 @@ each_remaining_by_bandwidth(guard_selection_t* guard_selection,
 static entry_guard_t*
 each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
 {
-    return each_remaining_by_bandwidth(guard_selection, 0);
+    return each_remaining_by_bandwidth(
+                   guard_selection->remaining_utopic_guards);
 }
 
 static entry_guard_t*
 each_remaining_dystopic_by_bandwidth(guard_selection_t* guard_selection)
 {
-    return each_remaining_by_bandwidth(guard_selection, 1);
+    return each_remaining_by_bandwidth(
+                   guard_selection->remaining_dystopic_guards);
 }
 
 static entry_guard_t*
@@ -363,7 +354,7 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
     }
 }
 
-MOCK_IMPL(entry_guard_t *,
+MOCK_IMPL(STATIC entry_guard_t *,
 choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now))
 {
@@ -426,7 +417,7 @@ fill_in_primary_guards(guard_selection_t *guard_selection)
     }
 }
 
-void
+STATIC void
 guard_selection_free(guard_selection_t *guard_selection)
 {
     smartlist_free(guard_selection->primary_guards);
@@ -434,7 +425,7 @@ guard_selection_free(guard_selection_t *guard_selection)
     smartlist_free(guard_selection->remaining_dystopic_guards);
 }
 
-guard_selection_t*
+STATIC guard_selection_t*
 choose_entry_guard_algo_start(
     smartlist_t *used_guards,
     const smartlist_t *sampled_utopic,
