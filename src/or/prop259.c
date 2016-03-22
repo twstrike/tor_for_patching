@@ -347,11 +347,6 @@ MOCK_IMPL(entry_guard_t *,
 algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now))
 {
-    //XXX choose_good_entry_server() ignores:
-    // - routers in the same family as the exit node
-    // - routers in the same family of the guards you have chosen
-    //Our proposal does not care.
-
     check_primary_guards_retry_interval(guard_selection, options, now);
 
     switch (guard_selection->state) {
@@ -522,54 +517,6 @@ init_entry_guard_selection(const or_options_t *options, int for_directory)
         num_needed, for_directory);
 }
 
-const node_t *
-choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
-    dirinfo_type_t dirinfo_type, int *n_options_out)
-{
-    log_info(LD_CIRC, "Using proposal 259 to choose entry guards.");
-
-    const or_options_t *options = get_options();
-    const node_t *node = NULL;
-    const entry_guard_t* guard = NULL;
-    time_t now = time(NULL);
-
-    //XXX we ignore this information while selecting a guard
-    const node_t *chosen_exit =
-        state ? build_state_get_exit_node(state) : NULL;
-    int need_uptime = state ? state->need_uptime : 0;
-    int need_capacity = state ? state->need_capacity : 0;
-    (void) chosen_exit;
-    (void) dirinfo_type;
-    (void) need_uptime;
-    (void) need_capacity;
-
-    if (n_options_out)
-        *n_options_out = 0;
-
-    //XXX see entry_guards_set_from_config(options);
-
-    if (entry_guard_selection)
-        guard_selection_free(entry_guard_selection);
-
-    init_entry_guard_selection(options, for_directory);
-
-  retry:
-    guard = algo_choose_entry_guard_next(entry_guard_selection, options, now);
-    if (guard)
-        node = guard_to_node(guard);
-
-    if (!node)
-        goto retry;
-
-    //XXX check entry_guards_changed();
-
-    //XXX What is n_options_out in our case?
-    if (n_options_out)
-        *n_options_out = 1;
-
-    return node;
-}
-
 STATIC void
 fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
                          const int size)
@@ -617,6 +564,61 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes,
 
     log_info(LD_CIRC, "We sampled %d from %d dystopic guards",
         smartlist_len(sampled_dystopic_guards), smartlist_len(dystopic_nodes));
+}
+
+//These functions adapt our proposal to current tor code
+
+const node_t *
+choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
+    dirinfo_type_t dirinfo_type, int *n_options_out)
+{
+    //XXX choose_good_entry_server() ignores:
+    // - routers in the same family as the exit node
+    // - routers in the same family of the guards you have chosen
+    //Our proposal does not care.
+
+    log_info(LD_CIRC, "Using proposal 259 to choose entry guards.");
+
+    const or_options_t *options = get_options();
+    const node_t *node = NULL;
+    const entry_guard_t* guard = NULL;
+    time_t now = time(NULL);
+
+    //XXX we ignore this information while selecting a guard
+    const node_t *chosen_exit =
+        state ? build_state_get_exit_node(state) : NULL;
+    int need_uptime = state ? state->need_uptime : 0;
+    int need_capacity = state ? state->need_capacity : 0;
+    (void) chosen_exit;
+    (void) dirinfo_type;
+    (void) need_uptime;
+    (void) need_capacity;
+
+    if (n_options_out)
+        *n_options_out = 0;
+
+    //XXX see entry_guards_set_from_config(options);
+
+    if (entry_guard_selection)
+        guard_selection_free(entry_guard_selection);
+
+    init_entry_guard_selection(options, for_directory);
+
+  retry:
+    guard = algo_choose_entry_guard_next(entry_guard_selection, options, now);
+    if (guard)
+        node = guard_to_node(guard);
+
+    if (!node)
+        goto retry;
+
+    //XXX check entry_guards_changed();
+
+    //XXX What is n_options_out in our case?
+    if (n_options_out)
+        *n_options_out = 1;
+
+    return node;
 }
 
 void
