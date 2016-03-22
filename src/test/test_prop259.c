@@ -69,6 +69,22 @@ static const struct testcase_setup_t fake_network = {
     fake_network_setup, fake_network_cleanup
 };
 
+static const node_t*
+node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
+    bandwidth_weight_rule_t rule)
+{
+    (void) rule;
+
+    return smartlist_get(sl, 0);
+}
+
+static int
+is_bad_mock(const entry_guard_t *guard)
+{
+    return guard->bad_since != 0;
+}
+
+
 /* TODO:
  * choose_entry_guard_algo_next() test with state machine.
  *
@@ -103,15 +119,6 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     smartlist_free(sampled_dystopic);
     smartlist_free(sampled_utopic);
     guard_selection_free(guard_selection);
-}
-
-static const node_t*
-node_sl_choose_by_bandwidth_mock(const smartlist_t *sl,
-    bandwidth_weight_rule_t rule)
-{
-    (void) rule;
-
-    return smartlist_get(sl, 0);
 }
 
 static void
@@ -172,6 +179,7 @@ test_next_primary_guard(void *arg)
     entry_guard_t *chosen = NULL;
     (void) arg;
 
+    MOCK(is_bad, is_bad_mock);
     MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
 
     // all nodes are guards
@@ -222,6 +230,7 @@ test_next_primary_guard(void *arg)
 
   done:
     UNMOCK(node_sl_choose_by_bandwidth);
+    UNMOCK(is_bad);
     tor_free(g1);
     tor_free(g2);
     tor_free(used_guards);
@@ -241,6 +250,8 @@ test_fill_in_primary_guards(void *arg)
     entry_guard_t *g3 = NULL;
     entry_guard_t *g4 = NULL;
     (void) arg;
+
+    MOCK(is_bad, is_bad_mock);
 
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -265,6 +276,7 @@ test_fill_in_primary_guards(void *arg)
     tt_ptr_op(g3, OP_EQ, smartlist_get(primary_guards, 1));
 
   done:
+    UNMOCK(is_bad);
     tor_free(g1);
     tor_free(g2);
     tor_free(g3);
@@ -424,6 +436,7 @@ test_NEXT_transitions_to_PRIMARY_GUARDS_and_saves_previous_state(void *arg)
     entry_guard_t *g1 = NULL, *g2 = NULL, *g3 = NULL;
     (void) arg;
 
+    MOCK(is_bad, is_bad_mock);
     MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
 
     time_t now = 100;
@@ -455,6 +468,7 @@ test_NEXT_transitions_to_PRIMARY_GUARDS_and_saves_previous_state(void *arg)
 
   done:
     UNMOCK(node_sl_choose_by_bandwidth);
+    UNMOCK(is_bad);
     tor_free(g1);
     tor_free(g2);
     tor_free(g3);
@@ -477,6 +491,8 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     entry_guard_t *entry1 = NULL, *entry2 = NULL;
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
     (void) arg;
+
+    MOCK(is_bad, is_bad_mock);
 
     int n_primary_guards = 0;
     int dir = 0;
@@ -508,6 +524,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
 
   done:
+    UNMOCK(is_bad);
     tor_free(entry1);
     tor_free(entry2);
     tor_free(used_guards);
@@ -591,6 +608,8 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
     guard_selection_t *guard_selection = NULL;
     (void) arg;
 
+    MOCK(is_bad, is_bad_mock);
+
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
     g3 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -621,6 +640,7 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
     tt_ptr_op(guard, OP_EQ, g2);
 
   done:
+    UNMOCK(is_bad);
     tor_free(g1);
     tor_free(g2);
     tor_free(g3);
@@ -834,6 +854,8 @@ test_ON_NEW_CONSENSUS(void *arg)
     entry_guard_t *g1, *g2, *g3, *g4, *g5;
     (void) arg;
 
+    MOCK(is_bad, is_bad_mock);
+
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
     g3 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -896,7 +918,9 @@ test_ON_NEW_CONSENSUS(void *arg)
     tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0), OP_EQ, g1);
     tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1), OP_EQ, g3);
     tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2), OP_EQ, g5);
+
   done:
+    UNMOCK(is_bad);
     tor_free(g1);
     tor_free(g2);
     tor_free(g3);

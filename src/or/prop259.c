@@ -95,13 +95,10 @@ is_live(entry_guard_t *guard)
     return 0;
 }
 
-//XXX review whether bad_since is appropriate to know if a guard is listed
-//in the latest consensus. entry_guard_set_status suggests an unlisted guard
-//is a guard which we fail to find a node with node_get_by_id(entry->identity)
-static int
-is_bad(entry_guard_t *guard)
+MOCK_IMPL(STATIC int,
+is_bad,(const entry_guard_t *guard))
 {
-    return (guard->bad_since != 0);
+    return (node_get_by_id(guard->identity) == NULL);
 }
 
 static int
@@ -356,6 +353,7 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
     }
 }
 
+//XXX Is this mock used anywhere?
 MOCK_IMPL(STATIC entry_guard_t *,
 choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now))

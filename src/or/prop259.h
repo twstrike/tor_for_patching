@@ -59,6 +59,9 @@ choose_entry_guard_algo_start(
         int n_primary_guards,
         int dir);
 
+MOCK_DECL(STATIC int,
+is_bad,(const entry_guard_t *guard));
+
 MOCK_DECL(STATIC entry_guard_t *,
 choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now));
