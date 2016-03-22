@@ -598,6 +598,10 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //even before receiving the consensus. In this case, it would be called
     //with "for_directory" = 1 and would choose the directory authorities
     //(maybe)?
+    if (!used_guards || for_directory == 1) {
+        log_warn(LD_CIRC, "Not yet implemented in proposal 259");
+        return NULL;
+    }
 
     //XXX choose_good_entry_server() ignores:
     // - routers in the same family as the exit node
