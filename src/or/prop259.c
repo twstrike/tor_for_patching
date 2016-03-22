@@ -6,6 +6,8 @@
 
 #define PROP259_PRIVATE
 
+//XXX Think about it from a modularity perspective and reduce
+//the number of dependencies.
 #include "prop259.h"
 #include "nodelist.h"
 #include "routerlist.h"
