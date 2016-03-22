@@ -864,7 +864,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     g4->bad_since = 0;
     g5->bad_since = 0;
 
-    algo_on_new_consensus(guard_selection);
+    choose_entry_guard_algo_new_consensus(guard_selection);
 
     tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)), OP_EQ, 3);
     tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0), OP_EQ, g3);
@@ -877,7 +877,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     g4->bad_since = 0;
     g5->bad_since = 0;
 
-    algo_on_new_consensus(guard_selection);
+    choose_entry_guard_algo_new_consensus(guard_selection);
 
     tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)), OP_EQ, 5);
     tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0), OP_EQ, g1);
@@ -890,7 +890,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     g4->bad_since = 1;
     g5->bad_since = 0;
 
-    algo_on_new_consensus(guard_selection);
+    choose_entry_guard_algo_new_consensus(guard_selection);
 
     tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)), OP_EQ, 3);
     tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0), OP_EQ, g1);

@@ -462,7 +462,7 @@ choose_entry_guard_algo_start(
 }
 
 void
-algo_on_new_consensus(guard_selection_t *guard_selection)
+choose_entry_guard_algo_new_consensus(guard_selection_t *guard_selection)
 {
     int num_guards = guard_selection->num_primary_guards;
     smartlist_t *guards = guard_selection->primary_guards;
@@ -682,7 +682,7 @@ entry_guards_update_profiles(const or_options_t *options)
     if (!entry_guard_selection)
         init_entry_guard_selection(options, 0);
 
-    algo_on_new_consensus(entry_guard_selection);
+    choose_entry_guard_algo_new_consensus(entry_guard_selection);
 }
 
 void
