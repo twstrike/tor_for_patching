@@ -236,7 +236,6 @@ test_fill_in_primary_guards(void *arg)
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
     smartlist_t *used_guards = smartlist_new();
-    smartlist_t *primary_guards = smartlist_new();
     entry_guard_t *g1 = NULL;
     entry_guard_t *g2 = NULL;
     entry_guard_t *g3 = NULL;
@@ -256,10 +255,11 @@ test_fill_in_primary_guards(void *arg)
     smartlist_add(used_guards, g4);
 
     guard_selection->used_guards = used_guards;
-    guard_selection->primary_guards = primary_guards;
     guard_selection->num_primary_guards = 2;
 
     fill_in_primary_guards(guard_selection);
+
+    smartlist_t *primary_guards = guard_selection->primary_guards;
     tt_int_op(2, OP_EQ, smartlist_len(primary_guards));
     tt_ptr_op(g2, OP_EQ, smartlist_get(primary_guards, 0));
     tt_ptr_op(g3, OP_EQ, smartlist_get(primary_guards, 1));
@@ -300,6 +300,80 @@ test_fill_in_sampled_set(void *arg)
     tor_free(node1);
     tor_free(node2);
     tor_free(node3);
+}
+
+static void
+test_fill_in_remaining_utopic(void *arg)
+{
+    guard_selection_t *guard_selection = tor_malloc_zero(
+        sizeof(guard_selection_t));
+    smartlist_t *used = smartlist_new();
+    smartlist_t *sampled = smartlist_new();
+    node_t *node1 = tor_malloc_zero(sizeof(node_t));
+    node_t *node2 = tor_malloc_zero(sizeof(node_t));
+    node_t *node3 = tor_malloc_zero(sizeof(node_t));
+    (void) arg;
+
+    smartlist_add(sampled, node1);
+    smartlist_add(sampled, node2);
+    smartlist_add(sampled, node3);
+    smartlist_add(used, node2);
+
+		guard_selection->used_guards = used;
+
+    fill_in_remaining_utopic(guard_selection, sampled);
+    tt_int_op(smartlist_len(guard_selection->remaining_utopic_guards),
+				OP_EQ, 2);
+
+    tt_ptr_op(smartlist_get(guard_selection->remaining_utopic_guards, 0),
+				OP_EQ, node1);
+    tt_ptr_op(smartlist_get(guard_selection->remaining_utopic_guards, 1),
+				OP_EQ, node3);
+
+  done:
+    tor_free(node1);
+    tor_free(node2);
+    tor_free(node3);
+    smartlist_free(used);
+    smartlist_free(sampled);
+		guard_selection_free(guard_selection);
+}
+
+static void
+test_fill_in_remaining_dystopic(void *arg)
+{
+    guard_selection_t *guard_selection = tor_malloc_zero(
+        sizeof(guard_selection_t));
+    smartlist_t *used = smartlist_new();
+    smartlist_t *sampled = smartlist_new();
+    node_t *node1 = tor_malloc_zero(sizeof(node_t));
+    node_t *node2 = tor_malloc_zero(sizeof(node_t));
+    node_t *node3 = tor_malloc_zero(sizeof(node_t));
+    (void) arg;
+
+    smartlist_add(sampled, node1);
+    smartlist_add(sampled, node2);
+    smartlist_add(sampled, node3);
+    smartlist_add(used, node2);
+
+		guard_selection->used_guards = used;
+
+    fill_in_remaining_dystopic(guard_selection, sampled);
+    tt_int_op(smartlist_len(guard_selection->remaining_dystopic_guards),
+				OP_EQ, 2);
+
+    tt_ptr_op(smartlist_get(guard_selection->remaining_dystopic_guards, 0),
+				OP_EQ, node1);
+    tt_ptr_op(smartlist_get(guard_selection->remaining_dystopic_guards, 1),
+				OP_EQ, node3);
+
+  done:
+    tor_free(node1);
+    tor_free(node2);
+    tor_free(node3);
+    smartlist_free(used);
+    smartlist_free(sampled);
+		guard_selection_free(guard_selection);
 }
 
 static void
@@ -884,6 +958,12 @@ struct testcase_t entrynodes_new_tests[] = {
         TT_FORK, &fake_network, NULL },
     { "fill_in_sampled_set",
         test_fill_in_sampled_set,
+        0, NULL, NULL },
+    { "fill_in_remaining_utopic",
+        test_fill_in_remaining_utopic,
+        0, NULL, NULL },
+    { "fill_in_remaining_dystopic",
+        test_fill_in_remaining_dystopic,
         0, NULL, NULL },
     { "state_machine_transitions_to",
         test_state_machine_should_use_new_state_as_current_state,

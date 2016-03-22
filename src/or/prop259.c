@@ -206,6 +206,10 @@ next_by_bandwidth(smartlist_t *guards)
             smartlist_add(nodes, (void *)node);
     } SMARTLIST_FOREACH_END(e);
 
+    //XXX should not happen, but happens due the node -> guard translation
+    if (smartlist_len(nodes) == 0)
+        return NULL;
+
     const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
     if (node) {
         guard = node_to_guard(node);
@@ -366,14 +370,44 @@ algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
 }
 
 STATIC void
+fill_in_remaining_utopic(guard_selection_t *guard_selection,
+                         const smartlist_t *sampled_utopic)
+{
+    guard_selection->remaining_utopic_guards = smartlist_new();
+
+    SMARTLIST_FOREACH_BEGIN(sampled_utopic, node_t *, node) {
+        if (!smartlist_contains(guard_selection->used_guards, node)) {
+            smartlist_add(guard_selection->remaining_utopic_guards, node);
+        }
+    } SMARTLIST_FOREACH_END(node);
+}
+
+STATIC void
+fill_in_remaining_dystopic(guard_selection_t *guard_selection,
+                           const smartlist_t *sampled_dystopic)
+{
+    guard_selection->remaining_dystopic_guards = smartlist_new();
+
+    SMARTLIST_FOREACH_BEGIN(sampled_dystopic, node_t *, node) {
+        if (!smartlist_contains(guard_selection->used_guards, node)) {
+            smartlist_add(guard_selection->remaining_dystopic_guards, node);
+        }
+    } SMARTLIST_FOREACH_END(node);
+}
+
+STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection)
 {
+    guard_selection->primary_guards = smartlist_new();
+
     int num_guards = guard_selection->num_primary_guards;
     smartlist_t *primary = guard_selection->primary_guards;
     while (smartlist_len(primary) < num_guards) {
         entry_guard_t *guard = next_primary_guard(guard_selection);
-        if (guard)
-            smartlist_add(primary, guard);
+        if (!guard)
+            break;
+
+        smartlist_add(primary, guard);
     }
 }
 
@@ -388,33 +422,27 @@ guard_selection_free(guard_selection_t *guard_selection)
 guard_selection_t*
 algo_choose_entry_guard_start(
     smartlist_t *used_guards,
-    smartlist_t *sampled_utopic,
-    smartlist_t *sampled_dystopic,
+    const smartlist_t *sampled_utopic,
+    const smartlist_t *sampled_dystopic,
     smartlist_t *exclude_nodes,
     int n_primary_guards,
     int dir)
 {
-    guard_selection_t *guard_selection = tor_malloc_zero(
-        sizeof(guard_selection_t));
-    guard_selection->state = STATE_PRIMARY_GUARDS;
-    guard_selection->used_guards = used_guards;
-    guard_selection->primary_guards = smartlist_new();
-    guard_selection->remaining_utopic_guards = smartlist_new();
-    guard_selection->remaining_dystopic_guards = smartlist_new();
-    guard_selection->num_primary_guards = n_primary_guards;
-
-    //fill_in_remaining_utopic();
-    //fill_in_remainind_dystopic();
-    fill_in_primary_guards(guard_selection);
-
     //XXX fill remaining sets from sampled
-
-    (void) sampled_utopic;
-    (void) sampled_dystopic;
     (void) exclude_nodes;
 
     //XXX make sure is directory is used appropriately
     (void) dir;
+
+    guard_selection_t *guard_selection = tor_malloc_zero(
+        sizeof(guard_selection_t));
+    guard_selection->state = STATE_PRIMARY_GUARDS;
+    guard_selection->used_guards = used_guards;
+    guard_selection->num_primary_guards = n_primary_guards;
+
+    fill_in_remaining_utopic(guard_selection, sampled_utopic);
+    fill_in_remaining_dystopic(guard_selection, sampled_dystopic);
+    fill_in_primary_guards(guard_selection);
 
     return guard_selection;
 }
@@ -598,7 +626,8 @@ entry_guards_update_profiles(const or_options_t *options)
     return; //do nothing
 #endif
 
-    smartlist_t *utopic = get_all_guards(0);
+    int for_directory = 0;
+    smartlist_t *utopic = get_all_guards(for_directory);
     smartlist_t *dystopic = smartlist_new();
 
     SMARTLIST_FOREACH_BEGIN(utopic, node_t *, node) {
@@ -606,6 +635,8 @@ entry_guards_update_profiles(const or_options_t *options)
             smartlist_add(dystopic, node);
     } SMARTLIST_FOREACH_END(node);
 
+    //XXX The size of the utopic and dystopic sets may change, but we only
+    //change the sampled sets when these sizes increase.
     fill_in_sampled_sets(utopic, dystopic);
 
     smartlist_free(utopic);

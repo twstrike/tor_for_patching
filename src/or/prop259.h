@@ -47,8 +47,8 @@ smartlist_t* get_all_dystopic_guards(void);
 guard_selection_t*
 algo_choose_entry_guard_start(
         smartlist_t *used_guards,
-        smartlist_t *sampled_utopic_guards,
-        smartlist_t *sampled_dystopic_guards,
+        const smartlist_t *sampled_utopic_guards,
+        const smartlist_t *sampled_dystopic_guards,
         smartlist_t *exclude_nodes,
         int n_primary_guards,
         int dir);
@@ -77,6 +77,14 @@ fill_in_primary_guards(guard_selection_t *guard_selection);
 STATIC void
 fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
                          const int size);
+
+STATIC void
+fill_in_remaining_utopic(guard_selection_t *guard_selection,
+                         const smartlist_t *sampled_utopic);
+
+STATIC void
+fill_in_remaining_dystopic(guard_selection_t *guard_selection,
+                           const smartlist_t *sampled_dystopic);
 #endif
 
 #endif
