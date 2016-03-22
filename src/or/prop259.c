@@ -363,7 +363,7 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
 }
 
 MOCK_IMPL(entry_guard_t *,
-algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
+choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now))
 {
     check_primary_guards_retry_interval(guard_selection, options, now);
@@ -640,7 +640,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     init_entry_guard_selection(options, for_directory);
 
   retry:
-    guard = algo_choose_entry_guard_next(entry_guard_selection, options, now);
+    guard = choose_entry_guard_algo_next(entry_guard_selection, options, now);
     if (guard)
         node = guard_to_node(guard);
 

@@ -70,7 +70,7 @@ static const struct testcase_setup_t fake_network = {
 };
 
 /* TODO:
- * algo_choose_entry_guard_next() test with state machine.
+ * choose_entry_guard_algo_next() test with state machine.
  *
  */
 
@@ -446,11 +446,11 @@ test_NEXT_transitions_to_PRIMARY_GUARDS_and_saves_previous_state(void *arg)
     guard_selection->remaining_utopic_guards = remaining_utopic_guards;
     guard_selection->remaining_dystopic_guards = remaining_dystopic_guards;
 
-    chosen = algo_choose_entry_guard_next(guard_selection, options, now-1);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, now-1);
     tt_ptr_op(chosen, OP_EQ, g3);
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
 
-    chosen = algo_choose_entry_guard_next(guard_selection, options, now);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, now);
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
 
   done:
@@ -494,18 +494,18 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     smartlist_add(guard_selection->primary_guards, entry1);
     smartlist_add(guard_selection->primary_guards, entry2);
 
-    entry_guard_t *chosen = algo_choose_entry_guard_next(
+    entry_guard_t *chosen = choose_entry_guard_algo_next(
         guard_selection, options, 0);
     tt_ptr_op(entry1, OP_EQ, chosen);
-    chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(entry1, OP_EQ, chosen);
 
     entry1->unreachable_since = 1;
-    chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(entry2, OP_EQ, chosen);
 
     entry1->unreachable_since = 0;
-    chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
 
   done:
     tor_free(entry1);
@@ -540,7 +540,7 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
         dir);
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
-    algo_choose_entry_guard_next(guard_selection, options, 0);
+    choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
 
   done:
@@ -572,7 +572,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
     guard_selection->previous_state = STATE_TRY_DYSTOPIC;
-    algo_choose_entry_guard_next(guard_selection, options, 0);
+    choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_DYSTOPIC);
 
   done:
@@ -608,16 +608,16 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
 
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
+    guard = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(guard, OP_EQ, g2);
 
     g2->unreachable_since = 1;
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
+    guard = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(guard, OP_EQ, g3);
 
     //XXX this seems to be unrealistic
     g2->unreachable_since = 0;
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
+    guard = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(guard, OP_EQ, g2);
 
   done:
@@ -668,18 +668,18 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg)
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_utopic_guards = remaining_utopic_guards;
 
-    entry_guard_t* chosen = algo_choose_entry_guard_next(
+    entry_guard_t* chosen = choose_entry_guard_algo_next(
         guard_selection, options, 0);
     tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(n2->identity));
 
     chosen->unreachable_since = 1;
-    chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(n3->identity));
     tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards,
         n2));
 
     chosen->unreachable_since = 1;
-    chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(chosen, OP_EQ, NULL);
     tt_assert(!smartlist_contains(guard_selection->remaining_utopic_guards,
         n3));
@@ -715,7 +715,7 @@ test_TRY_UTOPIC_transitions_to_TRY_DYSTOPIC(void *arg)
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_utopic_guards = remaining_utopic_guards;
 
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
+    guard = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(guard, OP_EQ, NULL);
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_DYSTOPIC);
 
@@ -765,18 +765,18 @@ test_TRY_DYSTOPIC_returns_each_REMAINING_DYSTOPIC_guard(void *arg)
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_dystopic_guards = remaining_dystopic;
 
-    entry_guard_t *chosen = algo_choose_entry_guard_next(guard_selection,
+    entry_guard_t *chosen = choose_entry_guard_algo_next(guard_selection,
                                                          options, 0);
     tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(n2->identity));
 
     chosen->unreachable_since = 1;
-    chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(n3->identity));
     tt_assert(!smartlist_contains(guard_selection->remaining_dystopic_guards,
         n2));
 
     chosen->unreachable_since = 1;
-    chosen = algo_choose_entry_guard_next(guard_selection, options, 0);
+    chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(chosen, OP_EQ, NULL);
     tt_assert(!smartlist_contains(guard_selection->remaining_dystopic_guards,
         n3));
@@ -812,7 +812,7 @@ test_TRY_DYSTOPIC_transitions_to_PRIMARY_GUARDS(void *arg)
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_dystopic_guards = remaining_dystopic;
 
-    guard = algo_choose_entry_guard_next(guard_selection, options, 0);
+    guard = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(guard, OP_EQ, NULL);
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
 

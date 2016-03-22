@@ -60,7 +60,7 @@ choose_entry_guard_algo_start(
         int dir);
 
 MOCK_DECL(entry_guard_t *,
-algo_choose_entry_guard_next,(guard_selection_t *guard_selection,
+choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now));
 void
 guard_selection_free(guard_selection_t *guard_selection);
