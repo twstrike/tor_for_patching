@@ -86,14 +86,10 @@ is_dystopic(node_t *node)
 }
 
 static int
-is_live(entry_guard_t *guard)
+is_live(const entry_guard_t *guard)
 {
     //XXX using entry_is_live() would introduce the current progressive retry
     //behavior. I suspect we should evaluate using this at some point.
-
-    if (guard->can_retry)
-        return 1;
-
     if (guard->unreachable_since == 0)
         return 1;
 
@@ -107,20 +103,34 @@ is_bad,(const entry_guard_t *guard))
 }
 
 static int
-should_try(entry_guard_t* guard, int for_directory)
+should_ignore(const entry_guard_t *guard, int for_directory)
 {
-    if (guard->can_retry)
-        return 1;
-
-    if (is_live(guard) && !is_bad(guard))
-        return 1;
-
     // Dont use an entry guard when we need a directory guard
     const node_t* node = guard_to_node(guard);
-    if (for_directory && node_is_dir(node))
+    if (for_directory && !node_is_dir(node))
        return 1;
 
+    //XXX this is how need_uptime and need_capacity fits
+    //if (!node_is_unreliable(node, need_uptime, need_capacity, 0))
+    //{
+    //  return 0;
+    //}
+
     return 0;
+}
+
+static int
+should_try(const entry_guard_t* guard, int for_directory)
+{
+    if (!guard->can_retry) {
+        if (!is_live(guard))
+            return 0;
+
+        if (is_bad(guard))
+            return 0;
+    }
+
+    return !should_ignore(guard, for_directory);
 }
 
 static void
