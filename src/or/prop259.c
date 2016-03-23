@@ -542,7 +542,8 @@ init_entry_guard_selection(const or_options_t *options, int for_directory)
 {
     const int num_needed = decide_num_guards(options, for_directory);
 
-    //XXX How to load this from the state file
+    //XXX load this from the state file
+    //It also feels wrong to have it here, but the algo crashes if it is NULL
     if (!used_guards)
         used_guards = smartlist_new();
 
@@ -625,16 +626,19 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (!consensus)
         return NULL;
 
-    //XXX can it have only me?
-    if (smartlist_len(nodelist_get_list()) <= 1)
+    //We have received a consensus but not enough to build a circuit
+    if (!entry_guard_selection) { // same as !router_have_minimum_dir_info()
+        //Is it enough to get the sample sets?
+        //entry_guards_update_profiles(options);
         return NULL;
+    }
 
     //XXX choose_good_entry_server() ignores:
     // - routers in the same family as the exit node
     // - routers in the same family of the guards you have chosen
     //Our proposal does not care.
 
-    log_info(LD_CIRC, "Using proposal 259 to choose entry guards.");
+    log_warn(LD_CIRC, "Using proposal 259 to choose entry guards.");
 
     const or_options_t *options = get_options();
     const node_t *node = NULL;
@@ -656,9 +660,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
     //XXX see entry_guards_set_from_config(options);
 
-    if (entry_guard_selection)
-        guard_selection_free(entry_guard_selection);
-
+    guard_selection_free(entry_guard_selection);
     init_entry_guard_selection(options, for_directory);
 
   retry:
@@ -693,6 +695,8 @@ entry_guards_update_profiles(const or_options_t *options)
 #ifndef USE_PROP_259
     return; //do nothing
 #endif
+
+    log_warn(LD_CIRC, "Received a new consensus");
 
     //We recreate the sample sets without restricting to directory
     //guards, because most of the entry guards will be directory in
