@@ -115,7 +115,7 @@ mark_for_retry(const smartlist_t *guards)
 static void
 mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 {
-    log_debug(LD_CIRC, "Will retry remaining used guards.");
+    log_warn(LD_CIRC, "Will retry remaining used guards.");
 
     SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
         if (smartlist_contains(guard_selection->primary_guards, e)) {
@@ -130,7 +130,7 @@ static void
 transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection)
 {
     if (guard_selection->previous_state != 0) {
-        log_debug(LD_CIRC, "Going back to previous state");
+        log_warn(LD_CIRC, "Going back to previous state");
         transition_to(guard_selection, guard_selection->previous_state);
     } else {
         mark_remaining_used_for_retry(guard_selection);
@@ -147,7 +147,7 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
             return e;
     } SMARTLIST_FOREACH_END(e);
 
-    log_debug(LD_CIRC, "No PRIMARY_GUARDS is live.");
+    log_warn(LD_CIRC, "No PRIMARY_GUARDS is live.");
 
     transition_to_previous_state_or_try_utopic(guard_selection);
     return NULL;
@@ -173,14 +173,14 @@ transition_to(guard_selection_t *guard_selection,
 {
     switch (state) {
     case STATE_INVALID:
-        log_debug(LD_CIRC, "Transitioned to INVALID_STATE.");
+        log_warn(LD_CIRC, "Transitioned to INVALID_STATE.");
         return;
     case STATE_PRIMARY_GUARDS:
-        log_debug(LD_CIRC, "Transitioned to STATE_PRIMARY_GUARDS.");
+        log_warn(LD_CIRC, "Transitioned to STATE_PRIMARY_GUARDS.");
     case STATE_TRY_UTOPIC:
-        log_debug(LD_CIRC, "Transitioned to STATE_TRY_UTOPIC.");
+        log_warn(LD_CIRC, "Transitioned to STATE_TRY_UTOPIC.");
     case STATE_TRY_DYSTOPIC:
-        log_debug(LD_CIRC, "Transitioned to STATE_TRY_DYSTOPIC.");
+        log_warn(LD_CIRC, "Transitioned to STATE_TRY_DYSTOPIC.");
     }
 
     guard_selection->state = state;
@@ -306,7 +306,7 @@ each_remaining_dystopic_by_bandwidth(guard_selection_t* guard_selection)
 static entry_guard_t*
 state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
 {
-    log_debug(LD_CIRC, "Will try USED_GUARDS not in PRIMARY_GUARDS.");
+    log_warn(LD_CIRC, "Will try USED_GUARDS not in PRIMARY_GUARDS.");
 
     entry_guard_t *guard = each_used_guard_not_in_primary_guards(
         guard_selection);
@@ -315,7 +315,7 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
         return guard;
     }
 
-    log_debug(LD_CIRC, "Will try REMAINING_UTOPIC_GUARDS.");
+    log_warn(LD_CIRC, "Will try REMAINING_UTOPIC_GUARDS.");
 
     guard = each_remaining_utopic_by_bandwidth(guard_selection);
     if (guard) {
@@ -330,7 +330,7 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
 static entry_guard_t*
 state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
 {
-    log_debug(LD_CIRC, "Will try REMAINING_DYSTOPIC_GUARDS.");
+    log_warn(LD_CIRC, "Will try REMAINING_DYSTOPIC_GUARDS.");
 
     entry_guard_t *guard = each_remaining_dystopic_by_bandwidth(
         guard_selection);
@@ -366,7 +366,7 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
     time_t primary_retry_time = now - options->PrimaryGuardsRetryInterval * 60;
 
     if (has_any_been_tried_before(guards, primary_retry_time)) {
-        log_debug(LD_CIRC, "Some PRIMARY_GUARDS have been tried more than %d "
+        log_warn(LD_CIRC, "Some PRIMARY_GUARDS have been tried more than %d "
             "minutes ago. Will retry PRIMARY_GUARDS.",
             options->PrimaryGuardsRetryInterval);
 
@@ -586,13 +586,13 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes,
     fill_in_node_sampled_set(sampled_utopic_guards, utopic_nodes,
         sample_set_threshold * smartlist_len(utopic_nodes));
 
-    log_debug(LD_CIRC, "We sampled %d from %d utopic guards",
+    log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
         smartlist_len(sampled_utopic_guards), smartlist_len(utopic_nodes));
 
     fill_in_node_sampled_set(sampled_dystopic_guards, dystopic_nodes,
         sample_set_threshold * smartlist_len(dystopic_nodes));
 
-    log_debug(LD_CIRC, "We sampled %d from %d dystopic guards",
+    log_warn(LD_CIRC, "We sampled %d from %d dystopic guards",
         smartlist_len(sampled_dystopic_guards), smartlist_len(dystopic_nodes));
 }
 
