@@ -84,7 +84,6 @@ is_bad_mock(const entry_guard_t *guard)
     return guard->bad_since != 0;
 }
 
-
 /* TODO:
  * choose_entry_guard_algo_next() test with state machine.
  *
@@ -888,10 +887,14 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     choose_entry_guard_algo_new_consensus(guard_selection);
 
-    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)), OP_EQ, 3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0), OP_EQ, g3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1), OP_EQ, g4);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2), OP_EQ, g5);
+    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)),
+        OP_EQ, 3);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0),
+        OP_EQ, g3);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1),
+        OP_EQ, g4);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2),
+        OP_EQ, g5);
 
     g1->bad_since = 0;
     g2->bad_since = 0;
@@ -901,10 +904,14 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     choose_entry_guard_algo_new_consensus(guard_selection);
 
-    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)), OP_EQ, 5);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0), OP_EQ, g1);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1), OP_EQ, g2);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2), OP_EQ, g3);
+    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)),
+        OP_EQ, 5);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0),
+        OP_EQ, g1);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1),
+        OP_EQ, g2);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2),
+        OP_EQ, g3);
 
     g1->bad_since = 0;
     g2->bad_since = 1;
@@ -914,10 +921,14 @@ test_ON_NEW_CONSENSUS(void *arg)
 
     choose_entry_guard_algo_new_consensus(guard_selection);
 
-    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)), OP_EQ, 3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0), OP_EQ, g1);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1), OP_EQ, g3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2), OP_EQ, g5);
+    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)),
+        OP_EQ, 3);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0),
+        OP_EQ, g1);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1),
+        OP_EQ, g3);
+    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2),
+        OP_EQ, g5);
 
   done:
     UNMOCK(is_bad);

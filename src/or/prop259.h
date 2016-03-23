@@ -43,7 +43,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 void
 entry_guards_update_profiles(const or_options_t *options);
 
-
 void guard_selection_register_connect_status(const entry_guard_t *guard,
                                              int succeeded);
 

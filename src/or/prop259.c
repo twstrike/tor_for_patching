@@ -723,3 +723,4 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
     if (succeeded)
         choose_entry_guard_algo_end(entry_guard_selection, guard);
 }
+
