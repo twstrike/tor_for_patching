@@ -14,6 +14,7 @@
 #include "config.h"
 #include "circuitbuild.h"
 #include "networkstatus.h"
+#include "policies.h"
 
 //XXX Find the appropriate place for this global state
 
@@ -26,7 +27,6 @@ static smartlist_t *used_guards = NULL;
 static smartlist_t *sampled_utopic_guards = NULL;
 static smartlist_t *sampled_dystopic_guards = NULL;
 
-//XXX This is wrong, we should use the FascistFirewall setting
 static int
 is_dystopic_port(uint16_t port)
 {
@@ -42,8 +42,14 @@ is_dystopic_port(uint16_t port)
 static int
 is_dystopic(node_t *node)
 {
+    //From router_choose_random_node()
+    int pref_addr = 1;
+    if (firewall_is_fascist_or())
+        return fascist_firewall_allows_node(node, FIREWALL_OR_CONNECTION,
+                                            pref_addr);
+
     //XXX there might be false positive if we dont support IPV6
-    //but the guard on listen to a dystopic port in IPV6
+    //but the guard only listen to a dystopic port in IPV6
 
     if (node->ri) {
         if (is_dystopic_port(node->ri->or_port))
