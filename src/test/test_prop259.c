@@ -151,13 +151,13 @@ test_next_by_bandwidth_return_each_entry(void *arg)
     smartlist_add(guards, g2);
     smartlist_add(guards, g3); // this should be ignored
 
-    guard = next_by_bandwidth(guards);
+    guard = next_by_bandwidth(guards, 0);
     tt_ptr_op(guard, OP_EQ, g1);
 
-    guard = next_by_bandwidth(guards);
+    guard = next_by_bandwidth(guards, 0);
     tt_ptr_op(guard, OP_EQ, g2);
 
-    guard = next_by_bandwidth(guards);
+    guard = next_by_bandwidth(guards, 0);
     tt_ptr_op(guard, OP_EQ, NULL);
 
   done:

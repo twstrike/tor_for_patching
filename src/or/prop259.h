@@ -20,6 +20,7 @@ typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
 
+    int for_directory;
     int num_primary_guards;
 
     //They are lists of node_t because they havent been chosen as guards
@@ -79,7 +80,7 @@ STATIC const node_t*
 next_node_by_bandwidth(smartlist_t *nodes);
 
 STATIC entry_guard_t*
-next_by_bandwidth(smartlist_t *guards);
+next_by_bandwidth(smartlist_t *guards, int for_directory);
 
 STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection);

@@ -205,7 +205,7 @@ next_node_by_bandwidth(smartlist_t *nodes)
 }
 
 STATIC entry_guard_t*
-next_by_bandwidth(smartlist_t *guards)
+next_by_bandwidth(smartlist_t *guards, int for_directory)
 {
     entry_guard_t *guard = NULL;
     smartlist_t *nodes = smartlist_new();
@@ -227,10 +227,8 @@ next_by_bandwidth(smartlist_t *guards)
 
     const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
     if (node) {
-        //XXX Add for directory
-        int for_directory = 0;
+        //XXX avoid the global entry_guards but still create a entry_guard_t
         add_an_entry_guard(node, 0, 0, 0, for_directory);
-
         guard = node_to_guard(node);
         tor_assert(guard);
         smartlist_remove(guards, guard);
@@ -256,7 +254,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 }
 
 static entry_guard_t*
-each_remaining_by_bandwidth(smartlist_t *nodes)
+each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
 {
     entry_guard_t *guard = NULL;
     smartlist_t *remaining = smartlist_new();
@@ -268,10 +266,8 @@ each_remaining_by_bandwidth(smartlist_t *nodes)
             break;
         }
 
-        //XXX Add for directory
-        int for_directory = 0;
+        //XXX avoid the global entry_guards but still create a entry_guard_t
         add_an_entry_guard(node, 0, 0, 0, for_directory);
-
         entry_guard_t *g = node_to_guard(node);
         tor_assert(g);
 
@@ -293,14 +289,16 @@ static entry_guard_t*
 each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
 {
     return each_remaining_by_bandwidth(
-                   guard_selection->remaining_utopic_guards);
+                   guard_selection->remaining_utopic_guards,
+                   guard_selection->for_directory);
 }
 
 static entry_guard_t*
 each_remaining_dystopic_by_bandwidth(guard_selection_t* guard_selection)
 {
     return each_remaining_by_bandwidth(
-                   guard_selection->remaining_dystopic_guards);
+                   guard_selection->remaining_dystopic_guards,
+                   guard_selection->for_directory);
 }
 
 static entry_guard_t*
@@ -453,16 +451,14 @@ choose_entry_guard_algo_start(
     const smartlist_t *sampled_dystopic,
     smartlist_t *exclude_nodes,
     int n_primary_guards,
-    int dir)
+    int for_directory)
 {
     //XXX fill remaining sets from sampled
     (void) exclude_nodes;
 
-    //XXX make sure is directory is used appropriately
-    (void) dir;
-
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
+    guard_selection->for_directory = for_directory;
     guard_selection->state = STATE_PRIMARY_GUARDS;
     guard_selection->used_guards = used_guards;
     guard_selection->num_primary_guards = n_primary_guards;
@@ -621,11 +617,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (smartlist_len(nodelist_get_list()) <= 1)
         return NULL;
 
-    if (for_directory == 1) {
-        log_warn(LD_CIRC, "Not yet implemented in proposal 259");
-        return NULL;
-    }
-
     //XXX choose_good_entry_server() ignores:
     // - routers in the same family as the exit node
     // - routers in the same family of the guards you have chosen
@@ -660,12 +651,19 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
   retry:
     guard = choose_entry_guard_algo_next(entry_guard_selection, options, now);
-    if (guard)
-        node = guard_to_node(guard);
 
     // This only exists because NEXT() can return NULL when transitioning
     // between states
+    if (!guard)
+        goto retry;
+
+    // Guard is not in the consensus anymore. Not sure if this is possible
+    node = guard_to_node(guard);
     if (!node)
+        goto retry;
+
+    // Dont use an entry guard when we need a directory guard
+    if (for_directory && !node_is_dir(node))
         goto retry;
 
     //XXX check entry_guards_changed();
@@ -684,6 +682,9 @@ entry_guards_update_profiles(const or_options_t *options)
     return; //do nothing
 #endif
 
+    //We recreate the sample sets without restricting to directory
+    //guards, because most of the entry guards will be directory in
+    //the near ideal future.
     int for_directory = 0;
     smartlist_t *utopic = get_all_guards(for_directory);
     smartlist_t *dystopic = smartlist_new();
