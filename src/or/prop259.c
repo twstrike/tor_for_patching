@@ -500,6 +500,16 @@ nonbad_guards(smartlist_t *guards)
     return nonbad_guards;
 }
 
+static void
+add_nodes_to(smartlist_t *nodes, const smartlist_t *guards)
+{
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        const node_t *node = guard_to_node(e);
+        if (node)
+            smartlist_add(nodes, (void*) node);
+    } SMARTLIST_FOREACH_END(e);
+}
+
 STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection)
 {
@@ -511,15 +521,17 @@ next_primary_guard(guard_selection_t *guard_selection)
             return e;
     } SMARTLIST_FOREACH_END(e);
 
-    smartlist_t *remaining = smartlist_new();
-
-    //XXX remaining will be a list of nodes, but used a list of guards.
     //Need to normalize, otherwise subtract wont work
+    smartlist_t *except = smartlist_new();
+    add_nodes_to(except, used);
+    add_nodes_to(except, primary);
+    smartlist_t *remaining = smartlist_new();
     smartlist_add_all(remaining, guard_selection->remaining_utopic_guards);
-    smartlist_subtract(remaining, used);
-    smartlist_subtract(remaining, primary);
+    smartlist_subtract(remaining, except);
+    smartlist_free(except);
 
-    entry_guard_t *guard = next_by_bandwidth(remaining);
+    entry_guard_t *guard = next_by_bandwidth(remaining,
+        guard_selection->for_directory);
 
     tor_free(remaining);
     return guard;
