@@ -27,6 +27,20 @@ static smartlist_t *used_guards = NULL;
 static smartlist_t *sampled_utopic_guards = NULL;
 static smartlist_t *sampled_dystopic_guards = NULL;
 
+//XXX review if this is the right way of doing this
+static const node_t*
+guard_to_node(const entry_guard_t *guard)
+{
+    return node_get_by_id(guard->identity);
+}
+
+//XXX review if this is the right way of doing this
+static entry_guard_t*
+node_to_guard(const node_t *node)
+{
+    return entry_guard_get_by_id_digest(node->identity);
+}
+
 static int
 is_dystopic_port(uint16_t port)
 {
@@ -93,13 +107,18 @@ is_bad,(const entry_guard_t *guard))
 }
 
 static int
-should_try(entry_guard_t* guard)
+should_try(entry_guard_t* guard, int for_directory)
 {
     if (guard->can_retry)
         return 1;
 
     if (is_live(guard) && !is_bad(guard))
         return 1;
+
+    // Dont use an entry guard when we need a directory guard
+    const node_t* node = guard_to_node(guard);
+    if (for_directory && node_is_dir(node))
+       return 1;
 
     return 0;
 }
@@ -143,7 +162,7 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 {
     smartlist_t *guards = guard_selection->primary_guards;
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (should_try(e))
+        if (should_try(e, guard_selection->for_directory))
             return e;
     } SMARTLIST_FOREACH_END(e);
 
@@ -151,20 +170,6 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 
     transition_to_previous_state_or_try_utopic(guard_selection);
     return NULL;
-}
-
-//XXX review if this is the right way of doing this
-static const node_t*
-guard_to_node(const entry_guard_t *guard)
-{
-    return node_get_by_id(guard->identity);
-}
-
-//XXX review if this is the right way of doing this
-static entry_guard_t*
-node_to_guard(const node_t *node)
-{
-    return entry_guard_get_by_id_digest(node->identity);
 }
 
 STATIC void
@@ -246,7 +251,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
             continue;
         }
 
-        if (should_try(e))
+        if (should_try(e, guard_selection->for_directory))
             return e;
     } SMARTLIST_FOREACH_END(e);
 
@@ -274,7 +279,7 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
         if (!is_live(g))
             smartlist_remove(nodes, node);
 
-        if (!should_try(g))
+        if (!should_try(g, for_directory))
             continue;
 
         guard = g;
@@ -673,12 +678,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
     // Guard is not in the consensus anymore. Not sure if this is possible
     node = guard_to_node(guard);
-    if (!node)
-        goto retry;
-
-    // Dont use an entry guard when we need a directory guard
-    if (for_directory && !node_is_dir(node))
-        goto retry;
+    tor_assert(node);
 
     //XXX check entry_guards_changed();
 
