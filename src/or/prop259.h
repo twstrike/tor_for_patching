@@ -43,7 +43,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 void
 entry_guards_update_profiles(const or_options_t *options);
 
-smartlist_t* get_all_dystopic_guards(void);
 
 void guard_selection_register_connect_status(const entry_guard_t *guard,
                                              int succeeded);
@@ -62,16 +61,16 @@ choose_entry_guard_algo_start(
 MOCK_DECL(STATIC int,
 is_bad,(const entry_guard_t *guard));
 
-MOCK_DECL(STATIC entry_guard_t *,
-choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
-                              const or_options_t *options, time_t now));
+STATIC entry_guard_t *
+choose_entry_guard_algo_next(guard_selection_t *guard_selection,
+                              const or_options_t *options, time_t now);
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection);
 
 STATIC void
 transition_to(guard_selection_t *algo, guard_selection_state_t state);
 
-void
+STATIC void
 choose_entry_guard_algo_new_consensus(guard_selection_t *guard_selection);
 
 STATIC entry_guard_t*

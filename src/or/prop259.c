@@ -65,21 +65,6 @@ is_dystopic(node_t *node)
     return 0;
 }
 
-smartlist_t*
-get_all_dystopic_guards(void)
-{
-    smartlist_t *dystopic = smartlist_new();
-    smartlist_t *all = get_all_guards(0);
-
-    SMARTLIST_FOREACH_BEGIN(all, node_t *, node) {
-        if (is_dystopic(node))
-            smartlist_add(dystopic, node);
-    } SMARTLIST_FOREACH_END(node);
-
-    smartlist_free(all);
-    return dystopic;
-}
-
 static int
 is_live(entry_guard_t *guard)
 {
@@ -357,10 +342,9 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
     }
 }
 
-//XXX Is this mock used anywhere?
-MOCK_IMPL(STATIC entry_guard_t *,
-choose_entry_guard_algo_next,(guard_selection_t *guard_selection,
-                              const or_options_t *options, time_t now))
+STATIC entry_guard_t *
+choose_entry_guard_algo_next(guard_selection_t *guard_selection,
+                              const or_options_t *options, time_t now)
 {
     check_primary_guards_retry_interval(guard_selection, options, now);
 
@@ -457,7 +441,7 @@ choose_entry_guard_algo_start(
     return guard_selection;
 }
 
-void
+STATIC void
 choose_entry_guard_algo_new_consensus(guard_selection_t *guard_selection)
 {
     int num_guards = guard_selection->num_primary_guards;
@@ -589,6 +573,8 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
 
 //These functions adapt our proposal to current tor code
 
+// PUBLIC INTERFACE ----------------------------------------
+
 const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
@@ -619,15 +605,15 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     const entry_guard_t* guard = NULL;
     time_t now = time(NULL);
 
-    //XXX we ignore this information while selecting a guard
-    const node_t *chosen_exit =
-        state ? build_state_get_exit_node(state) : NULL;
-    int need_uptime = state ? state->need_uptime : 0;
-    int need_capacity = state ? state->need_capacity : 0;
-    (void) chosen_exit;
+    /* const node_t *chosen_exit = */
+    /*     state ? build_state_get_exit_node(state) : NULL; */
+    /* int need_uptime = state ? state->need_uptime : 0; */
+    /* int need_capacity = state ? state->need_capacity : 0; */
+    /* (void) chosen_exit; */
+    (void) state;
     (void) dirinfo_type;
-    (void) need_uptime;
-    (void) need_capacity;
+    /* (void) need_uptime; */
+    /* (void) need_capacity; */
 
     if (n_options_out)
         *n_options_out = 0;
