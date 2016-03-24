@@ -121,52 +121,6 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
 }
 
 static void
-test_next_by_bandwidth_return_each_entry(void *arg)
-{
-    entry_guard_t* guard = NULL;
-    smartlist_t *guards = NULL;
-    entry_guard_t *g3 = NULL;
-    (void) arg;
-
-    MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
-
-    // all nodes are guards
-    tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
-
-    smartlist_t *our_nodelist = nodelist_get_list();
-    SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
-        const node_t *node_tmp;
-        node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
-        tt_assert(node_tmp);
-    } SMARTLIST_FOREACH_END(node);
-
-    node_t *node = smartlist_get(our_nodelist, 0);
-    entry_guard_t *g1 = entry_guard_get_by_id_digest(node->identity);
-    node = smartlist_get(our_nodelist, 1);
-    entry_guard_t *g2 = entry_guard_get_by_id_digest(node->identity);
-    g3 = tor_malloc_zero(sizeof(entry_guard_t));
-
-    guards = smartlist_new();
-    smartlist_add(guards, g1);
-    smartlist_add(guards, g2);
-    smartlist_add(guards, g3); // this should be ignored
-
-    guard = next_by_bandwidth(guards, 0);
-    tt_ptr_op(guard, OP_EQ, g1);
-
-    guard = next_by_bandwidth(guards, 0);
-    tt_ptr_op(guard, OP_EQ, g2);
-
-    guard = next_by_bandwidth(guards, 0);
-    tt_ptr_op(guard, OP_EQ, NULL);
-
-  done:
-    UNMOCK(node_sl_choose_by_bandwidth);
-    smartlist_free(guards);
-    tor_free(g3);
-}
-
-static void
 test_next_primary_guard(void *arg)
 {
     guard_selection_t *guard_selection = tor_malloc_zero(
@@ -174,35 +128,31 @@ test_next_primary_guard(void *arg)
     smartlist_t *used_guards = smartlist_new();
     smartlist_t *primary_guards = smartlist_new();
     smartlist_t *remaining_utopic_guards = smartlist_new();
-    entry_guard_t *g1 = NULL, *g2 = NULL;
+    entry_guard_t *g2 = NULL;
     entry_guard_t *chosen = NULL;
     (void) arg;
 
-    MOCK(is_bad, is_bad_mock);
     MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
 
     // all nodes are guards
     tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
 
     smartlist_t *our_nodelist = nodelist_get_list();
-    SMARTLIST_FOREACH_BEGIN(our_nodelist, const node_t *, node) {
-        const node_t *node_tmp;
-        node_tmp = add_an_entry_guard(node, 0, 1, 0, 0);
-        tt_assert(node_tmp);
-    } SMARTLIST_FOREACH_END(node);
 
-    g1 = tor_malloc_zero(sizeof(entry_guard_t));
+    node_t *node = smartlist_get(our_nodelist, 0);
+    smartlist_add(remaining_utopic_guards, node);
+    add_an_entry_guard(node, 0, 1, 0, 0);
+    entry_guard_t *g1 = entry_guard_get_by_id_digest(node->identity);
+
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
     smartlist_add(used_guards, g1);
     smartlist_add(used_guards, g2);
 
-    node_t *node = smartlist_get(our_nodelist, 0);
-    entry_guard_t *g3 = entry_guard_get_by_id_digest(node->identity);
-    node = smartlist_get(our_nodelist, 1);
-    entry_guard_t *g4 = entry_guard_get_by_id_digest(node->identity);
-    smartlist_add(remaining_utopic_guards, g1);
-    smartlist_add(remaining_utopic_guards, g3);
-    smartlist_add(remaining_utopic_guards, g4);
+    node_t *node3 = smartlist_get(our_nodelist, 1);
+    smartlist_add(remaining_utopic_guards, node3);
+
+    node_t *node4 = smartlist_get(our_nodelist, 2);
+    smartlist_add(remaining_utopic_guards, node4);
 
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
@@ -213,24 +163,18 @@ test_next_primary_guard(void *arg)
     smartlist_add(primary_guards, chosen);
 
     chosen = next_primary_guard(guard_selection);
-    tt_ptr_op(chosen, OP_EQ, g2);
+    tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(node4->identity));
     smartlist_add(primary_guards, chosen);
 
     chosen = next_primary_guard(guard_selection);
-    tt_ptr_op(chosen, OP_EQ, g4);
-    smartlist_add(primary_guards, chosen);
-
-    chosen = next_primary_guard(guard_selection);
-    tt_ptr_op(chosen, OP_EQ, g3);
-    smartlist_add(primary_guards, chosen);
-
+    tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(node3->identity));
+    smartlist_add(primary_guards, chosen);   
+    
     chosen = next_primary_guard(guard_selection);
     tt_ptr_op(chosen, OP_EQ, NULL);
 
   done:
     UNMOCK(node_sl_choose_by_bandwidth);
-    UNMOCK(is_bad);
-    tor_free(g1);
     tor_free(g2);
     tor_free(used_guards);
     tor_free(primary_guards);
@@ -946,9 +890,6 @@ struct testcase_t entrynodes_new_tests[] = {
     { "state_machine_init",
         test_STATE_PRIMARY_GUARD_is_initial_state,
         0, NULL, NULL },
-    { "next_by_bandwidth",
-        test_next_by_bandwidth_return_each_entry,
-        TT_FORK, &fake_network, NULL },
     { "next_primary_guard",
         test_next_primary_guard,
         TT_FORK, &fake_network, NULL },

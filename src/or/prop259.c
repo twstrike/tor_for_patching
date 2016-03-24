@@ -29,7 +29,7 @@ static smartlist_t *sampled_utopic_guards = NULL;
 static smartlist_t *sampled_dystopic_guards = NULL;
 
 //XXX review if this is the right way of doing this
-static const node_t*
+STATIC const node_t*
 guard_to_node(const entry_guard_t *guard)
 {
     return node_get_by_id(guard->identity);
@@ -227,40 +227,6 @@ next_node_by_bandwidth(smartlist_t *nodes)
         smartlist_remove(nodes, node); //otherwise it may return duplicates
 
     return node;
-}
-
-STATIC entry_guard_t*
-next_by_bandwidth(smartlist_t *guards, int for_directory)
-{
-    entry_guard_t *guard = NULL;
-    smartlist_t *nodes = smartlist_new();
-
-    //Bandwidth is an information on the node descriptors. We need to convert
-    //guards to nodes.
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (is_bad(e))
-            continue;
-
-        const node_t *node = guard_to_node(e);
-        if (node)
-            smartlist_add(nodes, (void *)node);
-    } SMARTLIST_FOREACH_END(e);
-
-    //XXX should not happen, but happens due the node -> guard translation
-    if (smartlist_len(nodes) == 0)
-        return NULL;
-
-    const node_t *node = node_sl_choose_by_bandwidth(nodes, WEIGHT_FOR_GUARD);
-    if (node) {
-        //XXX avoid the global entry_guards but still create a entry_guard_t
-        add_an_entry_guard(node, 0, 0, 0, for_directory);
-        guard = node_to_guard(node);
-        tor_assert(guard);
-        smartlist_remove(guards, guard);
-    }
-
-    smartlist_free(nodes);
-    return guard;
 }
 
 static entry_guard_t*
@@ -529,10 +495,22 @@ static void
 add_nodes_to(smartlist_t *nodes, const smartlist_t *guards)
 {
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        const node_t *node = guard_to_node(e);
-        if (node)
+        const node_t *node = guard_to_node(e);	
+        if (node && !smartlist_contains(nodes, node))
             smartlist_add(nodes, (void*) node);
     } SMARTLIST_FOREACH_END(e);
+}
+
+STATIC void
+remaining_guards_for_next_primary(guard_selection_t *guard_selection, smartlist_t *dest)
+{
+    smartlist_t *except = smartlist_new();
+    add_nodes_to(except, guard_selection->used_guards);
+    add_nodes_to(except, guard_selection->primary_guards);
+
+    smartlist_add_all(dest, guard_selection->remaining_utopic_guards);
+    smartlist_subtract(dest, except);
+    smartlist_free(except);
 }
 
 STATIC entry_guard_t*
@@ -547,19 +525,17 @@ next_primary_guard(guard_selection_t *guard_selection)
     } SMARTLIST_FOREACH_END(e);
 
     //Need to normalize, otherwise subtract wont work
-    smartlist_t *except = smartlist_new();
-    add_nodes_to(except, used);
-    add_nodes_to(except, primary);
     smartlist_t *remaining = smartlist_new();
-    smartlist_add_all(remaining, guard_selection->remaining_utopic_guards);
-    smartlist_subtract(remaining, except);
-    smartlist_free(except);
-
-    entry_guard_t *guard = next_by_bandwidth(remaining,
-        guard_selection->for_directory);
-
+    remaining_guards_for_next_primary(guard_selection, remaining);
+    const node_t *node = next_node_by_bandwidth(remaining);
     tor_free(remaining);
-    return guard;
+
+    if (!node)
+      return NULL;
+
+    smartlist_remove(guard_selection->remaining_utopic_guards, node);
+    add_an_entry_guard(node, 0, 0, 0, guard_selection->for_directory);
+    return node_to_guard(node);   
 }
 
 STATIC void

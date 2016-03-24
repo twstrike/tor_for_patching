@@ -83,9 +83,6 @@ next_primary_guard(guard_selection_t *guard_selection);
 STATIC const node_t*
 next_node_by_bandwidth(smartlist_t *nodes);
 
-STATIC entry_guard_t*
-next_by_bandwidth(smartlist_t *guards, int for_directory);
-
 STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection);
 
