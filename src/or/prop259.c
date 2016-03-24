@@ -29,7 +29,7 @@ static smartlist_t *sampled_utopic_guards = NULL;
 static smartlist_t *sampled_dystopic_guards = NULL;
 
 //XXX review if this is the right way of doing this
-STATIC const node_t*
+static const node_t*
 guard_to_node(const entry_guard_t *guard)
 {
     return node_get_by_id(guard->identity);
@@ -500,7 +500,7 @@ add_nodes_to(smartlist_t *nodes, const smartlist_t *guards)
     } SMARTLIST_FOREACH_END(e);
 }
 
-STATIC void
+static void
 remaining_guards_for_next_primary(guard_selection_t *guard_selection,
 				  smartlist_t *dest)
 {
