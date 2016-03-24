@@ -494,14 +494,15 @@ static void
 add_nodes_to(smartlist_t *nodes, const smartlist_t *guards)
 {
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        const node_t *node = guard_to_node(e);	
+        const node_t *node = guard_to_node(e);
         if (node && !smartlist_contains(nodes, node))
             smartlist_add(nodes, (void*) node);
     } SMARTLIST_FOREACH_END(e);
 }
 
 STATIC void
-remaining_guards_for_next_primary(guard_selection_t *guard_selection, smartlist_t *dest)
+remaining_guards_for_next_primary(guard_selection_t *guard_selection,
+				  smartlist_t *dest)
 {
     smartlist_t *except = smartlist_new();
     add_nodes_to(except, guard_selection->used_guards);
