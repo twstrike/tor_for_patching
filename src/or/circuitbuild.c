@@ -46,6 +46,7 @@
 #include "routerparse.h"
 #include "routerset.h"
 #include "crypto.h"
+#include "prop259.h"
 
 #ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))
@@ -467,6 +468,7 @@ circuit_establish_circuit(uint8_t purpose, extend_info_t *exit, int flags)
   int err_reason = 0;
 
   circ = origin_circuit_init(purpose, flags);
+  entry_guard_selection_init();
 
   if (onion_pick_cpath_exit(circ, exit) < 0 ||
       onion_populate_cpath(circ) < 0) {

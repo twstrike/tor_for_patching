@@ -552,26 +552,6 @@ next_primary_guard(guard_selection_t *guard_selection)
     return guard;
 }
 
-static void
-init_entry_guard_selection(const or_options_t *options, int for_directory)
-{
-    const int num_needed = decide_num_guards(options, for_directory);
-
-    //XXX load this from the state file
-    //It also feels wrong to have it here, but the algo crashes if it is NULL
-    if (!used_guards)
-        used_guards = smartlist_new();
-
-    //XXX support excluded nodes.
-    //options->ExcludeNodes is a routerset_t, not a list of guards.
-    //XXX Look at entry_guards_set_from_config to see how it filters out
-    //ExcludeNodes
-    entry_guard_selection = choose_entry_guard_algo_start(
-        used_guards, sampled_utopic_guards, sampled_dystopic_guards,
-        NULL, //XXX should be options->ExcludeNodes,
-        num_needed, for_directory);
-}
-
 STATIC void
 fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
                          const int size)
@@ -632,6 +612,43 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
 
 // PUBLIC INTERFACE ----------------------------------------
 
+void
+entry_guard_selection_init(void)
+{
+#ifndef USE_PROP_259
+    return; //do nothing
+#endif
+
+    if (entry_guard_selection) {
+        log_warn(LD_CIRC, "Ooops wrong assumption about "
+            "circuit_establish_circuit().");
+        return;
+    }
+
+    if (!router_have_minimum_dir_info()) {
+        log_warn(LD_CIRC, "Cant initialize without a consensus.");
+        return;
+    }
+
+    const or_options_t *options = get_options();
+    const int for_directory = 0; //XXX how to get this at this moment?
+    const int num_needed = decide_num_guards(options, for_directory);
+
+    //XXX load this from the state file
+    //It also feels wrong to have it here, but the algo crashes if it is NULL
+    if (!used_guards)
+        used_guards = smartlist_new();
+
+    //XXX support excluded nodes.
+    //options->ExcludeNodes is a routerset_t, not a list of guards.
+    //XXX Look at entry_guards_set_from_config to see how it filters out
+    //ExcludeNodes
+    entry_guard_selection = choose_entry_guard_algo_start(
+        used_guards, sampled_utopic_guards, sampled_dystopic_guards,
+        NULL, //XXX should be options->ExcludeNodes,
+        num_needed, for_directory);
+}
+
 const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
@@ -675,8 +692,9 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
     //XXX see entry_guards_set_from_config(options);
 
-    guard_selection_free(entry_guard_selection);
-    init_entry_guard_selection(options, for_directory);
+    const int num_needed = decide_num_guards(options, for_directory);
+    entry_guard_selection->for_directory = for_directory;
+    entry_guard_selection->num_primary_guards = num_needed;
 
   retry:
     guard = choose_entry_guard_algo_next(entry_guard_selection, options, now);
@@ -706,6 +724,9 @@ entry_guards_update_profiles(const or_options_t *options)
     return; //do nothing
 #endif
 
+    //XXX remove
+    (void) options;
+
     log_warn(LD_CIRC, "Received a new consensus");
 
     //We recreate the sample sets without restricting to directory
@@ -727,15 +748,14 @@ entry_guards_update_profiles(const or_options_t *options)
     smartlist_free(utopic);
     smartlist_free(dystopic);
 
-    if (!entry_guard_selection)
-        init_entry_guard_selection(options, 0);
-
-    choose_entry_guard_algo_new_consensus(entry_guard_selection);
+    //XXX Is this necessary?
+    if (entry_guard_selection)
+        choose_entry_guard_algo_new_consensus(entry_guard_selection);
 }
 
 void
 guard_selection_register_connect_status(const entry_guard_t *guard,
-                                        int succeeded)
+                                        int succeeded, int should_continue)
 {
 #ifndef USE_PROP_259
     return; //do nothing
@@ -745,9 +765,11 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
     if (!entry_guard_selection)
         return;
 
-    //I assume shouldContinue is handled outside of this.
     //See: entry_guard_register_connect_status()
     if (succeeded)
         choose_entry_guard_algo_end(entry_guard_selection, guard);
+
+    if (!should_continue)
+        guard_selection_free(entry_guard_selection);
 }
 
