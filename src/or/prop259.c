@@ -131,7 +131,7 @@ should_try(const entry_guard_t* guard)
 {
     if (guard->can_retry)
         return 1;
-    
+
     return (is_live(guard) && !is_bad(guard));
 }
 
@@ -141,7 +141,6 @@ is_eligible(const entry_guard_t* guard, int for_directory)
     return should_try(guard) &&
         !should_ignore(guard, for_directory);
 }
-
 
 static void
 mark_for_retry(const smartlist_t *guards)
@@ -535,7 +534,7 @@ next_primary_guard(guard_selection_t *guard_selection)
 
     smartlist_remove(guard_selection->remaining_utopic_guards, node);
     add_an_entry_guard(node, 0, 0, 0, guard_selection->for_directory);
-    return node_to_guard(node);   
+    return node_to_guard(node);
 }
 
 STATIC void
