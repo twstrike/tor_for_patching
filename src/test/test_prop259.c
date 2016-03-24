@@ -168,8 +168,8 @@ test_next_primary_guard(void *arg)
 
     chosen = next_primary_guard(guard_selection);
     tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(node3->identity));
-    smartlist_add(primary_guards, chosen);   
-    
+    smartlist_add(primary_guards, chosen);
+
     chosen = next_primary_guard(guard_selection);
     tt_ptr_op(chosen, OP_EQ, NULL);
 

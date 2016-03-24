@@ -502,7 +502,7 @@ add_nodes_to(smartlist_t *nodes, const smartlist_t *guards)
 
 static void
 remaining_guards_for_next_primary(guard_selection_t *guard_selection,
-				  smartlist_t *dest)
+          smartlist_t *dest)
 {
     smartlist_t *except = smartlist_new();
     add_nodes_to(except, guard_selection->used_guards);
