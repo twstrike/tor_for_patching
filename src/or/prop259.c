@@ -110,6 +110,12 @@ should_ignore(const entry_guard_t *guard, int for_directory)
     if (for_directory && !node_is_dir(node))
        return 1;
 
+    //XXX should ignore the exit node
+    // const node_t *chosen_exit =
+    //state?build_state_get_exit_node(state) : NULL;
+    //if (guard_to_node(guard) == chosen)
+    //  return 1;
+
     //XXX this is how need_uptime and need_capacity fits
     //if (!node_is_unreliable(node, need_uptime, need_capacity, 0))
     //{
@@ -120,18 +126,21 @@ should_ignore(const entry_guard_t *guard, int for_directory)
 }
 
 static int
-should_try(const entry_guard_t* guard, int for_directory)
+should_try(const entry_guard_t* guard)
 {
-    if (!guard->can_retry) {
-        if (!is_live(guard))
-            return 0;
-
-        if (is_bad(guard))
-            return 0;
-    }
-
-    return !should_ignore(guard, for_directory);
+    if (guard->can_retry)
+        return 1;
+    
+    return (is_live(guard) && !is_bad(guard));
 }
+
+static int
+is_eligible(const entry_guard_t* guard, int for_directory)
+{
+    return should_try(guard) &&
+        !should_ignore(guard, for_directory);
+}
+
 
 static void
 mark_for_retry(const smartlist_t *guards)
@@ -172,7 +181,7 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 {
     smartlist_t *guards = guard_selection->primary_guards;
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (should_try(e, guard_selection->for_directory))
+        if (is_eligible(e, guard_selection->for_directory))
             return e;
     } SMARTLIST_FOREACH_END(e);
 
@@ -261,7 +270,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
             continue;
         }
 
-        if (should_try(e, guard_selection->for_directory))
+        if (is_eligible(e, guard_selection->for_directory))
             return e;
     } SMARTLIST_FOREACH_END(e);
 
@@ -289,7 +298,7 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
         if (!is_live(g))
             smartlist_remove(nodes, node);
 
-        if (!should_try(g, for_directory))
+        if (!is_eligible(g, for_directory))
             continue;
 
         guard = g;
