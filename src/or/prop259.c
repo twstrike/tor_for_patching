@@ -15,6 +15,7 @@
 #include "circuitbuild.h"
 #include "networkstatus.h"
 #include "policies.h"
+#include "router.h"
 
 //XXX Find the appropriate place for this global state
 
@@ -716,6 +717,9 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     // Guard is not in the consensus anymore. Not sure if this is possible
     node = guard_to_node(guard);
     tor_assert(node);
+
+    log_warn(LD_CIRC, "Chose %s as entry guard for this circuit.",
+        node_describe(node));
 
     //XXX check entry_guards_changed();
 
