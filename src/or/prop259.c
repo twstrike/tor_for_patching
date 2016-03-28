@@ -592,8 +592,14 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
 {
     if (!smartlist_contains(guard_selection->used_guards, guard))
         smartlist_add(guard_selection->used_guards, (void*) guard);
+        smartlist_add(used_guards, (void*) guard);
+        //XXX this is not correct, save used_guards to state file instead of global variable
     if (entry_guard_selection)
-        entry_guard_selection = NULL;
+        smartlist_free(entry_guard_selection->primary_guards);
+        smartlist_free(entry_guard_selection->remaining_utopic_guards);
+        smartlist_free(entry_guard_selection->remaining_dystopic_guards);
+        smartlist_free(entry_guard_selection->used_guards);
+        tor_free(entry_guard_selection);
 }
 
 //These functions adapt our proposal to current tor code
