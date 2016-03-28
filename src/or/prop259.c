@@ -432,7 +432,6 @@ guard_selection_free(guard_selection_t *guard_selection)
     smartlist_free(guard_selection->primary_guards);
     smartlist_free(guard_selection->remaining_utopic_guards);
     smartlist_free(guard_selection->remaining_dystopic_guards);
-    guard_selection = NULL;
 }
 
 STATIC guard_selection_t*
@@ -595,8 +594,9 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
         smartlist_add(guard_selection->used_guards, (entry_guard_t*) guard);
         //XXX this is not correct, save used_guards to state file instead of global variable
 
-    if (entry_guard_selection)
-        guard_selection_free(entry_guard_selection);
+    tor_assert(entry_guard_selection);
+    guard_selection_free(entry_guard_selection);
+    tor_free(entry_guard_selection);
 }
 
 //These functions adapt our proposal to current tor code
@@ -753,15 +753,11 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
     return; //do nothing
 #endif
 
-    //XXX probably not necessary after we fix the for_directory thing
     if (!entry_guard_selection)
         return;
 
     //See: entry_guard_register_connect_status()
-    if (succeeded)
+    if (succeeded && !should_continue)
         choose_entry_guard_algo_end(entry_guard_selection, guard);
-
-    if (!should_continue)
-        guard_selection_free(entry_guard_selection);
 }
 
