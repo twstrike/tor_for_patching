@@ -22,6 +22,7 @@ typedef struct {
 
     int for_directory;
     int num_primary_guards;
+    time_t last_success;
 
     //They are lists of node_t because they havent been chosen as guards
     smartlist_t *remaining_utopic_guards;
@@ -43,9 +44,9 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 void
 entry_guards_update_profiles(const or_options_t *options);
 
-void
+int
 guard_selection_register_connect_status(const entry_guard_t *guard,
-                                        int succeeded, int should_continue);
+                                        int succeeded, time_t now);
 
 #ifdef PROP259_PRIVATE
 

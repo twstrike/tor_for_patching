@@ -346,6 +346,7 @@ has_any_been_tried_before(const smartlist_t *guards, time_t time)
     return 0;
 }
 
+//XXX Add tests
 static void
 check_primary_guards_retry_interval(guard_selection_t *guard_selection,
                                     const or_options_t *options, time_t now)
@@ -590,11 +591,38 @@ STATIC void
 choose_entry_guard_algo_end(guard_selection_t *guard_selection,
                             const entry_guard_t *guard)
 {
+    log_warn(LD_CIRC, "Finishing guard selection algorithm");
+
     //XXX this is not correct, save used_guards to state file instead of global variable
     if (!smartlist_contains(guard_selection->used_guards, guard))
         smartlist_add(guard_selection->used_guards, (entry_guard_t*) guard);
 
     guard_selection_free(guard_selection);
+}
+
+//XXX Add tests
+static int
+choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection, int succeeded, time_t now,
+                int internet_likely_down_interval)
+{
+    if (!succeeded)
+        return 1;
+
+    int should_continue = 0;
+    time_t last_success = guard_selection->last_success;
+    if (last_success &&
+        now - last_success > internet_likely_down_interval * 60) {
+        log_warn(LD_CIRC, "Discarding circuit after %d minutes without "
+            "success. The network may have been down and now is up again,"
+            "so we retry the used guards.", internet_likely_down_interval);
+
+        mark_for_retry(guard_selection->used_guards);
+        transition_to(guard_selection, STATE_PRIMARY_GUARDS);
+        should_continue = 1;
+    }
+
+    guard_selection->last_success = now;
+    return should_continue;
 }
 
 //These functions adapt our proposal to current tor code
@@ -743,21 +771,30 @@ entry_guards_update_profiles(const or_options_t *options)
         choose_entry_guard_algo_new_consensus(entry_guard_selection);
 }
 
-void
+int
 guard_selection_register_connect_status(const entry_guard_t *guard,
-                                        int succeeded, int should_continue)
+                                        int succeeded, time_t now)
 {
+    int should_continue = 0;
+
 #ifndef USE_PROP_259
-    return; //do nothing
+    return should_continue;
 #endif
 
     if (!entry_guard_selection)
-        return;
+        return should_continue;
 
-    //See: entry_guard_register_connect_status()
-    if (succeeded && !should_continue) {
+    //XXX add this to options?
+    int internet_likely_down_interval = 5;
+
+    should_continue = choose_entry_guard_algo_should_continue(
+        entry_guard_selection, succeeded, now, internet_likely_down_interval);
+
+    if (!should_continue) {
         choose_entry_guard_algo_end(entry_guard_selection, guard);
         tor_free(entry_guard_selection);
     }
+
+    return should_continue;
 }
 
