@@ -3087,6 +3087,7 @@ typedef struct origin_circuit_t {
    * length, the chosen exit router, rendezvous information, etc.
    */
   cpath_build_state_t *build_state;
+
   /** The doubly-linked list of crypt_path_t entries, one per hop,
    * for this circuit. This includes ciphers for each hop,
    * integrity-checking digests for each hop, and package/delivery

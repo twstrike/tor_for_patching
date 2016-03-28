@@ -610,8 +610,10 @@ int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 					int succeeded, time_t now, int internet_likely_down_interval)
 {
-    if (!succeeded)
+    if (!succeeded) {
+        log_warn(LD_CIRC, "Did not succeeded.");
         return 1;
+    }
 
     int should_continue = 0;
     time_t last_success = guard_selection->last_success;
@@ -669,8 +671,11 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //chosen guard meets all the constraints we have now. They can have
     //changed between last run and this run.
     // if entry_node exist we will use it, otherwise we will pick one using next_algo
-    if (entry_node)
+    if (entry_node) {
+        log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
+            node_describe(entry_node));
         return entry_node;
+    }
 
     //We have received a consensus but not enough to build a circuit
     //same as !router_have_minimum_dir_info()
@@ -780,14 +785,22 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
     return should_continue;
 #endif
 
-    if (!entry_guard_selection)
+    log_warn(LD_CIRC, "Guard %s has succeeded = %d.",
+        node_describe(guard_to_node(guard)), succeeded);
+
+    if (!entry_guard_selection) {
+        log_warn(LD_CIRC, "We have no guard_selection algo."
+            " Should not continue.");
         return should_continue;
+    }
 
     //XXX add this to options?
     int internet_likely_down_interval = 5;
 
     should_continue = choose_entry_guard_algo_should_continue(
         entry_guard_selection, succeeded, now, internet_likely_down_interval);
+
+    log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
     if (!should_continue) {
         choose_entry_guard_algo_end(entry_guard_selection, guard);
