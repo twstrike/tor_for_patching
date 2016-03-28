@@ -497,7 +497,7 @@ add_nodes_to(smartlist_t *nodes, const smartlist_t *guards)
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         const node_t *node = guard_to_node(e);
         if (node && !smartlist_contains(nodes, node))
-            smartlist_add(nodes, (void*) node);
+            smartlist_add(nodes, (node_t*) node);
     } SMARTLIST_FOREACH_END(e);
 }
 
@@ -554,7 +554,7 @@ fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
         //XXX should we crete the entry_guard at this moment?
         //add_an_entry_guard(node, 0, 0, 0, for_directory);
 
-        smartlist_add(sample, (void*) node);
+        smartlist_add(sample, (node_t*) node);
     }
     smartlist_free(remaining);
 }
@@ -592,7 +592,7 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
                             const entry_guard_t *guard)
 {
     if (!smartlist_contains(guard_selection->used_guards, guard))
-        smartlist_add(guard_selection->used_guards, (void*) guard);
+        smartlist_add(guard_selection->used_guards, (entry_guard_t*) guard);
         //XXX this is not correct, save used_guards to state file instead of global variable
 
     if (entry_guard_selection)
