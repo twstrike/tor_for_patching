@@ -31,10 +31,6 @@ typedef struct {
     //guards
     smartlist_t *primary_guards;
     smartlist_t *used_guards;
-
-    //XXX Explain the idea of this
-    smartlist_t *primary_guards_log;
-
 } guard_selection_t;
 
 void
