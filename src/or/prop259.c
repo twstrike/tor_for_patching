@@ -432,6 +432,7 @@ guard_selection_free(guard_selection_t *guard_selection)
     smartlist_free(guard_selection->primary_guards);
     smartlist_free(guard_selection->remaining_utopic_guards);
     smartlist_free(guard_selection->remaining_dystopic_guards);
+    guard_selection = NULL;
 }
 
 STATIC guard_selection_t*
