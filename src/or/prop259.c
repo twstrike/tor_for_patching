@@ -592,7 +592,6 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
 {
     if (!smartlist_contains(guard_selection->used_guards, guard))
         smartlist_add(guard_selection->used_guards, (void*) guard);
-        smartlist_add(used_guards, (void*) guard);
         //XXX this is not correct, save used_guards to state file instead of global variable
 
     if (entry_guard_selection)
