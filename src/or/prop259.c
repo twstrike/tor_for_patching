@@ -679,7 +679,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (!entry_guard_selection) { // same as !router_have_minimum_dir_info()
         //Is it enough to get the sample sets?
         //entry_guards_update_profiles(options);
-        entry_guard_selection_init();
+        return NULL;
     }
 
     //XXX choose_good_entry_server() ignores:
@@ -797,8 +797,9 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
     if (!should_continue) {
         choose_entry_guard_algo_end(entry_guard_selection, guard);
         tor_free(entry_guard_selection);
+    } else {
+        entry_node = NULL;
     }
-    entry_node = NULL;
 
     return should_continue;
 }
