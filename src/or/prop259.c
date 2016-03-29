@@ -20,6 +20,7 @@
 //XXX Find the appropriate place for this global state
 
 /** Entry guard selection algorithm **/
+static const node_t *entry_node = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
 /** Related to guard selection algorithm. **/
@@ -635,10 +636,6 @@ entry_guard_selection_init(void)
     return; //do nothing
 #endif
 
-    if (entry_guard_selection) {
-        return;
-    }
-
     if (!router_have_minimum_dir_info()) {
         log_warn(LD_CIRC, "Cant initialize without a consensus.");
         return;
@@ -667,6 +664,11 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
+    // if entry_node exist we will use it, otherwise we will pick one using next_algo
+    if (entry_node) {
+        return entry_node;
+    }
+
     //router_pick_directory_server_impl return NULL when there is no consensus
     const networkstatus_t *consensus = networkstatus_get_latest_consensus();
     if (!consensus)
@@ -676,7 +678,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (!entry_guard_selection) { // same as !router_have_minimum_dir_info()
         //Is it enough to get the sample sets?
         //entry_guards_update_profiles(options);
-        return NULL;
+        entry_guard_selection_init();
     }
 
     //XXX choose_good_entry_server() ignores:
@@ -730,6 +732,8 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //XXX What is n_options_out in our case?
     if (n_options_out)
         *n_options_out = 1;
+
+    entry_node = node;
 
     return node;
 }
@@ -793,6 +797,7 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
         choose_entry_guard_algo_end(entry_guard_selection, guard);
         tor_free(entry_guard_selection);
     }
+    entry_node = NULL;
 
     return should_continue;
 }
