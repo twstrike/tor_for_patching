@@ -48,6 +48,10 @@ int
 guard_selection_register_connect_status(const entry_guard_t *guard,
                                         int succeeded, time_t now);
 
+int
+choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
+					int succeeded, time_t now, int internet_likely_down_interval);
+
 #ifdef PROP259_PRIVATE
 
 STATIC guard_selection_t*

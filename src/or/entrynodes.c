@@ -732,6 +732,8 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
                                     int mark_relay_status, time_t now)
 {
   int changed = 0;
+  int refuse_conn = 0;
+  int first_contact = 0;
   entry_guard_t *entry = NULL;
   int idx = -1;
   char buf[HEX_DIGEST_LEN+1];
@@ -765,7 +767,7 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
     }
     if (!entry->made_contact) {
       entry->made_contact = 1;
-      changed = 1;
+      first_contact = changed = 1;
     }
   } else { /* ! succeeded */
     if (!entry->made_contact) {
@@ -803,23 +805,46 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
   if (mark_relay_status)
     router_set_status(digest, succeeded);
 
-  int should_continue = guard_selection_register_connect_status(entry,
-      succeeded, now);
-
-  if (!should_continue) {
-    log_info(LD_CIRC,
-             "Connected to new entry guard '%s' (%s). Marking earlier "
-             "entry guards up. %d/%d entry guards usable/new.",
-             entry->nickname, buf,
-             num_live_entry_guards(0), smartlist_len(entry_guards));
-    log_entry_guards(LOG_INFO);
-    changed = 1;
+#ifndef USE_PROP_259
+  if (first_contact) {
+    /* We've just added a new long-term entry guard. Perhaps the network just
+     * came back? We should give our earlier entries another try too,
+     * and close this connection so we don't use it before we've given
+     * the others a shot. */
+    SMARTLIST_FOREACH_BEGIN(entry_guards, entry_guard_t *, e) {
+        if (e == entry)
+          break;
+        if (e->made_contact) {
+          const char *msg;
+          const node_t *r = entry_is_live(e,
+                     ENTRY_NEED_CAPACITY | ENTRY_ASSUME_REACHABLE,
+                     &msg);
+          if (r && e->unreachable_since) {
+            refuse_conn = 1;
+            e->can_retry = 1;
+          }
+        }
+    } SMARTLIST_FOREACH_END(e);
+    if (refuse_conn) {
+      log_info(LD_CIRC,
+               "Connected to new entry guard '%s' (%s). Marking earlier "
+               "entry guards up. %d/%d entry guards usable/new.",
+               entry->nickname, buf,
+               num_live_entry_guards(0), smartlist_len(entry_guards));
+      log_entry_guards(LOG_INFO);
+      changed = 1;
+    }
   }
+
+#else
+  refuse_conn = guard_selection_register_connect_status(entry,
+      succeeded, now);
+#endif
 
   if (changed)
     entry_guards_changed();
 
-  return should_continue ? 0 : -1;
+  return refuse_conn ? -1 : 0;
 }
 
 /** When we try to choose an entry guard, should we parse and add

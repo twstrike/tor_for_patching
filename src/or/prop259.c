@@ -600,10 +600,13 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
     guard_selection_free(guard_selection);
 }
 
-STATIC int
+//These functions adapt our proposal to current tor code
+
+// PUBLIC INTERFACE ----------------------------------------
+
+int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
-					int succeeded, time_t now,
-					int internet_likely_down_interval)
+					int succeeded, time_t now, int internet_likely_down_interval)
 {
     if (!succeeded)
         return 1;
@@ -624,10 +627,6 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
     guard_selection->last_success = now;
     return should_continue;
 }
-
-//These functions adapt our proposal to current tor code
-
-// PUBLIC INTERFACE ----------------------------------------
 
 void
 entry_guard_selection_init(void)
