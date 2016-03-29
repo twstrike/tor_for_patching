@@ -886,6 +886,59 @@ test_ON_NEW_CONSENSUS(void *arg)
     tor_free(guard_selection);
 }
 
+static void
+test_choose_entry_guard_algo_should_continue_when_circuit_fails(void *arg)
+{
+  guard_selection_t *guard_selection = NULL;
+  int succeeded = 0;
+  time_t now = time(NULL);
+  (void) arg;
+
+  int should_continue = choose_entry_guard_algo_should_continue
+    (guard_selection, succeeded, now, 5);
+
+  tt_int_op(should_continue, OP_EQ, 1);
+
+ done:
+  tor_free(guard_selection);
+}
+
+static void
+test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_for_first_time(void *arg)
+{
+  guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  int succeeded = 1;
+  time_t now = time(NULL);
+  (void) arg;
+
+  int should_continue = choose_entry_guard_algo_should_continue
+    (guard_selection, succeeded, now, 5);
+
+  tt_int_op(should_continue, OP_EQ, 0);
+
+ done:
+  tor_free(guard_selection);
+}
+
+static void
+test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished(void *arg)
+{
+  guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  int succeeded = 1;
+  time_t now = time(NULL) + 62;
+  (void) arg;
+
+  guard_selection->used_guards = smartlist_new();
+  guard_selection->last_success = 1;
+  int should_continue = choose_entry_guard_algo_should_continue
+    (guard_selection, succeeded, now, 1);
+
+  tt_int_op(should_continue, OP_EQ, 1);
+
+ done:
+  tor_free(guard_selection);
+}
+
 struct testcase_t entrynodes_new_tests[] = {
     { "state_machine_init",
         test_STATE_PRIMARY_GUARD_is_initial_state,
@@ -938,6 +991,15 @@ struct testcase_t entrynodes_new_tests[] = {
     { "ON_NEW_CONSENSUS",
         test_ON_NEW_CONSENSUS,
         0, NULL, NULL },
+    { "should_continue_when_circuit_fails",
+      test_choose_entry_guard_algo_should_continue_when_circuit_fails,
+      0, NULL, NULL },
+    { "should_not_continue_when_circuit_succeeds_for_first_time",
+      test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_for_first_time,
+      0, NULL, NULL },
+    { "should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished",
+      test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished,
+      0, NULL, NULL },
 
     END_OF_TESTCASES
 };

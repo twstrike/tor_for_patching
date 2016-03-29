@@ -593,17 +593,17 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
 {
     log_warn(LD_CIRC, "Finishing guard selection algorithm");
 
-    //XXX this is not correct, save used_guards to state file instead of global variable
+    //XXX Save used_guards to state file instead of global variable
     if (!smartlist_contains(guard_selection->used_guards, guard))
         smartlist_add(guard_selection->used_guards, (entry_guard_t*) guard);
 
     guard_selection_free(guard_selection);
 }
 
-//XXX Add tests
-static int
-choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection, int succeeded, time_t now,
-                int internet_likely_down_interval)
+STATIC int
+choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
+					int succeeded, time_t now,
+					int internet_likely_down_interval)
 {
     if (!succeeded)
         return 1;
