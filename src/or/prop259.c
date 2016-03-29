@@ -209,10 +209,13 @@ transition_to(guard_selection_t *guard_selection,
         return;
     case STATE_PRIMARY_GUARDS:
         log_warn(LD_CIRC, "Transitioned to STATE_PRIMARY_GUARDS.");
+        break;
     case STATE_TRY_UTOPIC:
         log_warn(LD_CIRC, "Transitioned to STATE_TRY_UTOPIC.");
+        break;
     case STATE_TRY_DYSTOPIC:
         log_warn(LD_CIRC, "Transitioned to STATE_TRY_DYSTOPIC.");
+        break;
     }
 
     guard_selection->state = state;
