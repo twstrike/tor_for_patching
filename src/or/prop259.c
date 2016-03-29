@@ -353,8 +353,8 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
                                     const or_options_t *options, time_t now)
 {
     int retry_interval = options->PrimaryGuardsRetryInterval ?
-        options->PrimaryGuardsRetryInterval * 60 : 3 * 60;
-    time_t primary_retry_time = now - retry_interval;
+        options->PrimaryGuardsRetryInterval : 3;
+    time_t primary_retry_time = now - retry_interval * 60;
 
     const smartlist_t *guards = guard_selection->primary_guards;
     if (has_any_been_tried_before(guards, primary_retry_time)) {
