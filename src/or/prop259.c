@@ -290,11 +290,16 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
         base16_encode(buf, sizeof(buf), g->identity, DIGEST_LEN);
         log_warn(LD_CIRC, "Evaluating '%s' (%s)", g->nickname, buf);
 
-        if (!is_live(g))
+        if (!is_live(g)) {
+            log_warn(LD_CIRC, "  Removing (not live).");
             smartlist_remove(nodes, node);
-
-        if (!is_eligible(g, for_directory))
             continue;
+        }
+
+        if (!is_eligible(g, for_directory)) {
+            log_warn(LD_CIRC, "  Ignoring (not eligible).");
+            continue;
+        }
 
         guard = g;
         break;
