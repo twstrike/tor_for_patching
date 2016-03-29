@@ -338,7 +338,7 @@ has_any_been_tried_before(const smartlist_t *guards, time_t time)
 {
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         //XXX review if unreachable since is the right property
-        if (e->unreachable_since != 0 && e->unreachable_since <= time) {
+        if (e->unreachable_since && e->unreachable_since <= time) {
             return 1;
         }
 
@@ -352,13 +352,14 @@ static void
 check_primary_guards_retry_interval(guard_selection_t *guard_selection,
                                     const or_options_t *options, time_t now)
 {
-    const smartlist_t *guards = guard_selection->primary_guards;
-    time_t primary_retry_time = now - options->PrimaryGuardsRetryInterval * 60;
+    int retry_interval = options->PrimaryGuardsRetryInterval ?
+        options->PrimaryGuardsRetryInterval * 60 : 3 * 60;
+    time_t primary_retry_time = now - retry_interval;
 
+    const smartlist_t *guards = guard_selection->primary_guards;
     if (has_any_been_tried_before(guards, primary_retry_time)) {
         log_warn(LD_CIRC, "Some PRIMARY_GUARDS have been tried more than %d "
-            "minutes ago. Will retry PRIMARY_GUARDS.",
-            options->PrimaryGuardsRetryInterval);
+            "minutes ago. Will retry PRIMARY_GUARDS.", retry_interval);
 
         mark_for_retry(guards);
         transition_to_and_save_state(guard_selection, STATE_PRIMARY_GUARDS);
