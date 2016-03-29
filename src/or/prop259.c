@@ -666,21 +666,12 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
     // if entry_node exist we will use it, otherwise we will pick one using next_algo
-    if (entry_node) {
+    if (entry_node)
         return entry_node;
-    }
-
-    //router_pick_directory_server_impl return NULL when there is no consensus
-    const networkstatus_t *consensus = networkstatus_get_latest_consensus();
-    if (!consensus)
-        return NULL;
 
     //We have received a consensus but not enough to build a circuit
-    if (!entry_guard_selection) { // same as !router_have_minimum_dir_info()
-        //Is it enough to get the sample sets?
-        //entry_guards_update_profiles(options);
+    if (!entry_guard_selection)
         return NULL;
-    }
 
     //XXX choose_good_entry_server() ignores:
     // - routers in the same family as the exit node
