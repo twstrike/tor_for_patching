@@ -152,6 +152,13 @@ mark_for_retry(const smartlist_t *guards)
 }
 
 static void
+retry_primary_guards(guard_selection_t *guard_selection)
+{
+    mark_for_retry(guard_selection->primary_guards);
+    transition_to(guard_selection, STATE_PRIMARY_GUARDS);
+}
+
+static void
 mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 {
     log_warn(LD_CIRC, "Will retry remaining used guards.");
@@ -222,11 +229,11 @@ transition_to(guard_selection_t *guard_selection,
 }
 
 static void
-transition_to_and_save_state(guard_selection_t *guard_selection,
-                             guard_selection_state_t state)
+save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
+                             
 {
     guard_selection->previous_state = guard_selection->state;
-    transition_to(guard_selection, state);
+    retry_primary_guards(guard_selection);
 }
 
 STATIC const node_t*
@@ -349,8 +356,7 @@ state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
         return guard;
     }
 
-    transition_to(guard_selection, STATE_PRIMARY_GUARDS);
-
+    retry_primary_guards(guard_selection);
     return NULL;
 }
 
@@ -384,8 +390,7 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
         log_warn(LD_CIRC, "Some PRIMARY_GUARDS have been tried more than %d "
             "minutes ago. Will retry PRIMARY_GUARDS.", retry_interval);
 
-        mark_for_retry(guards);
-        transition_to_and_save_state(guard_selection, STATE_PRIMARY_GUARDS);
+        save_state_and_retry_primary_guards(guard_selection);
     }
 }
 
@@ -656,8 +661,7 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
             "success. The network may have been down and now is up again,"
             "so we retry the used guards.", internet_likely_down_interval);
 
-        mark_for_retry(guard_selection->used_guards);
-        transition_to(guard_selection, STATE_PRIMARY_GUARDS);
+        retry_primary_guards(guard_selection);
         should_continue = 1;
     }
 
