@@ -358,8 +358,10 @@ static int
 has_any_been_tried_before(const smartlist_t *guards, time_t time)
 {
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        //XXX review if unreachable since is the right property
-        if (e->unreachable_since && e->unreachable_since <= time) {
+        //last_attempted is probably better because it is updated
+        //on subsequent failures. But keep in mind it is only updated
+        //if we have made contact before.
+        if (e->last_attempted && e->last_attempted <= time) {
             return 1;
         }
 
@@ -639,7 +641,7 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
 
 int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
-					int succeeded, time_t now, int internet_likely_down_interval)
+          int succeeded, time_t now, int internet_likely_down_interval)
 {
     if (!succeeded) {
         log_warn(LD_CIRC, "Did not succeeded.");
