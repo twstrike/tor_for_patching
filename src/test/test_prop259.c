@@ -925,15 +925,34 @@ test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_do
 {
   guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
   int succeeded = 1;
-  time_t now = time(NULL) + 62;
+  time_t now = time(NULL);
   (void) arg;
 
   guard_selection->used_guards = smartlist_new();
-  guard_selection->last_success = 1;
+  guard_selection->last_success = now - 61;
   int should_continue = choose_entry_guard_algo_should_continue
     (guard_selection, succeeded, now, 1);
 
   tt_int_op(should_continue, OP_EQ, 1);
+
+ done:
+  tor_free(guard_selection);
+}
+
+static void
+test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_and_likely_down_interval_has_not_finished(void *arg)
+{
+  guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  int succeeded = 1;
+  time_t now = time(NULL);
+  (void) arg;
+
+  guard_selection->used_guards = smartlist_new();
+  guard_selection->last_success = now - 60;
+  int should_continue = choose_entry_guard_algo_should_continue
+    (guard_selection, succeeded, now, 1);
+
+  tt_int_op(should_continue, OP_EQ, 0);
 
  done:
   tor_free(guard_selection);
@@ -999,6 +1018,9 @@ struct testcase_t entrynodes_new_tests[] = {
       0, NULL, NULL },
     { "should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished",
       test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished,
+      0, NULL, NULL },
+    { "should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished",
+      test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_and_likely_down_interval_has_not_finished,
       0, NULL, NULL },
 
     END_OF_TESTCASES
