@@ -180,8 +180,15 @@ transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection)
 static entry_guard_t*
 state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 {
+    char buf[HEX_DIGEST_LEN+1];
     smartlist_t *guards = guard_selection->primary_guards;
+
+    log_warn(LD_CIRC, "There are %d candidates", smartlist_len(guards));
+
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        base16_encode(buf, sizeof(buf), e->identity, DIGEST_LEN);
+        log_warn(LD_CIRC, "Evaluating '%s' (%s)", e->nickname, buf);
+
         if (is_eligible(e, guard_selection->for_directory))
             return e;
     } SMARTLIST_FOREACH_END(e);
@@ -232,10 +239,15 @@ next_node_by_bandwidth(smartlist_t *nodes)
 static entry_guard_t*
 each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 {
+    char buf[HEX_DIGEST_LEN+1];
+
     SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
         if (smartlist_contains(guard_selection->primary_guards, e)) {
             continue;
         }
+
+        base16_encode(buf, sizeof(buf), e->identity, DIGEST_LEN);
+        log_warn(LD_CIRC, "Evaluating '%s' (%s)", e->nickname, buf);
 
         if (is_eligible(e, guard_selection->for_directory))
             return e;
@@ -250,6 +262,9 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
     entry_guard_t *guard = NULL;
     smartlist_t *remaining = smartlist_new();
 
+    char buf[HEX_DIGEST_LEN+1];
+    log_warn(LD_CIRC, "There are %d candidates", smartlist_len(nodes));
+
     smartlist_add_all(remaining, nodes);
     while (smartlist_len(remaining) > 0) {
         const node_t *node = next_node_by_bandwidth(remaining);
@@ -261,6 +276,9 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
         add_an_entry_guard(node, 0, 0, 0, for_directory);
         entry_guard_t *g = node_to_guard(node);
         tor_assert(g);
+
+        base16_encode(buf, sizeof(buf), g->identity, DIGEST_LEN);
+        log_warn(LD_CIRC, "Evaluating '%s' (%s)", g->nickname, buf);
 
         if (!is_live(g))
             smartlist_remove(nodes, node);
@@ -460,6 +478,16 @@ choose_entry_guard_algo_start(
     fill_in_remaining_dystopic(guard_selection, sampled_dystopic);
     fill_in_primary_guards(guard_selection);
 
+    log_warn(LD_CIRC, "Initializing guard_selection:\n"
+        "- used: %p,\n"
+        "- sampled_utopic: %p,\n"
+        "- sampled_dystopic: %p,\n"
+        "- exclude_nodes: %p,\n"
+        "- n_primary_guards: %d,\n"
+        "- for_directory: %d\n",
+        used_guards, sampled_utopic, sampled_dystopic, exclude_nodes,
+        n_primary_guards, for_directory);
+
     return guard_selection;
 }
 
@@ -643,6 +671,9 @@ entry_guard_selection_init(void)
         log_warn(LD_CIRC, "Cant initialize without a consensus.");
         return;
     }
+
+    if (entry_guard_selection)
+        return;
 
     const or_options_t *options = get_options();
     const int for_directory = 0; //XXX how to get this at this moment?
