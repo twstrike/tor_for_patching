@@ -31,6 +31,7 @@
 #include "rephist.h"
 #include "router.h"
 #include "routerlist.h"
+#include "prop259.h"
 
 static void circuit_expire_old_circuits_clientside(void);
 static void circuit_increment_failure_count(void);
@@ -999,6 +1000,11 @@ circuit_predict_and_launch_new(void)
   int port_needs_uptime=0, port_needs_capacity=1;
   time_t now = time(NULL);
   int flags = 0;
+
+  //entry guard selection context should be the same for this batch of
+  //circuits. The same entry guard will be used for all the circuits in this
+  //batch until it fails.
+  entry_guard_selection_init();
 
   /* First, count how many of each type of circuit we have already. */
   SMARTLIST_FOREACH_BEGIN(circuit_get_global_list(), circuit_t *, circ) {

@@ -665,11 +665,15 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
+    //XXX This might not work. What guarantees we have that the previously
+    //chosen guard meets all the constraints we have now. They can have
+    //changed between last run and this run.
     // if entry_node exist we will use it, otherwise we will pick one using next_algo
     if (entry_node)
         return entry_node;
 
     //We have received a consensus but not enough to build a circuit
+    //same as !router_have_minimum_dir_info()
     if (!entry_guard_selection)
         return NULL;
 
