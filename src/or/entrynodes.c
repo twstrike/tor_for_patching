@@ -408,6 +408,16 @@ entry_guard_new(const node_t *node)
   return entry;
 }
 
+/** Release all storage held by <b>e</b>. */
+void
+entry_guard_free(entry_guard_t *e)
+{
+  if (!e)
+    return;
+  tor_free(e->chosen_by_version);
+  tor_free(e);
+}
+
 /** Add a new (preferably stable and fast) router to our
  * entry_guards list. Return a pointer to the router if we succeed,
  * or NULL if we can't find any more suitable entries.
@@ -532,16 +542,6 @@ pick_entry_guards(const or_options_t *options, int for_directory)
 /** How long (in seconds) do we allow an entry guard to be nonfunctional,
  * unlisted, excluded, or otherwise nonusable before we give up on it? */
 #define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60)
-
-/** Release all storage held by <b>e</b>. */
-static void
-entry_guard_free(entry_guard_t *e)
-{
-  if (!e)
-    return;
-  tor_free(e->chosen_by_version);
-  tor_free(e);
-}
 
 /**
  * Return the minimum lifetime of working entry guard, in seconds,

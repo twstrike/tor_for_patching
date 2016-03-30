@@ -958,7 +958,134 @@ test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_and_likel
   tor_free(guard_selection);
 }
 
+static void
+state_insert_line_helper(config_line_t **next,
+                                smartlist_t *lines)
+{
+  config_line_t *line;
+  *next = NULL;
+
+  /* Loop over all the state lines in the smartlist */
+  SMARTLIST_FOREACH_BEGIN(lines, const smartlist_t *,state_lines) {
+    /* Get key and value for each line */
+    const char *state_key = smartlist_get(state_lines, 0);
+    const char *state_value = smartlist_get(state_lines, 1);
+
+    *next = line = tor_malloc_zero(sizeof(config_line_t));
+    line->key = tor_strdup(state_key);
+    tor_asprintf(&line->value, "%s", state_value);
+    next = &(line->next);
+  } SMARTLIST_FOREACH_END(state_lines);
+}
+
+static void
+state_lines_free(smartlist_t *lines)
+{
+  SMARTLIST_FOREACH_BEGIN(lines, smartlist_t *, state_lines) {
+    char *state_key = smartlist_get(state_lines, 0);
+    char *state_value = smartlist_get(state_lines, 1);
+
+    tor_free(state_key);
+    tor_free(state_value);
+    smartlist_free(state_lines);
+  } SMARTLIST_FOREACH_END(state_lines);
+
+  smartlist_free(lines);
+}
+
+
+static void
+test_used_guards_parse_state(void *arg)
+{
+  or_state_t *state = or_state_new();
+  smartlist_t *entry_state_lines = smartlist_new();
+  smartlist_t *used_guards = smartlist_new();
+  char *msg = NULL;
+  int retval;
+
+  /* Details of our fake guard node */
+  const char *nickname = "hagbard";
+  const char *fpr = "B29D536DD1752D542E1FBB3C9CE4449D51298212";
+  const char *unlisted_since = "2014-06-08 16:16:50";
+  const char *down_since = "2014-06-07 16:16:40";
+
+  (void) arg;
+
+  { /* Prepare the state entry */
+
+    /* Prepare the smartlist to hold the key/value of each line */
+    smartlist_t *state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "UsedGuard");
+    smartlist_add_asprintf(state_line, "%s %s %s", nickname, fpr, "DirCache");
+    smartlist_add(entry_state_lines, state_line);
+
+    state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "UsedGuardDownSince");
+    smartlist_add_asprintf(state_line, "%s", down_since);
+    smartlist_add(entry_state_lines, state_line);
+
+    state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "UsedGuardUnlistedSince");
+    smartlist_add_asprintf(state_line, "%s", unlisted_since);
+    smartlist_add(entry_state_lines, state_line);
+  }
+
+  /* Inject our lines in the state */
+  state_insert_line_helper(&state->UsedGuards, entry_state_lines);
+
+  /* Parse state */
+  retval = used_guards_parse_state(state, used_guards, &msg);
+  tt_int_op(retval, OP_GE, 0);
+
+  tt_int_op(smartlist_len(used_guards), OP_EQ, 1);
+
+  { /* Test the entry guard structure */
+    char hex_digest[1024];
+    char str_time[1024];
+
+    const entry_guard_t *e = smartlist_get(used_guards, 0);
+    tt_str_op(e->nickname, OP_EQ, nickname); /* Verify nickname */
+
+    base16_encode(hex_digest, sizeof(hex_digest),
+                  e->identity, DIGEST_LEN);
+    tt_str_op(hex_digest, OP_EQ, fpr); /* Verify fingerprint */
+
+    tt_assert(e->is_dir_cache); /* Verify dirness */
+
+    tt_assert(e->made_contact); /* All saved guards have been contacted */
+
+    tt_assert(e->bad_since); /* Verify bad_since timestamp */
+    format_iso_time(str_time, e->bad_since);
+    tt_str_op(str_time, OP_EQ, unlisted_since);
+
+    tt_assert(e->unreachable_since); /* Verify unreachable_since timestamp */
+    format_iso_time(str_time, e->unreachable_since);
+    tt_str_op(str_time, OP_EQ, down_since);
+
+    /* The rest should be unset */
+    tt_assert(!e->chosen_by_version);
+    tt_assert(!e->can_retry);
+    tt_assert(!e->path_bias_noticed);
+    tt_assert(!e->path_bias_warned);
+    tt_assert(!e->path_bias_extreme);
+    tt_assert(!e->path_bias_disabled);
+    tt_assert(!e->path_bias_use_noticed);
+    tt_assert(!e->path_bias_use_extreme);
+    tt_assert(!e->last_attempted);
+  }
+
+ done:
+  state_lines_free(entry_state_lines);
+  SMARTLIST_FOREACH(used_guards, entry_guard_t *, e, entry_guard_free(e));
+  smartlist_free(used_guards);
+  or_state_free(state);
+  tor_free(msg);
+}
+
 struct testcase_t entrynodes_new_tests[] = {
+    { "used_guards_parse_state",
+        test_used_guards_parse_state,
+        0, NULL, NULL },
     { "state_machine_init",
         test_STATE_PRIMARY_GUARD_is_initial_state,
         0, NULL, NULL },

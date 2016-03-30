@@ -52,6 +52,10 @@ int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 					int succeeded, time_t now, int internet_likely_down_interval);
 
+int
+used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
+                        char **msg);
+
 #ifdef PROP259_PRIVATE
 
 STATIC guard_selection_t*
