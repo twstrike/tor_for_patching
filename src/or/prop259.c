@@ -635,6 +635,7 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes,
         smartlist_len(sampled_dystopic_guards), smartlist_len(dystopic_nodes));
 }
 
+//XXX Add tests
 STATIC void
 choose_entry_guard_algo_end(guard_selection_t *guard_selection,
                             const entry_guard_t *guard)
@@ -794,6 +795,7 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
     return should_continue;
 }
 
+//XXX Add tests
 void
 entry_guard_selection_init(void)
 {
@@ -828,6 +830,7 @@ entry_guard_selection_init(void)
         num_needed, for_directory);
 }
 
+//XXX Add tests
 const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
@@ -904,6 +907,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     return node;
 }
 
+//XXX Add tests
 void
 entry_guards_update_profiles(const or_options_t *options)
 {
