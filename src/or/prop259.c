@@ -283,6 +283,7 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
         }
 
         //XXX avoid the global entry_guards but still create a entry_guard_t
+        //XXX replace by entry_guard_new and only add to the global on END()
         add_an_entry_guard(node, 0, 0, 0, for_directory);
         entry_guard_t *g = node_to_guard(node);
         tor_assert(g);
@@ -580,8 +581,13 @@ next_primary_guard(guard_selection_t *guard_selection)
       return NULL;
 
     smartlist_remove(guard_selection->remaining_utopic_guards, node);
+
+    //XXX replace by entry_guard_new and only add to the global on END()
     add_an_entry_guard(node, 0, 0, 0, guard_selection->for_directory);
-    return node_to_guard(node);
+    entry_guard_t *g = node_to_guard(node);
+    tor_assert(g);
+
+    return g;
 }
 
 STATIC void
@@ -595,9 +601,6 @@ fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
         const node_t *node = next_node_by_bandwidth(remaining);
         if (!node)
             break;
-
-        //XXX should we crete the entry_guard at this moment?
-        //add_an_entry_guard(node, 0, 0, 0, for_directory);
 
         smartlist_add(sample, (node_t*) node);
     }

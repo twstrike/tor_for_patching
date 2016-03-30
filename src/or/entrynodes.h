@@ -77,6 +77,8 @@ int num_live_entry_guards(int for_directory);
 int decide_num_guards(const or_options_t *options, int for_directory);
 #endif
 
+entry_guard_t* entry_guard_new(const node_t *node);
+
 const node_t *add_an_entry_guard(const node_t *chosen,
                                         int reset_status, int prepend,
                                         int for_discovery, int for_directory);

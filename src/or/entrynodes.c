@@ -379,6 +379,29 @@ control_event_guard_deferred(void)
 /** Largest amount that we'll backdate chosen_on_date */
 #define CHOSEN_ON_DATE_SLOP (30*86400)
 
+entry_guard_t*
+entry_guard_new(const node_t *node)
+{
+  entry_guard_t *entry = tor_malloc_zero(sizeof(entry_guard_t));
+  strlcpy(entry->nickname, node_get_nickname(node), sizeof(entry->nickname));
+  memcpy(entry->identity, node->identity, DIGEST_LEN);
+
+  entry->is_dir_cache = node_is_dir(node);
+  if (get_options()->UseBridges && node_is_a_configured_bridge(node))
+    entry->is_dir_cache = 1;
+
+  /* Choose expiry time smudged over the past month. The goal here
+   * is to a) spread out when Tor clients rotate their guards, so they
+   * don't all select them on the same day, and b) avoid leaving a
+   * precise timestamp in the state file about when we first picked
+   * this guard. For details, see the Jan 2010 or-dev thread. */
+  time_t now = time(NULL);
+  entry->chosen_on_date = crypto_rand_time_range(now - 3600*24*30, now);
+  entry->chosen_by_version = tor_strdup(VERSION);
+
+  return entry;
+}
+
 /** Add a new (preferably stable and fast) router to our
  * entry_guards list. Return a pointer to the router if we succeed,
  * or NULL if we can't find any more suitable entries.
@@ -431,23 +454,11 @@ add_an_entry_guard(const node_t *chosen, int reset_status, int prepend,
     return NULL;
   }
 
-  entry = tor_malloc_zero(sizeof(entry_guard_t));
+  entry = entry_guard_new(node);
+  ((node_t*)node)->using_as_guard = 1;
+
   log_info(LD_CIRC, "Chose %s as new entry guard.",
            node_describe(node));
-  strlcpy(entry->nickname, node_get_nickname(node), sizeof(entry->nickname));
-  memcpy(entry->identity, node->identity, DIGEST_LEN);
-  entry->is_dir_cache = node_is_dir(node);
-  if (get_options()->UseBridges && node_is_a_configured_bridge(node))
-    entry->is_dir_cache = 1;
-
-  /* Choose expiry time smudged over the past month. The goal here
-   * is to a) spread out when Tor clients rotate their guards, so they
-   * don't all select them on the same day, and b) avoid leaving a
-   * precise timestamp in the state file about when we first picked
-   * this guard. For details, see the Jan 2010 or-dev thread. */
-  time_t now = time(NULL);
-  entry->chosen_on_date = crypto_rand_time_range(now - 3600*24*30, now);
-  entry->chosen_by_version = tor_strdup(VERSION);
 
   /* Are we picking this guard because all of our current guards are
    * down so we need another one (for_discovery is 1), or because we
@@ -460,11 +471,11 @@ add_an_entry_guard(const node_t *chosen, int reset_status, int prepend,
   if (!for_discovery)
     entry->made_contact = 1;
 
-  ((node_t*)node)->using_as_guard = 1;
   if (prepend)
     smartlist_insert(entry_guards, 0, entry);
   else
     smartlist_add(entry_guards, entry);
+
   control_event_guard(entry->nickname, entry->identity, "NEW");
   control_event_guard_deferred();
   log_entry_guards(LOG_INFO);
