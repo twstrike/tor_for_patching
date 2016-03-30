@@ -16,6 +16,8 @@
 #include "networkstatus.h"
 #include "policies.h"
 #include "router.h"
+#include "confparse.h"
+#include "statefile.h"
 
 //XXX Find the appropriate place for this global state
 
@@ -28,6 +30,8 @@ static guard_selection_t *entry_guard_selection = NULL;
 static smartlist_t *used_guards = NULL;
 static smartlist_t *sampled_utopic_guards = NULL;
 static smartlist_t *sampled_dystopic_guards = NULL;
+
+static int used_guards_dirty = 0;
 
 //XXX review if this is the right way of doing this
 static const node_t*
@@ -634,6 +638,28 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes,
         smartlist_len(sampled_dystopic_guards), smartlist_len(dystopic_nodes));
 }
 
+/** How long will we let a change in our guard nodes stay un-saved
+ * when we are trying to avoid disk writes? */
+#define SLOW_GUARD_STATE_FLUSH_TIME 600
+/** How long will we let a change in our guard nodes stay un-saved
+ * when we are not trying to avoid disk writes? */
+#define FAST_GUARD_STATE_FLUSH_TIME 30
+
+static void
+used_guards_changed(void)
+{
+  time_t when;
+  used_guards_dirty = 1;
+
+  if (get_options()->AvoidDiskWrites)
+    when = time(NULL) + SLOW_GUARD_STATE_FLUSH_TIME;
+  else
+    when = time(NULL) + FAST_GUARD_STATE_FLUSH_TIME;
+
+  /* or_state_save() will call guard_selection_update_state(). */
+  or_state_mark_dirty(get_or_state(), when);
+}
+
 //XXX Add tests
 STATIC void
 choose_entry_guard_algo_end(guard_selection_t *guard_selection,
@@ -642,8 +668,10 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
     log_warn(LD_CIRC, "Finishing guard selection algorithm");
 
     //XXX Save used_guards to state file instead of global variable
-    if (!smartlist_contains(guard_selection->used_guards, guard))
+    if (!smartlist_contains(guard_selection->used_guards, guard)) {
         smartlist_add(guard_selection->used_guards, (entry_guard_t*) guard);
+        used_guards_changed();
+    }
 
     guard_selection_free(guard_selection);
 }
@@ -767,6 +795,52 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
     }
 
     return *msg ? -1 : 0;
+}
+
+//XXX Add test
+STATIC void
+used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
+{
+    config_line_t **next, *line;
+
+    config_free_lines(state->UsedGuards);
+    next = &state->UsedGuards;
+    *next = NULL;
+
+    SMARTLIST_FOREACH_BEGIN(used_guards, entry_guard_t *, e) {
+        char dbuf[HEX_DIGEST_LEN+1];
+        if (!e->made_contact)
+            continue; /* don't write this one to disk */
+
+        *next = line = tor_malloc_zero(sizeof(config_line_t));
+        line->key = tor_strdup("UsedGuard");
+
+        base16_encode(dbuf, sizeof(dbuf), e->identity, DIGEST_LEN);
+        tor_asprintf(&line->value, "%s %s %sDirCache", e->nickname, dbuf,
+            e->is_dir_cache ? "" : "No");
+
+        next = &(line->next);
+        if (e->unreachable_since) {
+            *next = line = tor_malloc_zero(sizeof(config_line_t));
+            line->key = tor_strdup("UsedGuardDownSince");
+            line->value = tor_malloc(ISO_TIME_LEN+1+ISO_TIME_LEN+1);
+            format_iso_time(line->value, e->unreachable_since);
+            if (e->last_attempted) {
+                line->value[ISO_TIME_LEN] = ' ';
+                format_iso_time(line->value+ISO_TIME_LEN+1, e->last_attempted);
+            }
+            next = &(line->next);
+        }
+
+        if (e->bad_since) {
+            *next = line = tor_malloc_zero(sizeof(config_line_t));
+            line->key = tor_strdup("UsedGuardUnlistedSince");
+            line->value = tor_malloc(ISO_TIME_LEN+1);
+            format_iso_time(line->value, e->bad_since);
+            next = &(line->next);
+        }
+
+    } SMARTLIST_FOREACH_END(e);
 }
 
 //These functions adapt our proposal to current tor code
@@ -911,6 +985,9 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     return node;
 }
 
+//XXX We need something like entry_guards_compute_status()
+//which should also calls used_guards_changed()
+
 //XXX Add tests
 void
 entry_guards_update_profiles(const or_options_t *options)
@@ -980,6 +1057,10 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
         tor_free(entry_guard_selection);
     } else {
         entry_node = NULL;
+
+        //XXX entry_guard_register_connect_status() is smarter and only calls
+        //it when any guard has changed. We will get there.
+        used_guards_changed();
     }
 
     return should_continue;
@@ -996,5 +1077,23 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg)
 
     smartlist_t *guards = set ? used_guards : NULL;
     return used_guards_parse_state(state, guards, msg);
+}
+
+void
+guard_selection_update_state(or_state_t *state, const or_options_t *options)
+{
+#ifndef USE_PROP_259
+    return;
+#endif
+
+    if (!used_guards_dirty)
+        return;
+
+    used_guards_update_state(state, used_guards);
+
+    if (!options->AvoidDiskWrites)
+        or_state_mark_dirty(state, 0);
+
+    used_guards_dirty = 0;
 }
 

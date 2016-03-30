@@ -458,6 +458,7 @@ or_state_save(time_t now)
   /* Call everything else that might dirty the state even more, in order
    * to avoid redundant writes. */
   entry_guards_update_state(global_state);
+  guard_selection_update_state(global_state, get_options());
   rep_hist_update_state(global_state);
   circuit_build_times_update_state(get_circuit_build_times(), global_state);
   if (accounting_is_enabled(get_options()))
