@@ -993,7 +993,6 @@ state_lines_free(smartlist_t *lines)
   smartlist_free(lines);
 }
 
-
 static void
 test_used_guards_parse_state(void *arg)
 {

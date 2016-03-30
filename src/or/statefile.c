@@ -23,6 +23,7 @@
 #include "router.h"
 #include "sandbox.h"
 #include "statefile.h"
+#include "prop259.h"
 
 /** A list of state-file "abbreviations," for compatibility. */
 static config_abbrev_t state_abbrevs_[] = {
@@ -236,6 +237,9 @@ or_state_validate(or_state_t *state, char **msg)
   if (entry_guards_parse_state(state, 0, msg)<0)
     return -1;
 
+  if (guard_selection_parse_state(state, 0, msg)<0)
+    return -1;
+
   if (validate_transports_in_state(state)<0)
     return -1;
 
@@ -252,6 +256,11 @@ or_state_set(or_state_t *new_state)
   config_free(&state_format, global_state);
   global_state = new_state;
   if (entry_guards_parse_state(global_state, 1, &err)<0) {
+    log_warn(LD_GENERAL,"%s",err);
+    tor_free(err);
+    ret = -1;
+  }
+  if (guard_selection_parse_state(global_state, 1, &err)<0) {
     log_warn(LD_GENERAL,"%s",err);
     tor_free(err);
     ret = -1;
