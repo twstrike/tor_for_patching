@@ -609,7 +609,7 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes,
                      const smartlist_t *dystopic_nodes)
 {
     //XXX Extract a configuration from this
-    const double sample_set_threshold = 0.02;
+    const double sample_set_threshold = 0.005;
 
     //XXX persist sampled sets in state file
 
