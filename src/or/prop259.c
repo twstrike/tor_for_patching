@@ -892,10 +892,9 @@ entry_guard_selection_init(void)
     const int for_directory = 0; //XXX how to get this at this moment?
     const int num_needed = decide_num_guards(options, for_directory);
 
-    //XXX load this from the state file
-    //It also feels wrong to have it here, but the algo crashes if it is NULL
+    //XXX Is this the right place to ensure it is loaded from state file?
     if (!used_guards)
-        used_guards = smartlist_new();
+        guard_selection_parse_state(get_or_state(), 1, NULL);
 
     //XXX support excluded nodes.
     //options->ExcludeNodes is a routerset_t, not a list of guards.
@@ -1074,6 +1073,9 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg)
 #endif
 
     log_warn(LD_CIRC, "Will load used guards from state file.");
+
+    if (!used_guards)
+        used_guards = smartlist_new();
 
     smartlist_t *guards = set ? used_guards : NULL;
     return used_guards_parse_state(state, guards, msg);
