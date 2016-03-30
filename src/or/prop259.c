@@ -230,7 +230,6 @@ transition_to(guard_selection_t *guard_selection,
 
 static void
 save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
-                             
 {
     guard_selection->previous_state = guard_selection->state;
     retry_primary_guards(guard_selection);
@@ -840,7 +839,8 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //XXX This might not work. What guarantees we have that the previously
     //chosen guard meets all the constraints we have now. They can have
     //changed between last run and this run.
-    // if entry_node exist we will use it, otherwise we will pick one using next_algo
+    //if entry_node exist we will use it, otherwise we will pick one using
+    //next_algo
     if (entry_node) {
         log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
             node_describe(entry_node));

@@ -904,9 +904,10 @@ test_choose_entry_guard_algo_should_continue_when_circuit_fails(void *arg)
 }
 
 static void
-test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_for_first_time(void *arg)
+test_should_not_continue_when_circuit_succeeds_for_first_time(void *arg)
 {
-  guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  guard_selection_t *guard_selection =
+      tor_malloc_zero(sizeof(guard_selection_t));
   int succeeded = 1;
   time_t now = time(NULL);
   (void) arg;
@@ -921,9 +922,11 @@ test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_for_first
 }
 
 static void
-test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished(void *arg)
+test_should_continue_when_last_sucess_was_before_likely_down_interval(
+    void *arg)
 {
-  guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  guard_selection_t *guard_selection =
+      tor_malloc_zero(sizeof(guard_selection_t));
   int succeeded = 1;
   time_t now = time(NULL);
   (void) arg;
@@ -940,9 +943,11 @@ test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_do
 }
 
 static void
-test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_and_likely_down_interval_has_not_finished(void *arg)
+test_should_not_continue_when_last_success_was_after_likely_down_interval(
+    void *arg)
 {
-  guard_selection_t *guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  guard_selection_t *guard_selection =
+      tor_malloc_zero(sizeof(guard_selection_t));
   int succeeded = 1;
   time_t now = time(NULL);
   (void) arg;
@@ -1140,13 +1145,13 @@ struct testcase_t entrynodes_new_tests[] = {
       test_choose_entry_guard_algo_should_continue_when_circuit_fails,
       0, NULL, NULL },
     { "should_not_continue_when_circuit_succeeds_for_first_time",
-      test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_for_first_time,
+      test_should_not_continue_when_circuit_succeeds_for_first_time,
       0, NULL, NULL },
-    { "should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished",
-      test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished,
+    { "should_continue_when_last_sucess_was_before_likely_down_interval",
+      test_should_continue_when_last_sucess_was_before_likely_down_interval,
       0, NULL, NULL },
-    { "should_continue_when_circuit_succeeds_and_likely_down_interval_has_finished",
-      test_choose_entry_guard_algo_should_not_continue_when_circuit_succeeds_and_likely_down_interval_has_not_finished,
+    { "should_not_continue_when_last_success_was_after_likely_down_interval",
+    test_should_not_continue_when_last_success_was_after_likely_down_interval,
       0, NULL, NULL },
 
     END_OF_TESTCASES
