@@ -377,7 +377,18 @@ control_event_guard_deferred(void)
 }
 
 /** Largest amount that we'll backdate chosen_on_date */
-#define CHOSEN_ON_DATE_SLOP (30*86400)
+#define CHOSEN_ON_DATE_SLOP (3600*24*30)
+
+static time_t
+entry_guard_chosen_on_date(const time_t now)
+{
+  /* Choose expiry time smudged over the past month. The goal here
+   * is to a) spread out when Tor clients rotate their guards, so they
+   * don't all select them on the same day, and b) avoid leaving a
+   * precise timestamp in the state file about when we first picked
+   * this guard. For details, see the Jan 2010 or-dev thread. */
+    return crypto_rand_time_range(now - CHOSEN_ON_DATE_SLOP, now);
+}
 
 entry_guard_t*
 entry_guard_new(const node_t *node)
@@ -390,13 +401,8 @@ entry_guard_new(const node_t *node)
   if (get_options()->UseBridges && node_is_a_configured_bridge(node))
     entry->is_dir_cache = 1;
 
-  /* Choose expiry time smudged over the past month. The goal here
-   * is to a) spread out when Tor clients rotate their guards, so they
-   * don't all select them on the same day, and b) avoid leaving a
-   * precise timestamp in the state file about when we first picked
-   * this guard. For details, see the Jan 2010 or-dev thread. */
   time_t now = time(NULL);
-  entry->chosen_on_date = crypto_rand_time_range(now - 3600*24*30, now);
+  entry->chosen_on_date = entry_guard_chosen_on_date(now);
   entry->chosen_by_version = tor_strdup(VERSION);
 
   return entry;
@@ -1476,7 +1482,7 @@ entry_guards_parse_state(or_state_t *state, int set, char **msg)
      } else {
        if (state_version) {
          time_t now = time(NULL);
-         e->chosen_on_date = crypto_rand_time_range(now - 3600*24*30, now);
+         e->chosen_on_date = entry_guard_chosen_on_date(now);
          e->chosen_by_version = tor_strdup(state_version);
        }
      }
