@@ -680,9 +680,11 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                     "Bad nickname for EntryGuard");
             } else {
                 char *nickname = smartlist_get(args, 0);
+                char *digest = smartlist_get(args, 1);
+
                 strlcpy(node->nickname, nickname, MAX_NICKNAME_LEN+1);
-                if (base16_decode(node->identity, DIGEST_LEN, nickname,
-                    strlen(smartlist_get(args,1)))<0) {
+                if (base16_decode(node->identity, DIGEST_LEN, digest,
+                    strlen(digest))<0) {
                     *msg = tor_strdup("Unable to parse entry nodes: "
                         "Bad hex digest for EntryGuard");
                 }
