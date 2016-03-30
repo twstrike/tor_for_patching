@@ -393,8 +393,8 @@ test_NEXT_transitions_to_PRIMARY_GUARDS_and_saves_previous_state(void *arg)
     smartlist_add(used_guards, g1);
     smartlist_add(used_guards, g3); //used not in primary
 
-    g1->unreachable_since = now - 3*60;
-    g2->unreachable_since = now - 10;
+    g1->last_attempted = now - 3*60;
+    g2->last_attempted = now - 10;
 
     guard_selection->state = STATE_TRY_UTOPIC;
     guard_selection->used_guards = used_guards;
