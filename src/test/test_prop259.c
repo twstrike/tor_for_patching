@@ -928,7 +928,7 @@ test_choose_entry_guard_algo_should_continue_when_circuit_succeeds_and_likely_do
   time_t now = time(NULL);
   (void) arg;
 
-  guard_selection->used_guards = smartlist_new();
+  guard_selection->primary_guards = smartlist_new();
   guard_selection->last_success = now - 61;
   int should_continue = choose_entry_guard_algo_should_continue
     (guard_selection, succeeded, now, 1);
