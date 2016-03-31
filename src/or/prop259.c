@@ -179,7 +179,7 @@ mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 static void
 transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection)
 {
-    if (guard_selection->previous_state != 0) {
+    if (guard_selection->previous_state != STATE_INVALID) {
         log_warn(LD_CIRC, "Going back to previous state");
         transition_to(guard_selection, guard_selection->previous_state);
     } else {
@@ -390,6 +390,9 @@ static void
 check_primary_guards_retry_interval(guard_selection_t *guard_selection,
                                     const or_options_t *options, time_t now)
 {
+    if (guard_selection->state == STATE_PRIMARY_GUARDS)
+        return;
+
     int retry_interval = options->PrimaryGuardsRetryInterval ?
         options->PrimaryGuardsRetryInterval : 3;
     time_t primary_retry_time = now - retry_interval * 60;
