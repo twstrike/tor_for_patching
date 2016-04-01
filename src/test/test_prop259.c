@@ -340,7 +340,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
     smartlist_t *sampled_utopic = smartlist_new();
     smartlist_t *sampled_dystopic = smartlist_new();
     smartlist_t *used_guards = smartlist_new();
-    smartlist_t *exclude_nodes = smartlist_new();
+    routerset_t *exclude_nodes = routerset_new();
     int n_primary_guards = 0;
     int dir = 0;
 
@@ -357,7 +357,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
 
   done:
-    tor_free(exclude_nodes);
+    routerset_free(exclude_nodes);
     tor_free(used_guards);
     tor_free(sampled_dystopic);
     tor_free(sampled_utopic);
@@ -430,7 +430,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     smartlist_t *sampled_utopic = smartlist_new();
     smartlist_t *sampled_dystopic = smartlist_new();
     smartlist_t *used_guards = smartlist_new();
-    smartlist_t *exclude_nodes = smartlist_new();
+    routerset_t *exclude_nodes = routerset_new();
     entry_guard_t *entry1 = NULL, *entry2 = NULL;
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
     (void) arg;
@@ -471,7 +471,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     tor_free(entry1);
     tor_free(entry2);
     tor_free(used_guards);
-    tor_free(exclude_nodes);
+    routerset_free(exclude_nodes);
     tor_free(options);
     guard_selection_free(guard_selection);
 }
