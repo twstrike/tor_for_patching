@@ -1001,11 +1001,6 @@ circuit_predict_and_launch_new(void)
   time_t now = time(NULL);
   int flags = 0;
 
-  //entry guard selection context should be the same for this batch of
-  //circuits. The same entry guard will be used for all the circuits in this
-  //batch until it fails.
-  entry_guard_selection_init();
-
   /* First, count how many of each type of circuit we have already. */
   SMARTLIST_FOREACH_BEGIN(circuit_get_global_list(), circuit_t *, circ) {
     cpath_build_state_t *build_state;

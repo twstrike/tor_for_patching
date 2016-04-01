@@ -888,9 +888,6 @@ entry_guard_selection_init(void)
         return;
     }
 
-    if (entry_guard_selection)
-        return;
-
     const or_options_t *options = get_options();
     const int for_directory = 0; //XXX how to get this at this moment?
     const int num_needed = decide_num_guards(options, for_directory);
@@ -925,7 +922,13 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
         return entry_node;
     }
 
-    //We have received a consensus but not enough to build a circuit
+    //entry guard selection context should be the same for this batch of
+    //circuits. The same entry guard will be used for all the circuits in this
+    //batch until it fails.
+    if (!entry_guard_selection)
+        entry_guard_selection_init();
+
+    //We can not choose guards yet, probably due not having enough guards
     //same as !router_have_minimum_dir_info()
     if (!entry_guard_selection)
         return NULL;
