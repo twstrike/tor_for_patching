@@ -65,7 +65,7 @@ choose_entry_guard_algo_start(
         smartlist_t *used_guards,
         const smartlist_t *sampled_utopic_guards,
         const smartlist_t *sampled_dystopic_guards,
-        smartlist_t *exclude_nodes,
+        routerset_t *exclude_nodes,
         int n_primary_guards,
         int dir);
 

@@ -16,6 +16,7 @@
 #include "networkstatus.h"
 #include "policies.h"
 #include "router.h"
+#include "routerset.h"
 #include "confparse.h"
 #include "statefile.h"
 
@@ -482,12 +483,11 @@ choose_entry_guard_algo_start(
     smartlist_t *used_guards,
     const smartlist_t *sampled_utopic,
     const smartlist_t *sampled_dystopic,
-    smartlist_t *exclude_nodes,
+    routerset_t *exclude_nodes,
     int n_primary_guards,
     int for_directory)
 {
     //XXX fill remaining sets from sampled
-    (void) exclude_nodes;
 
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
@@ -499,6 +499,12 @@ choose_entry_guard_algo_start(
     fill_in_remaining_utopic(guard_selection, sampled_utopic);
     fill_in_remaining_dystopic(guard_selection, sampled_dystopic);
     fill_in_primary_guards(guard_selection);
+
+    // filter out all the exclude_nodes
+    routerset_subtract_nodes(guard_selection->primary_guards,exclude_nodes);
+    routerset_subtract_nodes(guard_selection->used_guards,exclude_nodes);
+    routerset_subtract_nodes(guard_selection->remaining_utopic_guards,exclude_nodes);
+    routerset_subtract_nodes(guard_selection->remaining_dystopic_guards,exclude_nodes);
 
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
         "- used: %p,\n"
@@ -903,13 +909,9 @@ entry_guard_selection_init(void)
     if (!used_guards)
         guard_selection_parse_state(get_or_state(), 1, NULL);
 
-    //XXX support excluded nodes.
-    //options->ExcludeNodes is a routerset_t, not a list of guards.
-    //XXX Look at entry_guards_set_from_config to see how it filters out
-    //ExcludeNodes
     entry_guard_selection = choose_entry_guard_algo_start(
         used_guards, sampled_utopic_guards, sampled_dystopic_guards,
-        NULL, //XXX should be options->ExcludeNodes,
+        options->ExcludeNodes,
         num_needed, for_directory);
 }
 

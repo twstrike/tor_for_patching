@@ -96,7 +96,7 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     smartlist_t *sampled_utopic = smartlist_new();
     smartlist_t *sampled_dystopic = smartlist_new();
     smartlist_t *used_guards = smartlist_new();
-    smartlist_t *exclude_nodes = smartlist_new();
+    routerset_t *exclude_nodes = routerset_new();
     (void) arg;
 
     int n_primary_guards = 0;
@@ -113,7 +113,7 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
 
   done:
-    smartlist_free(exclude_nodes);
+    routerset_free(exclude_nodes);
     smartlist_free(used_guards);
     smartlist_free(sampled_dystopic);
     smartlist_free(sampled_utopic);
@@ -487,7 +487,7 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
     smartlist_t *sampled_utopic = smartlist_new();
     smartlist_t *sampled_dystopic = smartlist_new();
     smartlist_t *used_guards = smartlist_new();
-    smartlist_t *exclude_nodes = smartlist_new();
+    routerset_t *exclude_nodes = routerset_new();
     int n_primary_guards = 0;
     int dir = 0;
 
@@ -518,7 +518,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     smartlist_t *sampled_utopic = smartlist_new();
     smartlist_t *sampled_dystopic = smartlist_new();
     smartlist_t *used_guards = smartlist_new();
-    smartlist_t *exclude_nodes = smartlist_new();
+    routerset_t *exclude_nodes = routerset_new();
     int n_primary_guards = 0;
     int dir = 0;
 
