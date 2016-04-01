@@ -485,16 +485,10 @@ guard_selection_free(guard_selection_t *guard_selection)
 }
 
 STATIC guard_selection_t*
-choose_entry_guard_algo_start(
-    smartlist_t *used_guards,
-    const smartlist_t *sampled_utopic,
-    const smartlist_t *sampled_dystopic,
-    routerset_t *exclude_nodes,
-    int n_primary_guards,
-    int for_directory)
+choose_entry_guard_algo_start( smartlist_t *used_guards,
+    const smartlist_t *sampled_utopic, const smartlist_t *sampled_dystopic,
+    routerset_t *exclude_nodes, int n_primary_guards, int for_directory)
 {
-    //XXX fill remaining sets from sampled
-
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
     guard_selection->for_directory = for_directory;
@@ -502,15 +496,20 @@ choose_entry_guard_algo_start(
     guard_selection->used_guards = used_guards;
     guard_selection->num_primary_guards = n_primary_guards;
 
+    //XXX should not we remove excluded nodes from sampled sets?
     fill_in_remaining_utopic(guard_selection, sampled_utopic);
     fill_in_remaining_dystopic(guard_selection, sampled_dystopic);
     fill_in_primary_guards(guard_selection);
 
     // filter out all the exclude_nodes
-    routerset_subtract_nodes(guard_selection->primary_guards,exclude_nodes);
-    routerset_subtract_nodes(guard_selection->used_guards,exclude_nodes);
-    routerset_subtract_nodes(guard_selection->remaining_utopic_guards,exclude_nodes);
-    routerset_subtract_nodes(guard_selection->remaining_dystopic_guards,exclude_nodes);
+    //XXX This will make PRIMRY_GUARD to have LESS than N_PRMARY_GUARDS
+    //It should be filtered when filling the sets
+    routerset_subtract_nodes(guard_selection->primary_guards, exclude_nodes);
+    routerset_subtract_nodes(guard_selection->used_guards, exclude_nodes);
+    routerset_subtract_nodes(guard_selection->remaining_utopic_guards,
+        exclude_nodes);
+    routerset_subtract_nodes(guard_selection->remaining_dystopic_guards,
+        exclude_nodes);
 
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
         "- used: %p,\n"
@@ -819,6 +818,9 @@ guards_parse_state(config_line_t *line, const char* config_name,
 
         if (smartlist_len(new_entry_guards))
             changed = 1;
+
+        log_warn(LD_CIRC, "USED_GUARDS loaded:");
+        log_guards(LOG_WARN, used_guards);
 
         //XXX should we?
         //This updates the using_as_guard for each node
@@ -1131,12 +1133,17 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg)
     if (!used_guards)
         used_guards = smartlist_new();
 
-    smartlist_t *guards = set ? used_guards : NULL;
-    int ret = used_guards_parse_state(state, guards, msg);
-    if (ret<0)
-        return ret;
+    smartlist_t *guards = set ? smartlist_new() : NULL;
+    int ret = entry_guards_parse_state_backward(state, guards, msg);
+    if (ret == 0) {
+        ret = used_guards_parse_state(state, guards, msg);
+    }
 
-    return entry_guards_parse_state_backward(state, guards, msg);
+    if (set && ret == 1)
+        smartlist_add_all(used_guards, guards);
+
+    smartlist_free(guards);
+    return ret;
 }
 
 void
@@ -1171,5 +1178,33 @@ used_guard_get_by_digest(const char *digest)
         return NULL;
 
     return guard_get_by_digest(digest, entry_guard_selection->used_guards);
+}
+
+void
+log_guards(int severity, const smartlist_t *guards)
+{
+  smartlist_t *elements = smartlist_new();
+  char *s;
+
+  SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e)
+    {
+      if (is_live(e))
+        smartlist_add_asprintf(elements, "%s [%s] (up %s)",
+                     e->nickname,
+                     hex_str(e->identity, DIGEST_LEN),
+                     e->made_contact ? "made-contact" : "never-contacted");
+      else
+        smartlist_add_asprintf(elements, "%s [%s] (NOT LIVE, %s)",
+                     e->nickname,
+                     hex_str(e->identity, DIGEST_LEN),
+                     e->made_contact ? "made-contact" : "never-contacted");
+    }
+  SMARTLIST_FOREACH_END(e);
+
+  s = smartlist_join_strings(elements, ",", 0, NULL);
+  SMARTLIST_FOREACH(elements, char*, cp, tor_free(cp));
+  smartlist_free(elements);
+  log_fn(severity,LD_CIRC,"%s",s);
+  tor_free(s);
 }
 

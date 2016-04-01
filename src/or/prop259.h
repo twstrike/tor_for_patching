@@ -64,6 +64,9 @@ guard_get_by_digest(const char *digest, const smartlist_t *guards);
 entry_guard_t *
 used_guard_get_by_digest(const char *digest);
 
+void
+log_guards(int severity, const smartlist_t *guards);
+
 #ifdef PROP259_PRIVATE
 
 STATIC guard_selection_t*
