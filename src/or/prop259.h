@@ -58,6 +58,12 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg);
 void
 guard_selection_update_state(or_state_t *state, const or_options_t *options);
 
+entry_guard_t*
+guard_get_by_digest(const char *digest, const smartlist_t *guards);
+
+entry_guard_t *
+used_guard_get_by_digest(const char *digest);
+
 #ifdef PROP259_PRIVATE
 
 STATIC guard_selection_t*

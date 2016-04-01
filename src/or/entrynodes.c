@@ -307,11 +307,11 @@ num_live_entry_guards(int for_directory)
 entry_guard_t *
 entry_guard_get_by_id_digest(const char *digest)
 {
-  SMARTLIST_FOREACH(entry_guards, entry_guard_t *, entry,
-                    if (tor_memeq(digest, entry->identity, DIGEST_LEN))
-                      return entry;
-                   );
-  return NULL;
+#ifndef USE_PROP_259
+    return guard_get_by_digest(digest, entry_guards);
+#else
+    return used_guard_get_by_digest(digest);
+#endif
 }
 
 /** Dump a description of our list of entry guards to the log at level
@@ -486,6 +486,9 @@ add_an_entry_guard(const node_t *chosen, int reset_status, int prepend,
    */
   if (!for_discovery)
     entry->made_contact = 1;
+
+  if (!entry_guards)
+    entry_guards = smartlist_new();
 
   if (prepend)
     smartlist_insert(entry_guards, 0, entry);

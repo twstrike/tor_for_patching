@@ -41,13 +41,6 @@ guard_to_node(const entry_guard_t *guard)
     return node_get_by_id(guard->identity);
 }
 
-//XXX review if this is the right way of doing this
-static entry_guard_t*
-node_to_guard(const node_t *node)
-{
-    return entry_guard_get_by_id_digest(node->identity);
-}
-
 static int
 is_dystopic_port(uint16_t port)
 {
@@ -271,6 +264,23 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 }
 
 static entry_guard_t*
+choose_as_new_entry_guard(node_t *node)
+{
+  entry_guard_t *guard = entry_guard_new(node);
+  node->using_as_guard = 1;
+
+  guard->is_dir_cache = node_is_dir(node);
+  if (get_options()->UseBridges && node_is_a_configured_bridge(node))
+      guard->is_dir_cache = 1;
+
+  log_info(LD_CIRC, "Chose %s as new entry guard.",
+           node_describe(node));
+
+  return guard;
+}
+
+
+static entry_guard_t*
 each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
 {
     entry_guard_t *guard = NULL;
@@ -286,11 +296,7 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
             break;
         }
 
-        //XXX avoid the global entry_guards but still create a entry_guard_t
-        //XXX replace by entry_guard_new and only add to the global on END()
-        add_an_entry_guard(node, 0, 0, 0, for_directory);
-        entry_guard_t *g = node_to_guard(node);
-        tor_assert(g);
+        entry_guard_t *g = choose_as_new_entry_guard((node_t*) node);
 
         base16_encode(buf, sizeof(buf), g->identity, DIGEST_LEN);
         log_warn(LD_CIRC, "Evaluating '%s' (%s)", g->nickname, buf);
@@ -594,12 +600,7 @@ next_primary_guard(guard_selection_t *guard_selection)
 
     smartlist_remove(guard_selection->remaining_utopic_guards, node);
 
-    //XXX replace by entry_guard_new and only add to the global on END()
-    add_an_entry_guard(node, 0, 0, 0, guard_selection->for_directory);
-    entry_guard_t *g = node_to_guard(node);
-    tor_assert(g);
-
-    return g;
+    return choose_as_new_entry_guard((node_t*) node);
 }
 
 STATIC void
@@ -815,11 +816,6 @@ guards_parse_state(config_line_t *line, const char* config_name,
             entry_guard_free(e));
         smartlist_clear(used_guards);
         smartlist_add_all(used_guards, new_entry_guards);
-
-        //XXX remove me after the global entry_guards is removed
-        //otherwise the pathbias thing will break
-        SMARTLIST_FOREACH(used_guards, entry_guard_t *, e,
-            add_an_entry_guard(guard_to_node(e), 0, 0, 0, 0));
 
         if (smartlist_len(new_entry_guards))
             changed = 1;
@@ -1155,5 +1151,25 @@ guard_selection_update_state(or_state_t *state, const or_options_t *options)
         or_state_mark_dirty(state, 0);
 
     used_guards_dirty = 0;
+}
+
+entry_guard_t*
+guard_get_by_digest(const char *digest, const smartlist_t *guards)
+{
+    SMARTLIST_FOREACH(guards, entry_guard_t *, entry,
+        if (tor_memeq(digest, entry->identity, DIGEST_LEN))
+            return entry;
+    );
+
+    return NULL;
+}
+
+entry_guard_t *
+used_guard_get_by_digest(const char *digest)
+{
+    if (!entry_guard_selection)
+        return NULL;
+
+    return guard_get_by_digest(digest, entry_guard_selection->used_guards);
 }
 
