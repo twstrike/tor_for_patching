@@ -854,6 +854,7 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
   }
 
 #else
+  (void) first_contact;
   refuse_conn = guard_selection_register_connect_status(entry,
       succeeded, now);
 #endif
