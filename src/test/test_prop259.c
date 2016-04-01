@@ -1002,7 +1002,7 @@ static void
 test_used_guards_parse_state(void *arg)
 {
   or_state_t *state = or_state_new();
-  smartlist_t *entry_state_lines = smartlist_new();
+  smartlist_t *used_state_lines = smartlist_new();
   smartlist_t *used_guards = smartlist_new();
   char *msg = NULL;
   int retval;
@@ -1021,21 +1021,21 @@ test_used_guards_parse_state(void *arg)
     smartlist_t *state_line = smartlist_new();
     smartlist_add_asprintf(state_line, "UsedGuard");
     smartlist_add_asprintf(state_line, "%s %s %s", nickname, fpr, "DirCache");
-    smartlist_add(entry_state_lines, state_line);
+    smartlist_add(used_state_lines, state_line);
 
     state_line = smartlist_new();
     smartlist_add_asprintf(state_line, "UsedGuardDownSince");
     smartlist_add_asprintf(state_line, "%s", down_since);
-    smartlist_add(entry_state_lines, state_line);
+    smartlist_add(used_state_lines, state_line);
 
     state_line = smartlist_new();
     smartlist_add_asprintf(state_line, "UsedGuardUnlistedSince");
     smartlist_add_asprintf(state_line, "%s", unlisted_since);
-    smartlist_add(entry_state_lines, state_line);
+    smartlist_add(used_state_lines, state_line);
   }
 
   /* Inject our lines in the state */
-  state_insert_line_helper(&state->UsedGuards, entry_state_lines);
+  state_insert_line_helper(&state->UsedGuards, used_state_lines);
 
   /* Parse state */
   retval = used_guards_parse_state(state, used_guards, &msg);
@@ -1079,6 +1079,97 @@ test_used_guards_parse_state(void *arg)
   }
 
  done:
+  state_lines_free(used_state_lines);
+  SMARTLIST_FOREACH(used_guards, entry_guard_t *, e, entry_guard_free(e));
+  smartlist_free(used_guards);
+  or_state_free(state);
+  tor_free(msg);
+}
+
+static void
+test_used_guards_parse_state_backward_compatible(void *arg)
+{
+  or_state_t *state = or_state_new();
+  smartlist_t *entry_state_lines = smartlist_new();
+  smartlist_t *used_guards = smartlist_new();
+  char *msg = NULL;
+  int retval;
+
+  /* Details of our fake guard node */
+  const char *nickname = "hagbard";
+  const char *fpr = "B29D536DD1752D542E1FBB3C9CE4449D51298212";
+  const char *unlisted_since = "2014-06-08 16:16:50";
+  const char *down_since = "2014-06-07 16:16:40";
+
+  (void) arg;
+
+  dummy_state = tor_malloc_zero(sizeof(or_state_t));
+  MOCK(get_or_state, get_or_state_replacement);
+
+  { /* Prepare backwards compatible state entry */
+    smartlist_t *state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "EntryGuard");
+    smartlist_add_asprintf(state_line, "%s %s %s", nickname, fpr, "DirCache");
+    smartlist_add(entry_state_lines, state_line);
+
+    state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "EntryGuardDownSince");
+    smartlist_add_asprintf(state_line, "%s", down_since);
+    smartlist_add(entry_state_lines, state_line);
+
+    state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "EntryGuardUnlistedSince");
+    smartlist_add_asprintf(state_line, "%s", unlisted_since);
+    smartlist_add(entry_state_lines, state_line);
+  }
+
+  /* Inject our lines in the state */
+  state_insert_line_helper(&state->EntryGuards, entry_state_lines);
+
+  /* Parse state */
+  retval = entry_guards_parse_state_backward(state, used_guards, &msg);
+  tt_int_op(retval, OP_GE, 0);
+
+  tt_int_op(smartlist_len(used_guards), OP_EQ, 1);
+
+  { /* Test the entry guard structure */
+    char hex_digest[1024];
+    char str_time[1024];
+
+    const entry_guard_t *e = smartlist_get(used_guards, 0);
+    tt_str_op(e->nickname, OP_EQ, nickname); /* Verify nickname */
+
+    base16_encode(hex_digest, sizeof(hex_digest),
+                  e->identity, DIGEST_LEN);
+    tt_str_op(hex_digest, OP_EQ, fpr); /* Verify fingerprint */
+
+    tt_assert(e->is_dir_cache); /* Verify dirness */
+
+    tt_assert(e->made_contact); /* All saved guards have been contacted */
+
+    tt_assert(e->bad_since); /* Verify bad_since timestamp */
+    format_iso_time(str_time, e->bad_since);
+    tt_str_op(str_time, OP_EQ, unlisted_since);
+
+    tt_assert(e->unreachable_since); /* Verify unreachable_since timestamp */
+    format_iso_time(str_time, e->unreachable_since);
+    tt_str_op(str_time, OP_EQ, down_since);
+
+    /* The rest should be unset */
+    tt_assert(!e->chosen_by_version);
+    tt_assert(!e->can_retry);
+    tt_assert(!e->path_bias_noticed);
+    tt_assert(!e->path_bias_warned);
+    tt_assert(!e->path_bias_extreme);
+    tt_assert(!e->path_bias_disabled);
+    tt_assert(!e->path_bias_use_noticed);
+    tt_assert(!e->path_bias_use_extreme);
+    tt_assert(!e->last_attempted);
+  }
+
+ done:
+  UNMOCK(get_or_state);
+  tor_free(dummy_state);
   state_lines_free(entry_state_lines);
   SMARTLIST_FOREACH(used_guards, entry_guard_t *, e, entry_guard_free(e));
   smartlist_free(used_guards);
@@ -1089,6 +1180,9 @@ test_used_guards_parse_state(void *arg)
 struct testcase_t entrynodes_new_tests[] = {
     { "used_guards_parse_state",
         test_used_guards_parse_state,
+        0, NULL, NULL },
+    { "used_guards_parse_state_backward_compatible",
+        test_used_guards_parse_state_backward_compatible,
         0, NULL, NULL },
     { "state_machine_init",
         test_STATE_PRIMARY_GUARD_is_initial_state,

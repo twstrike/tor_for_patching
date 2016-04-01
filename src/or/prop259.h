@@ -116,6 +116,10 @@ STATIC int
 used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                         char **msg);
 
+STATIC int
+entry_guards_parse_state_backward(const or_state_t *state, smartlist_t *entry_guards,
+                        char **msg);
+
 STATIC void
 used_guards_update_state(or_state_t *state, smartlist_t *used_guards);
 

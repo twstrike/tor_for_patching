@@ -234,11 +234,14 @@ or_state_validate_cb(void *old_state, void *state, void *default_state,
 static int
 or_state_validate(or_state_t *state, char **msg)
 {
+
+#ifndef USE_PROP_259
   if (entry_guards_parse_state(state, 0, msg)<0)
     return -1;
-
+#else
   if (guard_selection_parse_state(state, 0, msg)<0)
     return -1;
+#endif
 
   if (validate_transports_in_state(state)<0)
     return -1;
@@ -255,16 +258,21 @@ or_state_set(or_state_t *new_state)
   tor_assert(new_state);
   config_free(&state_format, global_state);
   global_state = new_state;
+
+#ifndef USE_PROP_259
   if (entry_guards_parse_state(global_state, 1, &err)<0) {
     log_warn(LD_GENERAL,"%s",err);
     tor_free(err);
     ret = -1;
   }
+#else
   if (guard_selection_parse_state(global_state, 1, &err)<0) {
     log_warn(LD_GENERAL,"%s",err);
     tor_free(err);
     ret = -1;
   }
+#endif
+
   if (rep_hist_load_state(global_state, &err)<0) {
     log_warn(LD_GENERAL,"Unparseable bandwidth history state: %s",err);
     tor_free(err);
@@ -457,8 +465,12 @@ or_state_save(time_t now)
 
   /* Call everything else that might dirty the state even more, in order
    * to avoid redundant writes. */
+#ifndef USE_PROP_259
   entry_guards_update_state(global_state);
+#else
   guard_selection_update_state(global_state, get_options());
+#endif
+
   rep_hist_update_state(global_state);
   circuit_build_times_update_state(get_circuit_build_times(), global_state);
   if (accounting_is_enabled(get_options()))

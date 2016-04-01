@@ -692,21 +692,27 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
     guard_selection_free(guard_selection);
 }
 
-STATIC int
-used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
-                        char **msg)
+static int
+guards_parse_state(config_line_t *line, const char* config_name,
+                   smartlist_t *used_guards, char **msg)
 {
     //XXX We should probably be backward compatible with EntryGuard
     //and call entry_guards_parse_state()
 
     entry_guard_t *node = NULL;
-    config_line_t *line;
     smartlist_t *new_entry_guards = smartlist_new();
+    int changed = 0;
     time_t now = time(NULL);
 
+    char *down_since_config_name = NULL;
+    char *unlisted_since_config_name = NULL;
+
+    tor_asprintf(&down_since_config_name, "%sDownSince", config_name);
+    tor_asprintf(&unlisted_since_config_name, "%sUnlistedSince", config_name);
+
     *msg = NULL;
-    for (line = state->UsedGuards; line; line = line->next) {
-        if (!strcasecmp(line->key, "UsedGuard")) {
+    for (; line; line = line->next) {
+        if (!strcasecmp(line->key, config_name)) {
             smartlist_t *args = smartlist_new();
             node = tor_malloc_zero(sizeof(entry_guard_t));
             /* all entry guards on disk have been contacted */
@@ -717,11 +723,11 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
 
             /* Validates nickname and fingerprint */
             if (smartlist_len(args)<2) {
-                *msg = tor_strdup("Unable to parse entry nodes: "
-                    "Too few arguments to EntryGuard");
+                tor_asprintf(msg, "Unable to parse entry nodes: "
+                    "Too few arguments to %s", config_name);
             } else if (!is_legal_nickname(smartlist_get(args,0))) {
-                *msg = tor_strdup("Unable to parse entry nodes: "
-                    "Bad nickname for EntryGuard");
+                tor_asprintf(msg, "Unable to parse entry nodes: "
+                    "Bad nickname for %s", config_name);
             } else {
                 char *nickname = smartlist_get(args, 0);
                 char *digest = smartlist_get(args, 1);
@@ -729,8 +735,8 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                 strlcpy(node->nickname, nickname, MAX_NICKNAME_LEN+1);
                 if (base16_decode(node->identity, DIGEST_LEN, digest,
                     strlen(digest))<0) {
-                    *msg = tor_strdup("Unable to parse entry nodes: "
-                        "Bad hex digest for EntryGuard");
+                    tor_asprintf(msg, "Unable to parse entry nodes: "
+                        "Bad hex digest for %s", config_name);
                 }
             }
 
@@ -743,8 +749,8 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                     node->is_dir_cache = 0;
                 } else {
                     log_warn(LD_CONFIG,
-                        "Bogus third argument to EntryGuard line: %s",
-                        escaped(is_cache));
+                        "Bogus third argument to %s line: %s",
+                        config_name, escaped(is_cache));
                 }
             }
 
@@ -755,20 +761,21 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
             if (*msg)
                 break;
 
-        } else if (!strcasecmp(line->key, "UsedGuardDownSince") ||
-            !strcasecmp(line->key, "UsedGuardUnlistedSince")) {
+        } else if (!strcasecmp(line->key, down_since_config_name) ||
+            !strcasecmp(line->key, unlisted_since_config_name)) {
             time_t when;
             time_t last_try = 0;
 
             if (!node) {
-                *msg = tor_strdup("Unable to parse used guard: "
-                    "UsedGuardDownSince/UnlistedSince without UsedGuard");
+                tor_asprintf(msg, "Unable to parse used guard: "
+                    "%sDownSince/UnlistedSince without %s", config_name,
+                    config_name);
                 break;
             }
 
             if (parse_iso_time_(line->value, &when, 0)<0) {
-                *msg = tor_strdup("Unable to parse used guard: "
-                    "Bad time in UsedGuardDownSince/UnlistedSince");
+                tor_asprintf(msg, "Unable to parse used guard: "
+                    "Bad time in %sDownSince/UnlistedSince", config_name);
                 break;
             }
 
@@ -784,12 +791,15 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                 (void) parse_iso_time(line->value+ISO_TIME_LEN+1, &last_try);
             }
 
-            if (!strcasecmp(line->key, "UsedGuardDownSince")) {
+            if (!strcasecmp(line->key, down_since_config_name)) {
                 node->unreachable_since = when;
                 node->last_attempted = last_try;
             } else {
                 node->bad_since = when;
             }
+
+        //TODO: Add path bias
+
         } else {
             log_warn(LD_BUG, "Unexpected key %s", line->key);
         }
@@ -806,11 +816,43 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
         smartlist_clear(used_guards);
         smartlist_add_all(used_guards, new_entry_guards);
 
+        //XXX remove me after the global entry_guards is removed
+        //otherwise the pathbias thing will break
+        SMARTLIST_FOREACH(used_guards, entry_guard_t *, e,
+            add_an_entry_guard(guard_to_node(e), 0, 0, 0, 0));
+
+        if (smartlist_len(new_entry_guards))
+            changed = 1;
+
         //XXX should we?
+        //This updates the using_as_guard for each node
         //update_node_guard_status();
     }
 
-    return *msg ? -1 : 0;
+    tor_free(down_since_config_name);
+    tor_free(unlisted_since_config_name);
+    return *msg ? -1 : changed;
+}
+
+STATIC int
+used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
+                        char **msg)
+{
+    return guards_parse_state(state->UsedGuards, "UsedGuard", used_guards,
+        msg);
+}
+
+STATIC int
+entry_guards_parse_state_backward(const or_state_t *state,
+                                  smartlist_t *entry_guards, char **msg)
+{
+    int ret = guards_parse_state(state->EntryGuards, "EntryGuard",
+        entry_guards, msg);
+
+    if (ret == 1)
+        used_guards_changed(); 
+
+    return ret;
 }
 
 //XXX Add test
@@ -818,6 +860,11 @@ STATIC void
 used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
 {
     config_line_t **next, *line;
+
+    //EntryGuards is replaced by UsedGuards
+    config_free_lines(state->EntryGuards);
+    next = &state->EntryGuards;
+    *next = NULL;
 
     config_free_lines(state->UsedGuards);
     next = &state->UsedGuards;
@@ -1083,26 +1130,22 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
 int
 guard_selection_parse_state(const or_state_t *state, int set, char **msg)
 {
-#ifndef USE_PROP_259
-    return 0;
-#endif
-
     log_warn(LD_CIRC, "Will load used guards from state file.");
 
     if (!used_guards)
         used_guards = smartlist_new();
 
     smartlist_t *guards = set ? used_guards : NULL;
-    return used_guards_parse_state(state, guards, msg);
+    int ret = used_guards_parse_state(state, guards, msg);
+    if (ret<0)
+        return ret;
+
+    return entry_guards_parse_state_backward(state, guards, msg);
 }
 
 void
 guard_selection_update_state(or_state_t *state, const or_options_t *options)
 {
-#ifndef USE_PROP_259
-    return;
-#endif
-
     if (!used_guards_dirty)
         return;
 
