@@ -279,7 +279,6 @@ choose_as_new_entry_guard(node_t *node)
   return guard;
 }
 
-
 static entry_guard_t*
 each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
 {
@@ -848,7 +847,7 @@ entry_guards_parse_state_backward(const or_state_t *state,
         entry_guards, msg);
 
     if (ret == 1)
-        used_guards_changed(); 
+        used_guards_changed();
 
     return ret;
 }
