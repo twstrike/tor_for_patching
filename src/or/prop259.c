@@ -1110,6 +1110,8 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
 
     log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
+    //XXX We need to find a way to clear this when this callback is not
+    //invoked (when there is already a connection stablished to this guard)
     if (pending_guard == guard_to_node(guard))
         pending_guard = NULL;
 
