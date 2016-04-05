@@ -86,6 +86,31 @@ is_dystopic(node_t *node)
 }
 
 static int
+is_valid_according_options(or_options_t *options, node_t *node, int for_directory)
+{
+    int ret = 1;
+    if (options->FascistFirewall && !is_dystopic(node)){
+        ret = 0;
+    }
+    if (options->ReachableAddresses
+            || (options->ReachableORAddresses && !for_directory)
+            || (options->ReachableDirAddresses && for_directory)){
+        firewall_connection_t fw_connection = for_directory ? FIREWALL_DIR_CONNECTION:FIREWALL_OR_CONNECTION;
+        if(fascist_firewall_allows_node(node, fw_connection, 0)){
+            ret = 0;
+        }
+    }
+    if (options->ExcludeNodes && routerset_contains_node(options->ExcludeNodes,node)){
+        ret = 0;
+    }
+    /* ClientUseIPv4, ClientUseIPv6, ClientPreferIPv6ORPort, EntryNodes,
+       ExcludeNodes, FascistFirewall, FirewallPorts, GeoIPExcludeUnknown,
+       GuardLifetime, ReachableAddresses, ReachableDirAddresses,
+       ReachableORAddresses */
+    return ret;
+}
+
+static int
 is_live(const entry_guard_t *guard)
 {
     //XXX using entry_is_live() would introduce the current progressive retry
