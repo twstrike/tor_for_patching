@@ -23,7 +23,7 @@
 //XXX Find the appropriate place for this global state
 
 /** Entry guard selection algorithm **/
-static const node_t *entry_node = NULL;
+static const node_t *pending_guard = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
 /** Related to guard selection algorithm. **/
@@ -967,12 +967,12 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //XXX This might not work. What guarantees we have that the previously
     //chosen guard meets all the constraints we have now. They can have
     //changed between last run and this run.
-    //if entry_node exist we will use it, otherwise we will pick one using
-    //next_algo
-    if (entry_node) {
+    //If pending_guard exist we keep using it until there is a feedback on
+    //the connection.
+    if (pending_guard) {
         log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
-            node_describe(entry_node));
-        return entry_node;
+            node_describe(pending_guard));
+        return pending_guard;
     }
 
     //entry guard selection context should be the same for this batch of
@@ -1038,7 +1038,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (n_options_out)
         *n_options_out = 1;
 
-    entry_node = node;
+    pending_guard = node;
 
     return node;
 }
@@ -1102,7 +1102,7 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
         return should_continue;
     }
 
-    //XXX add this to options?
+    //XXX add this to options
     int internet_likely_down_interval = 5;
 
     should_continue = choose_entry_guard_algo_should_continue(
@@ -1110,12 +1110,13 @@ guard_selection_register_connect_status(const entry_guard_t *guard,
 
     log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
+    if (pending_guard == guard_to_node(guard))
+        pending_guard = NULL;
+
     if (!should_continue) {
         choose_entry_guard_algo_end(entry_guard_selection, guard);
         tor_free(entry_guard_selection);
     } else {
-        entry_node = NULL;
-
         //XXX entry_guard_register_connect_status() is smarter and only calls
         //it when any guard has changed. We will get there.
         used_guards_changed();
