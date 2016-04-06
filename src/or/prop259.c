@@ -30,7 +30,6 @@ static guard_selection_t *entry_guard_selection = NULL;
 //XXX Add proper documentation
 static smartlist_t *used_guards = NULL;
 static smartlist_t *sampled_utopic_guards = NULL;
-static smartlist_t *sampled_dystopic_guards = NULL;
 
 static int used_guards_dirty = 0;
 
@@ -243,9 +242,6 @@ transition_to(guard_selection_t *guard_selection,
     case STATE_TRY_UTOPIC:
         log_warn(LD_CIRC, "Transitioned to STATE_TRY_UTOPIC.");
         break;
-    case STATE_TRY_DYSTOPIC:
-        log_warn(LD_CIRC, "Transitioned to STATE_TRY_DYSTOPIC.");
-        break;
     }
 
     guard_selection->state = state;
@@ -353,14 +349,6 @@ each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
 }
 
 static entry_guard_t*
-each_remaining_dystopic_by_bandwidth(guard_selection_t* guard_selection)
-{
-    return each_remaining_by_bandwidth(
-                   guard_selection->remaining_dystopic_guards,
-                   guard_selection->for_directory);
-}
-
-static entry_guard_t*
 state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
 {
     log_warn(LD_CIRC, "Will try USED_GUARDS not in PRIMARY_GUARDS.");
@@ -379,24 +367,8 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
         return guard;
     }
 
-    transition_to(guard_selection, STATE_TRY_DYSTOPIC);
+    transition_to(guard_selection, STATE_PRIMARY_GUARDS);
 
-    return NULL;
-}
-
-static entry_guard_t*
-state_TRY_DYSTOPIC_next(guard_selection_t *guard_selection)
-{
-    log_warn(LD_CIRC, "Will try REMAINING_DYSTOPIC_GUARDS.");
-
-    entry_guard_t *guard = each_remaining_dystopic_by_bandwidth(
-        guard_selection);
-
-    if (guard) {
-        return guard;
-    }
-
-    retry_primary_guards(guard_selection);
     return NULL;
 }
 
@@ -451,8 +423,6 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
         return state_PRIMARY_GUARDS_next(guard_selection);
     case STATE_TRY_UTOPIC:
         return state_TRY_UTOPIC_next(guard_selection);
-    case STATE_TRY_DYSTOPIC:
-        return state_TRY_DYSTOPIC_next(guard_selection);
     }
 
     return NULL;
@@ -467,19 +437,6 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
     SMARTLIST_FOREACH_BEGIN(sampled_utopic, node_t *, node) {
         if (!smartlist_contains(guard_selection->used_guards, node)) {
             smartlist_add(guard_selection->remaining_utopic_guards, node);
-        }
-    } SMARTLIST_FOREACH_END(node);
-}
-
-STATIC void
-fill_in_remaining_dystopic(guard_selection_t *guard_selection,
-                           const smartlist_t *sampled_dystopic)
-{
-    guard_selection->remaining_dystopic_guards = smartlist_new();
-
-    SMARTLIST_FOREACH_BEGIN(sampled_dystopic, node_t *, node) {
-        if (!smartlist_contains(guard_selection->used_guards, node)) {
-            smartlist_add(guard_selection->remaining_dystopic_guards, node);
         }
     } SMARTLIST_FOREACH_END(node);
 }
@@ -505,12 +462,11 @@ guard_selection_free(guard_selection_t *guard_selection)
 {
     smartlist_free(guard_selection->primary_guards);
     smartlist_free(guard_selection->remaining_utopic_guards);
-    smartlist_free(guard_selection->remaining_dystopic_guards);
 }
 
 STATIC guard_selection_t*
 choose_entry_guard_algo_start( smartlist_t *used_guards,
-    const smartlist_t *sampled_utopic, const smartlist_t *sampled_dystopic,
+    const smartlist_t *sampled_utopic,
     routerset_t *exclude_nodes, int n_primary_guards, int for_directory)
 {
     guard_selection_t *guard_selection = tor_malloc_zero(
@@ -522,7 +478,6 @@ choose_entry_guard_algo_start( smartlist_t *used_guards,
 
     //XXX should not we remove excluded nodes from sampled sets?
     fill_in_remaining_utopic(guard_selection, sampled_utopic);
-    fill_in_remaining_dystopic(guard_selection, sampled_dystopic);
     fill_in_primary_guards(guard_selection);
 
     // filter out all the exclude_nodes
@@ -532,17 +487,14 @@ choose_entry_guard_algo_start( smartlist_t *used_guards,
     routerset_subtract_nodes(guard_selection->used_guards, exclude_nodes);
     routerset_subtract_nodes(guard_selection->remaining_utopic_guards,
         exclude_nodes);
-    routerset_subtract_nodes(guard_selection->remaining_dystopic_guards,
-        exclude_nodes);
 
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
         "- used: %p,\n"
         "- sampled_utopic: %p,\n"
-        "- sampled_dystopic: %p,\n"
         "- exclude_nodes: %p,\n"
         "- n_primary_guards: %d,\n"
         "- for_directory: %d\n",
-        used_guards, sampled_utopic, sampled_dystopic, exclude_nodes,
+        used_guards, sampled_utopic, exclude_nodes,
         n_primary_guards, for_directory);
 
     return guard_selection;
@@ -644,8 +596,7 @@ fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
 }
 
 static void
-fill_in_sampled_sets(const smartlist_t *utopic_nodes,
-                     const smartlist_t *dystopic_nodes)
+fill_in_sampled_sets(const smartlist_t *utopic_nodes)
 {
     //XXX Extract a configuration from this
     const double sample_set_threshold = 0.005;
@@ -655,20 +606,11 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes,
     if (!sampled_utopic_guards)
         sampled_utopic_guards = smartlist_new();
 
-    if (!sampled_dystopic_guards)
-        sampled_dystopic_guards = smartlist_new();
-
     fill_in_node_sampled_set(sampled_utopic_guards, utopic_nodes,
         sample_set_threshold * smartlist_len(utopic_nodes));
 
     log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
         smartlist_len(sampled_utopic_guards), smartlist_len(utopic_nodes));
-
-    fill_in_node_sampled_set(sampled_dystopic_guards, dystopic_nodes,
-        sample_set_threshold * smartlist_len(dystopic_nodes));
-
-    log_warn(LD_CIRC, "We sampled %d from %d dystopic guards",
-        smartlist_len(sampled_dystopic_guards), smartlist_len(dystopic_nodes));
 }
 
 /** How long will we let a change in our guard nodes stay un-saved
@@ -979,7 +921,7 @@ entry_guard_selection_init(void)
         guard_selection_parse_state(get_or_state(), 1, NULL);
 
     entry_guard_selection = choose_entry_guard_algo_start(
-        used_guards, sampled_utopic_guards, sampled_dystopic_guards,
+        used_guards, sampled_utopic_guards,
         options->ExcludeNodes,
         num_needed, for_directory);
 }
@@ -1089,19 +1031,8 @@ entry_guards_update_profiles(const or_options_t *options)
     //the near ideal future.
     int for_directory = 0;
     smartlist_t *utopic = get_all_guards(for_directory);
-    smartlist_t *dystopic = smartlist_new();
-
-    SMARTLIST_FOREACH_BEGIN(utopic, node_t *, node) {
-        if (is_dystopic(node))
-            smartlist_add(dystopic, node);
-    } SMARTLIST_FOREACH_END(node);
-
-    //XXX The size of the utopic and dystopic sets may change, but we only
-    //change the sampled sets when these sizes increase.
-    fill_in_sampled_sets(utopic, dystopic);
 
     smartlist_free(utopic);
-    smartlist_free(dystopic);
 
     //XXX Is this necessary?
     if (entry_guard_selection)

@@ -13,7 +13,6 @@ typedef enum {
     STATE_INVALID = 0,
     STATE_PRIMARY_GUARDS,
     STATE_TRY_UTOPIC,
-    STATE_TRY_DYSTOPIC
 } guard_selection_state_t;
 
 typedef struct {
@@ -26,7 +25,6 @@ typedef struct {
 
     //They are lists of node_t because they havent been chosen as guards
     smartlist_t *remaining_utopic_guards;
-    smartlist_t *remaining_dystopic_guards;
 
     //They should be lists of entry_guard_t because they have been used as
     //guards
@@ -73,7 +71,6 @@ STATIC guard_selection_t*
 choose_entry_guard_algo_start(
         smartlist_t *used_guards,
         const smartlist_t *sampled_utopic_guards,
-        const smartlist_t *sampled_dystopic_guards,
         routerset_t *exclude_nodes,
         int n_primary_guards,
         int dir);
@@ -109,10 +106,6 @@ fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
 STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,
                          const smartlist_t *sampled_utopic);
-
-STATIC void
-fill_in_remaining_dystopic(guard_selection_t *guard_selection,
-                           const smartlist_t *sampled_dystopic);
 
 STATIC smartlist_t*
 nonbad_guards(smartlist_t *guards);
