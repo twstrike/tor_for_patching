@@ -270,7 +270,7 @@ each_remaining_by_bandwidth(smartlist_t *guards, int for_directory)
         //because there is a global node list.
         entry_guard_t *g = NULL;
         SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-            if (0 == strcmp_len(e->identity, node->identity, DIGEST_LEN)) {
+            if (fast_memcmp(e->identity, node->identity, DIGEST_LEN)) {
                 g = e;
                 break;
             }
@@ -548,7 +548,7 @@ next_primary_guard(guard_selection_t *guard_selection)
     entry_guard_t *guard = NULL;
     SMARTLIST_FOREACH_BEGIN(guard_selection->remaining_guards,
         entry_guard_t *, e) {
-        if (0 == strcmp_len(e->identity, node->identity, DIGEST_LEN)) {
+        if (fast_memcmp(e->identity, node->identity, DIGEST_LEN)) {
             guard = e;
             SMARTLIST_DEL_CURRENT(guard_selection->remaining_guards, e);
             break;
