@@ -19,6 +19,7 @@
 #include "routerset.h"
 #include "confparse.h"
 #include "statefile.h"
+#include "entrynodes.h"
 
 //XXX Find the appropriate place for this global state
 
@@ -41,72 +42,44 @@ guard_to_node(const entry_guard_t *guard)
 }
 
 static int
-is_dystopic_port(uint16_t port)
+is_related_to_exit(const node_t *node, const node_t *chosen_exit)
 {
-    if (port == 80)
-        return 1;
+    int retval = 0;
+    smartlist_t *exit_family = smartlist_new();
 
-    if (port == 443)
-        return 1;
+    if (chosen_exit) {
+        nodelist_add_node_and_family(exit_family, chosen_exit);
+    }
 
-    return 0;
+    if (node == chosen_exit)
+        retval = 1;
+
+    if (smartlist_contains(exit_family, node))
+        retval = 1;
+
+    smartlist_free(exit_family);
+    return retval;
 }
 
 static int
-is_dystopic(node_t *node)
+is_suitable(const entry_guard_t *entry, int for_directory)
 {
-    //From router_choose_random_node()
-    int pref_addr = 1;
-    if (firewall_is_fascist_or())
-        return fascist_firewall_allows_node(node, FIREWALL_OR_CONNECTION,
-                                            pref_addr);
+    entry_is_live_flags_t entry_flags = 0;
 
-    //XXX there might be false positive if we dont support IPV6
-    //but the guard only listen to a dystopic port in IPV6
-
-    if (node->ri) {
-        if (is_dystopic_port(node->ri->or_port))
-            return 1;
-
-        if (is_dystopic_port(node->ri->ipv6_orport))
-            return 1;
-    } else if (node->rs) {
-        if (is_dystopic_port(node->rs->or_port))
-            return 1;
-
-        if (is_dystopic_port(node->rs->ipv6_orport))
-            return 1;
-    } else if (node->md) {
-        if (is_dystopic_port(node->md->ipv6_orport))
-            return 1;
+    //We ignored need_capacity and need_bandwidth
+    if (!for_directory) {
+        entry_flags |= ENTRY_NEED_DESCRIPTOR;
     }
 
-    return 0;
-}
+    const char *msg;
+    const node_t *node = entry_is_live(entry, entry_flags, &msg);
+    if (!node)
+        return 0;
 
-static int
-is_valid_according_options(or_options_t *options, node_t *node, int for_directory)
-{
-    int ret = 1;
-    if (options->FascistFirewall && !is_dystopic(node)){
-        ret = 0;
-    }
-    if (options->ReachableAddresses
-            || (options->ReachableORAddresses && !for_directory)
-            || (options->ReachableDirAddresses && for_directory)){
-        firewall_connection_t fw_connection = for_directory ? FIREWALL_DIR_CONNECTION:FIREWALL_OR_CONNECTION;
-        if(fascist_firewall_allows_node(node, fw_connection, 0)){
-            ret = 0;
-        }
-    }
-    if (options->ExcludeNodes && routerset_contains_node(options->ExcludeNodes,node)){
-        ret = 0;
-    }
-    /* ClientUseIPv4, ClientUseIPv6, ClientPreferIPv6ORPort, EntryNodes,
-       ExcludeNodes, FascistFirewall, FirewallPorts, GeoIPExcludeUnknown,
-       GuardLifetime, ReachableAddresses, ReachableDirAddresses,
-       ReachableORAddresses */
-    return ret;
+    if (for_directory && !entry->is_dir_cache)
+        return 0; 
+
+    return 1;
 }
 
 static int
@@ -428,17 +401,49 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
     return NULL;
 }
 
+static smartlist_t*
+filter_set(const smartlist_t *guards, int for_directory)
+{
+    smartlist_t *filtered = smartlist_new();
+
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, guard) {
+        if (is_suitable(guard, for_directory))
+            smartlist_add(filtered, guard);
+    } SMARTLIST_FOREACH_END(guard);
+
+    return filtered;
+}
+
+//XXX define the values for this
+#define MINIMUM_FILTERED_SAMPLE_SIZE 20
+#define MAXIMUM_RETRIES 10
+
 STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,
                          const smartlist_t *sampled_utopic)
 {
     guard_selection->remaining_utopic_guards = smartlist_new();
 
+    /** Convert to guards **/
+    smartlist_t *sampled_guards = smartlist_new();
     SMARTLIST_FOREACH_BEGIN(sampled_utopic, node_t *, node) {
-        if (!smartlist_contains(guard_selection->used_guards, node)) {
-            smartlist_add(guard_selection->remaining_utopic_guards, node);
-        }
+        smartlist_add(sampled_guards, entry_guard_new(node));
     } SMARTLIST_FOREACH_END(node);
+
+    /** Filter the sampled set **/
+    //XXX consider for_directory
+    smartlist_t *filtered = filter_set(sampled_guards, 0);
+
+    if (smartlist_len(filtered) < MINIMUM_FILTERED_SAMPLE_SIZE) {
+        //XXX expand and evaluate
+    }
+
+    SMARTLIST_FOREACH_BEGIN(filtered, entry_guard_t *, guard) {
+        if (smartlist_contains(guard_selection->used_guards, guard))
+            continue;
+
+        smartlist_add(guard_selection->remaining_utopic_guards, guard);
+    } SMARTLIST_FOREACH_END(guard);
 }
 
 STATIC void
@@ -479,14 +484,6 @@ choose_entry_guard_algo_start( smartlist_t *used_guards,
     //XXX should not we remove excluded nodes from sampled sets?
     fill_in_remaining_utopic(guard_selection, sampled_utopic);
     fill_in_primary_guards(guard_selection);
-
-    // filter out all the exclude_nodes
-    //XXX This will make PRIMRY_GUARD to have LESS than N_PRMARY_GUARDS
-    //It should be filtered when filling the sets
-    routerset_subtract_nodes(guard_selection->primary_guards, exclude_nodes);
-    routerset_subtract_nodes(guard_selection->used_guards, exclude_nodes);
-    routerset_subtract_nodes(guard_selection->remaining_utopic_guards,
-        exclude_nodes);
 
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
         "- used: %p,\n"
@@ -970,7 +967,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     /* int need_uptime = state ? state->need_uptime : 0; */
     /* int need_capacity = state ? state->need_capacity : 0; */
     /* (void) chosen_exit; */
-    (void) state;
     (void) dirinfo_type;
     /* (void) need_uptime; */
     /* (void) need_capacity; */
@@ -984,6 +980,9 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     entry_guard_selection->for_directory = for_directory;
     entry_guard_selection->num_primary_guards = num_needed;
 
+    const node_t *chosen_exit =
+        state ? build_state_get_exit_node(state) : NULL;
+
   retry:
     guard = choose_entry_guard_algo_next(entry_guard_selection, options, now);
 
@@ -995,6 +994,9 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     // Guard is not in the consensus anymore. Not sure if this is possible
     node = guard_to_node(guard);
     tor_assert(node);
+
+    if (is_related_to_exit(node, chosen_exit))
+        goto retry;
 
     log_warn(LD_CIRC, "Chose %s as entry guard for this circuit.",
         node_describe(node));
@@ -1032,6 +1034,7 @@ entry_guards_update_profiles(const or_options_t *options)
     int for_directory = 0;
     smartlist_t *utopic = get_all_guards(for_directory);
 
+    fill_in_sampled_sets(utopic);
     smartlist_free(utopic);
 
     //XXX Is this necessary?
