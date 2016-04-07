@@ -68,7 +68,7 @@ is_suitable(const entry_guard_t *entry, int for_directory)
         return 0;
 
     if (for_directory && !entry->is_dir_cache)
-        return 0; 
+        return 0;
 
     return 1;
 }
@@ -76,9 +76,9 @@ is_suitable(const entry_guard_t *entry, int for_directory)
 MOCK_IMPL(STATIC int,
 is_live,(const entry_guard_t *guard))
 {
-		const char *msg = NULL;
+    const char *msg = NULL;
     //We ignored need_capacity and need_bandwidth and for_directory
-		return entry_is_live(guard, 0, &msg) == NULL ? 0 : 1;
+    return entry_is_live(guard, 0, &msg) == NULL ? 0 : 1;
 }
 
 MOCK_IMPL(STATIC int,
@@ -419,8 +419,8 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
         //XXX expand and evaluate
     }
 
-		smartlist_subtract(filtered, guard_selection->used_guards);
-		smartlist_add_all(guard_selection->remaining_guards, filtered);
+    smartlist_subtract(filtered, guard_selection->used_guards);
+    smartlist_add_all(guard_selection->remaining_guards, filtered);
 }
 
 STATIC void
@@ -560,18 +560,18 @@ next_primary_guard(guard_selection_t *guard_selection)
 
 /** returns a list of GUARDS **/
 STATIC void
-fill_in_sampled_guard_set(smartlist_t *guards_sample, const smartlist_t *nodes,
+fill_in_sampled_guard_set(smartlist_t *sample, const smartlist_t *nodes,
                           const int size)
 {
     smartlist_t *remaining = smartlist_new();
 
     smartlist_add_all(remaining, nodes);
-    while (smartlist_len(guards_sample) < size && smartlist_len(remaining) > 0) {
+    while (smartlist_len(sample) < size && smartlist_len(remaining) > 0) {
         const node_t *node = next_node_by_bandwidth(remaining);
         if (!node)
             break;
 
-        smartlist_add(guards_sample, entry_guard_new(node));
+        smartlist_add(sample, entry_guard_new(node));
     }
     smartlist_free(remaining);
 }

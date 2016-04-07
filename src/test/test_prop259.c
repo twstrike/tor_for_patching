@@ -131,63 +131,49 @@ test_next_primary_guard(void *arg)
     smartlist_t *used_guards = smartlist_new();
     smartlist_t *primary_guards = smartlist_new();
     smartlist_t *remaining_guards = smartlist_new();
+
     entry_guard_t *g1 = NULL;
     entry_guard_t *g2 = NULL;
+    entry_guard_t *g3 = NULL;
     entry_guard_t *chosen = NULL;
     (void) arg;
 
     MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
     MOCK(is_bad, is_bad_mock);
 
-    // all nodes are guards
     tt_int_op(smartlist_len(get_entry_guards()), OP_EQ, 0);
 
     smartlist_t *our_nodelist = nodelist_get_list();
 
-    node_t *node = smartlist_get(our_nodelist, 0);
-    smartlist_add(remaining_guards, node);
-    add_an_entry_guard(node, 0, 1, 0, 0);
-    g1 = tor_malloc_zero(sizeof(entry_guard_t));
-    g2 = tor_malloc_zero(sizeof(entry_guard_t));
-    g1->bad_since = 0;
+    g1 = entry_guard_new(smartlist_get(our_nodelist, 0));
+    g2 = entry_guard_new(smartlist_get(our_nodelist, 1));
     g2->bad_since = 1;
+    g3 = entry_guard_new(smartlist_get(our_nodelist, 2));
+
     smartlist_add(used_guards, g1);
     smartlist_add(used_guards, g2);
+    smartlist_add(remaining_guards, g3);
 
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_guards = remaining_guards;
 
+    /** Gets first used that is not bad **/
     chosen = next_primary_guard(guard_selection);
     tt_ptr_op(chosen, OP_EQ, g1);
     smartlist_add(primary_guards, chosen);
 
-    /*
-     * XXX Why the node 4 will be picked? and can we avoid using global nodelist here?
-     *
-    node_t *node3 = smartlist_get(our_nodelist, 1);
-    smartlist_add(remaining_utopic_guards, node3);
-
-    node_t *node4 = smartlist_get(our_nodelist, 2);
-    smartlist_add(remaining_utopic_guards, node4);
-
+    /** No more used, gets first remaining **/
     chosen = next_primary_guard(guard_selection);
-    tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(node4->identity));
+    tt_ptr_op(chosen, OP_EQ, g3);
     smartlist_add(primary_guards, chosen);
-
-    chosen = next_primary_guard(guard_selection);
-    tt_ptr_op(chosen, OP_EQ, entry_guard_get_by_id_digest(node3->identity));
-    smartlist_add(primary_guards, chosen);
-
-    chosen = next_primary_guard(guard_selection);
-    tt_ptr_op(chosen, OP_EQ, NULL);
-    */
 
   done:
     UNMOCK(node_sl_choose_by_bandwidth);
     UNMOCK(is_bad);
     tor_free(g1);
     tor_free(g2);
+    tor_free(g3);
     tor_free(used_guards);
     tor_free(primary_guards);
     tor_free(remaining_guards);
@@ -279,7 +265,7 @@ test_fill_in_remaining_utopic(void *arg)
     node_t *node2 = smartlist_get(our_nodelist, 1);
     node_t *node3 = smartlist_get(our_nodelist, 2);
 
-		g2 = entry_guard_new(node2);
+    g2 = entry_guard_new(node2);
     smartlist_add(sampled, entry_guard_new(node1));
     smartlist_add(sampled, g2);
     smartlist_add(sampled, entry_guard_new(node3));
@@ -291,11 +277,13 @@ test_fill_in_remaining_utopic(void *arg)
     tt_int_op(smartlist_len(guard_selection->remaining_guards),
         OP_EQ, 2);
 
-		entry_guard_t* guard = smartlist_get(guard_selection->remaining_guards, 0);
-    tt_int_op(strcmp_len(guard->identity, node1->identity, DIGEST_LEN), OP_EQ, 0);
+    entry_guard_t* guard = smartlist_get(guard_selection->remaining_guards, 0);
+    tt_int_op(strcmp_len(guard->identity, node1->identity, DIGEST_LEN),
+        OP_EQ, 0);
 
-		guard = smartlist_get(guard_selection->remaining_guards, 1);
-    tt_int_op(strcmp_len(guard->identity, node3->identity, DIGEST_LEN), OP_EQ, 0);
+    guard = smartlist_get(guard_selection->remaining_guards, 1);
+    tt_int_op(strcmp_len(guard->identity, node3->identity, DIGEST_LEN),
+        OP_EQ, 0);
 
   done:
     tor_free(g2);
