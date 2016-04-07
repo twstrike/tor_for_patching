@@ -883,6 +883,16 @@ test_used_guards_parse_state(void *arg)
   const char *fpr = "B29D536DD1752D542E1FBB3C9CE4449D51298212";
   const char *unlisted_since = "2014-06-08 16:16:50";
   const char *down_since = "2014-06-07 16:16:40";
+  const char *tor_version = "0.2.5.3-alpha-dev";
+  const char *added_at = get_yesterday_date_str();
+
+  /* Path bias details of the fake guard */
+  const double circ_attempts = 9;
+  const double circ_successes = 8;
+  const double successful_closed = 4;
+  const double collapsed = 2;
+  const double unusable = 0;
+  const double timeouts = 1;
 
   (void) arg;
 
@@ -902,6 +912,18 @@ test_used_guards_parse_state(void *arg)
     state_line = smartlist_new();
     smartlist_add_asprintf(state_line, "UsedGuardUnlistedSince");
     smartlist_add_asprintf(state_line, "%s", unlisted_since);
+    smartlist_add(used_state_lines, state_line);
+
+    state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "UsedGuardAddedBy");
+    smartlist_add_asprintf(state_line, "%s %s %s", fpr, tor_version, added_at);
+    smartlist_add(used_state_lines, state_line);
+
+    state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "USedGuardPathBias");
+    smartlist_add_asprintf(state_line, "%f %f %f %f %f %f",
+                           circ_attempts, circ_successes, successful_closed,
+                           collapsed, unusable, timeouts);
     smartlist_add(used_state_lines, state_line);
   }
 
@@ -927,6 +949,8 @@ test_used_guards_parse_state(void *arg)
 
     tt_assert(e->is_dir_cache); /* Verify dirness */
 
+    tt_str_op(e->chosen_by_version, OP_EQ, tor_version); /* Verify version */
+
     tt_assert(e->made_contact); /* All saved guards have been contacted */
 
     tt_assert(e->bad_since); /* Verify bad_since timestamp */
@@ -937,8 +961,16 @@ test_used_guards_parse_state(void *arg)
     format_iso_time(str_time, e->unreachable_since);
     tt_str_op(str_time, OP_EQ, down_since);
 
+    /* XXX tt_double_op doesn't support equality. Cast to int for now. */
+    tt_int_op((int)e->circ_attempts, OP_EQ, (int)circ_attempts);
+    tt_int_op((int)e->circ_successes, OP_EQ, (int)circ_successes);
+    tt_int_op((int)e->successful_circuits_closed, OP_EQ,
+              (int)successful_closed);
+    tt_int_op((int)e->timeouts, OP_EQ, (int)timeouts);
+    tt_int_op((int)e->collapsed_circuits, OP_EQ, (int)collapsed);
+    tt_int_op((int)e->unusable_circuits, OP_EQ, (int)unusable);
+
     /* The rest should be unset */
-    tt_assert(!e->chosen_by_version);
     tt_assert(!e->can_retry);
     tt_assert(!e->path_bias_noticed);
     tt_assert(!e->path_bias_warned);

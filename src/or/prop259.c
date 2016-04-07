@@ -20,6 +20,8 @@
 #include "confparse.h"
 #include "statefile.h"
 #include "entrynodes.h"
+#include "routerparse.h"
+#include "circpathbias.h"
 
 //XXX Find the appropriate place for this global state
 
@@ -639,23 +641,42 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
     guard_selection_free(guard_selection);
 }
 
-static int
-guards_parse_state(config_line_t *line, const char* config_name,
-                   smartlist_t *used_guards, char **msg)
-{
-    //XXX We should probably be backward compatible with EntryGuard
-    //and call entry_guards_parse_state()
+/** Largest amount that we'll backdate chosen_on_date */
+#define CHOSEN_ON_DATE_SLOP (3600*24*30)
 
+static time_t
+entry_guard_chosen_on_date(const time_t now)
+{
+  /* Choose expiry time smudged over the past month. The goal here
+   * is to a) spread out when Tor clients rotate their guards, so they
+   * don't all select them on the same day, and b) avoid leaving a
+   * precise timestamp in the state file about when we first picked
+   * this guard. For details, see the Jan 2010 or-dev thread. */
+    return crypto_rand_time_range(now - CHOSEN_ON_DATE_SLOP, now);
+}
+
+static int
+guards_parse_state(config_line_t *line, const char *state_version,
+                   const char* config_name, smartlist_t *used_guards,
+                   char **msg)
+{
     entry_guard_t *node = NULL;
     smartlist_t *new_entry_guards = smartlist_new();
     int changed = 0;
     time_t now = time(NULL);
+    digestmap_t *added_by = digestmap_new();
 
     char *down_since_config_name = NULL;
     char *unlisted_since_config_name = NULL;
+    char *added_by_config_name = NULL;
+    char *path_use_bias_config_name = NULL;
+    char *path_bias_config_name = NULL;
 
     tor_asprintf(&down_since_config_name, "%sDownSince", config_name);
     tor_asprintf(&unlisted_since_config_name, "%sUnlistedSince", config_name);
+    tor_asprintf(&added_by_config_name, "%sAddedBy", config_name);
+    tor_asprintf(&path_use_bias_config_name, "%sPathUseBias", config_name);
+    tor_asprintf(&path_bias_config_name, "%sPathBias", config_name);
 
     *msg = NULL;
     for (; line; line = line->next) {
@@ -745,12 +766,169 @@ guards_parse_state(config_line_t *line, const char* config_name,
                 node->bad_since = when;
             }
 
-        //TODO: Add path bias
+        } else if (!strcasecmp(line->key, added_by_config_name)) {
+            char d[DIGEST_LEN];
+            /* format is digest version date */
+            if (strlen(line->value) < HEX_DIGEST_LEN+1+1+1+ISO_TIME_LEN) {
+                log_warn(LD_BUG, "%s line is not long enough.",
+                    added_by_config_name);
+                continue;
+            }
+            if (base16_decode(d, sizeof(d), line->value, HEX_DIGEST_LEN)<0 ||
+                line->value[HEX_DIGEST_LEN] != ' ') {
+                log_warn(LD_BUG, "%s line %s does not begin with "
+                    "hex digest", added_by_config_name, escaped(line->value));
+                continue;
+            }
+            digestmap_set(added_by, d, tor_strdup(line->value+HEX_DIGEST_LEN+1));
+        } else if (!strcasecmp(line->key, path_use_bias_config_name)) {
+            const or_options_t *options = get_options();
+            double use_cnt, success_cnt;
 
+            if (!node) {
+                tor_asprintf(msg, "Unable to parse entry nodes: "
+                    "%s without %s", path_use_bias_config_name, config_name);
+                break;
+            }
+
+            if (tor_sscanf(line->value, "%lf %lf",
+                &use_cnt, &success_cnt) != 2) {
+                log_info(LD_GENERAL, "Malformed path use bias line for node %s",
+                    node->nickname);
+                continue;
+            }
+
+            if (use_cnt < success_cnt) {
+                int severity = LOG_INFO;
+                /* If this state file was written by a Tor that would have
+                 * already fixed it, then the overcounting bug is still there.. */
+                if (tor_version_as_new_as(state_version, "0.2.4.13-alpha")) {
+                    severity = LOG_NOTICE;
+                }
+                log_fn(severity, LD_BUG,
+                    "State file contains unexpectedly high usage success "
+                    "counts %lf/%lf for Guard %s ($%s)",
+                    success_cnt, use_cnt,
+                    node->nickname, hex_str(node->identity, DIGEST_LEN));
+                success_cnt = use_cnt;
+            }
+
+            node->use_attempts = use_cnt;
+            node->use_successes = success_cnt;
+
+            log_info(LD_GENERAL, "Read %f/%f path use bias for node %s",
+                node->use_successes, node->use_attempts, node->nickname);
+
+            /* Note: We rely on the < comparison here to allow us to set a 0
+             * rate and disable the feature entirely. If refactoring, don't
+             * change to <= */
+            if (pathbias_get_use_success_count(node)/node->use_attempts
+                < pathbias_get_extreme_use_rate(options) &&
+                pathbias_get_dropguards(options)) {
+                node->path_bias_disabled = 1;
+                log_info(LD_GENERAL,
+                    "Path use bias is too high (%f/%f); disabling node %s",
+                    node->circ_successes, node->circ_attempts, node->nickname);
+            }
+        } else if (!strcasecmp(line->key, path_bias_config_name)) {
+            const or_options_t *options = get_options();
+            double hop_cnt, success_cnt, timeouts, collapsed, successful_closed,
+                   unusable;
+
+            if (!node) {
+                tor_asprintf(msg, "Unable to parse entry nodes: "
+                    "%s without %s", path_bias_config_name, config_name);
+                break;
+            }
+
+            /* First try 3 params, then 2. */
+            /* In the long run: circuit_success ~= successful_circuit_close +
+             *                                     collapsed_circuits +
+             *                                     unusable_circuits */
+            if (tor_sscanf(line->value, "%lf %lf %lf %lf %lf %lf",
+                &hop_cnt, &success_cnt, &successful_closed,
+                &collapsed, &unusable, &timeouts) != 6) {
+                int old_success, old_hops;
+                if (tor_sscanf(line->value, "%u %u", &old_success, &old_hops) != 2) {
+                    continue;
+                }
+                log_info(LD_GENERAL, "Reading old-style %s %s",
+                    path_bias_config_name, escaped(line->value));
+
+                success_cnt = old_success;
+                successful_closed = old_success;
+                hop_cnt = old_hops;
+                timeouts = 0;
+                collapsed = 0;
+                unusable = 0;
+            }
+
+            if (hop_cnt < success_cnt) {
+                int severity = LOG_INFO;
+                /* If this state file was written by a Tor that would have
+                 * already fixed it, then the overcounting bug is still there.. */
+                if (tor_version_as_new_as(state_version, "0.2.4.13-alpha")) {
+                    severity = LOG_NOTICE;
+                }
+                log_fn(severity, LD_BUG,
+                    "State file contains unexpectedly high success counts "
+                    "%lf/%lf for Guard %s ($%s)",
+                    success_cnt, hop_cnt,
+                    node->nickname, hex_str(node->identity, DIGEST_LEN));
+                success_cnt = hop_cnt;
+            }
+
+            node->circ_attempts = hop_cnt;
+            node->circ_successes = success_cnt;
+
+            node->successful_circuits_closed = successful_closed;
+            node->timeouts = timeouts;
+            node->collapsed_circuits = collapsed;
+            node->unusable_circuits = unusable;
+
+            log_info(LD_GENERAL, "Read %f/%f path bias for node %s",
+                node->circ_successes, node->circ_attempts, node->nickname);
+            /* Note: We rely on the < comparison here to allow us to set a 0
+             * rate and disable the feature entirely. If refactoring, don't
+             * change to <= */
+            if (pathbias_get_close_success_count(node)/node->circ_attempts
+                < pathbias_get_extreme_rate(options) &&
+                pathbias_get_dropguards(options)) {
+                node->path_bias_disabled = 1;
+                log_info(LD_GENERAL,
+                    "Path bias is too high (%f/%f); disabling node %s",
+                    node->circ_successes, node->circ_attempts, node->nickname);
+            }
         } else {
             log_warn(LD_BUG, "Unexpected key %s", line->key);
         }
     }
+
+    SMARTLIST_FOREACH_BEGIN(new_entry_guards, entry_guard_t *, e) {
+        char *sp;
+        char *val = digestmap_get(added_by, e->identity);
+        if (val && (sp = strchr(val, ' '))) {
+            time_t when;
+            *sp++ = '\0';
+            if (parse_iso_time(sp, &when)<0) {
+                log_warn(LD_BUG, "Can't read time %s in %s", sp,
+                    added_by_config_name);
+            } else {
+                e->chosen_by_version = tor_strdup(val);
+                e->chosen_on_date = when;
+            }
+        } else {
+            if (state_version) {
+                time_t now = time(NULL);
+                e->chosen_on_date = entry_guard_chosen_on_date(now);
+                e->chosen_by_version = tor_strdup(state_version);
+            }
+        }
+
+        if (e->path_bias_disabled && !e->bad_since)
+            e->bad_since = time(NULL);
+    }
+    SMARTLIST_FOREACH_END(e);
 
     if (*msg || !used_guards) {
         SMARTLIST_FOREACH(new_entry_guards, entry_guard_t *, e,
@@ -769,6 +947,13 @@ guards_parse_state(config_line_t *line, const char* config_name,
         log_warn(LD_CIRC, "USED_GUARDS loaded:");
         log_guards(LOG_WARN, used_guards);
 
+        //XXX double check this
+        //entry_guards_dirty = 0;
+        ///* XXX024 hand new_entry_guards to this func, and move it up a
+        // * few lines, so we don't have to re-dirty it */
+        //if (remove_obsolete_entry_guards(now))
+        //    entry_guards_dirty = 1;
+
         //XXX should we?
         //This updates the using_as_guard for each node
         //update_node_guard_status();
@@ -783,16 +968,16 @@ STATIC int
 used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                         char **msg)
 {
-    return guards_parse_state(state->UsedGuards, "UsedGuard", used_guards,
-        msg);
+    return guards_parse_state(state->UsedGuards, state->TorVersion,
+        "UsedGuard", used_guards, msg);
 }
 
 STATIC int
 entry_guards_parse_state_backward(const or_state_t *state,
                                   smartlist_t *entry_guards, char **msg)
 {
-    int ret = guards_parse_state(state->EntryGuards, "EntryGuard",
-        entry_guards, msg);
+    int ret = guards_parse_state(state->EntryGuards, state->TorVersion,
+        "EntryGuard", entry_guards, msg);
 
     if (ret == 1)
         used_guards_changed();
