@@ -986,6 +986,7 @@ entry_guards_parse_state_backward(const or_state_t *state,
 }
 
 //XXX Add test
+//XXX Make it able to also save SampledGuards
 STATIC void
 used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
 {
@@ -1030,6 +1031,43 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
             line->key = tor_strdup("UsedGuardUnlistedSince");
             line->value = tor_malloc(ISO_TIME_LEN+1);
             format_iso_time(line->value, e->bad_since);
+            next = &(line->next);
+        }
+
+        if (e->chosen_on_date && e->chosen_by_version &&
+            !strchr(e->chosen_by_version, ' ')) {
+            char d[HEX_DIGEST_LEN+1];
+            char t[ISO_TIME_LEN+1];
+            *next = line = tor_malloc_zero(sizeof(config_line_t));
+            line->key = tor_strdup("UsedGuardAddedBy");
+            base16_encode(d, sizeof(d), e->identity, DIGEST_LEN);
+            format_iso_time(t, e->chosen_on_date);
+            tor_asprintf(&line->value, "%s %s %s",
+                d, e->chosen_by_version, t);
+            next = &(line->next);
+        }
+
+        if (e->circ_attempts > 0) {
+            *next = line = tor_malloc_zero(sizeof(config_line_t));
+            line->key = tor_strdup("UsedGuardPathBias");
+            /* In the long run: circuit_success ~= successful_circuit_close +
+             *                                     collapsed_circuits +
+             *                                     unusable_circuits */
+            tor_asprintf(&line->value, "%f %f %f %f %f %f",
+                e->circ_attempts, e->circ_successes,
+                pathbias_get_close_success_count(e),
+                e->collapsed_circuits,
+                e->unusable_circuits, e->timeouts);
+            next = &(line->next);
+        }
+
+        if (e->use_attempts > 0) {
+            *next = line = tor_malloc_zero(sizeof(config_line_t));
+            line->key = tor_strdup("UsedGuardPathUseBias");
+
+            tor_asprintf(&line->value, "%f %f",
+                e->use_attempts,
+                pathbias_get_use_success_count(e));
             next = &(line->next);
         }
 
