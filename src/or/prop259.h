@@ -23,8 +23,8 @@ typedef struct {
     int num_primary_guards;
     time_t last_success;
 
-    //They are lists of node_t because they havent been chosen as guards
-    smartlist_t *remaining_utopic_guards;
+    //List of entry_guard_t
+    smartlist_t *remaining_guards;
 
     //They should be lists of entry_guard_t because they have been used as
     //guards
@@ -77,6 +77,9 @@ choose_entry_guard_algo_start(
 
 MOCK_DECL(STATIC int,
 is_bad,(const entry_guard_t *guard));
+
+MOCK_DECL(STATIC int,
+is_live,(const entry_guard_t *guard));
 
 STATIC entry_guard_t *
 choose_entry_guard_algo_next(guard_selection_t *guard_selection,

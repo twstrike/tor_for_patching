@@ -64,16 +64,7 @@ is_related_to_exit(const node_t *node, const node_t *chosen_exit)
 static int
 is_suitable(const entry_guard_t *entry, int for_directory)
 {
-    entry_is_live_flags_t entry_flags = 0;
-
-    //We ignored need_capacity and need_bandwidth
-    if (!for_directory) {
-        entry_flags |= ENTRY_NEED_DESCRIPTOR;
-    }
-
-    const char *msg;
-    const node_t *node = entry_is_live(entry, entry_flags, &msg);
-    if (!node)
+    if (!is_live(entry))
         return 0;
 
     if (for_directory && !entry->is_dir_cache)
@@ -82,15 +73,12 @@ is_suitable(const entry_guard_t *entry, int for_directory)
     return 1;
 }
 
-static int
-is_live(const entry_guard_t *guard)
+MOCK_IMPL(STATIC int,
+is_live,(const entry_guard_t *guard))
 {
-    //XXX using entry_is_live() would introduce the current progressive retry
-    //behavior. I suspect we should evaluate using this at some point.
-    if (guard->unreachable_since == 0)
-        return 1;
-
-    return 0;
+		const char *msg = NULL;
+    //We ignored need_capacity and need_bandwidth and for_directory
+		return entry_is_live(guard, 0, &msg) == NULL ? 0 : 1;
 }
 
 MOCK_IMPL(STATIC int,
@@ -102,24 +90,7 @@ is_bad,(const entry_guard_t *guard))
 static int
 should_ignore(const entry_guard_t *guard, int for_directory)
 {
-    // Dont use an entry guard when we need a directory guard
-    const node_t* node = guard_to_node(guard);
-    if (for_directory && !node_is_dir(node))
-       return 1;
-
-    //XXX should ignore the exit node
-    // const node_t *chosen_exit =
-    //state?build_state_get_exit_node(state) : NULL;
-    //if (guard_to_node(guard) == chosen)
-    //  return 1;
-
-    //XXX this is how need_uptime and need_capacity fits
-    //if (!node_is_unreliable(node, need_uptime, need_capacity, 0))
-    //{
-    //  return 0;
-    //}
-
-    return 0;
+    return !is_suitable(guard, for_directory);
 }
 
 static int
@@ -227,6 +198,18 @@ save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
     retry_primary_guards(guard_selection);
 }
 
+static void
+guards_to_nodes(smartlist_t *nodes, const smartlist_t *guards)
+{
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+        const node_t *node = guard_to_node(e);
+        if (!node)
+            continue;
+
+        smartlist_add(nodes, (node_t*) node);
+    } SMARTLIST_FOREACH_END(e);
+}
+
 STATIC const node_t*
 next_node_by_bandwidth(smartlist_t *nodes)
 {
@@ -252,51 +235,56 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 
         if (is_eligible(e, guard_selection->for_directory))
             return e;
+
     } SMARTLIST_FOREACH_END(e);
 
     return NULL;
 }
 
-static entry_guard_t*
+static void
 choose_as_new_entry_guard(node_t *node)
 {
-  entry_guard_t *guard = entry_guard_new(node);
-  node->using_as_guard = 1;
-
-  guard->is_dir_cache = node_is_dir(node);
-  if (get_options()->UseBridges && node_is_a_configured_bridge(node))
-      guard->is_dir_cache = 1;
-
-  log_info(LD_CIRC, "Chose %s as new entry guard.",
-           node_describe(node));
-
-  return guard;
+    node->using_as_guard = 1;
+    log_info(LD_CIRC, "Chose %s as new entry guard.", node_describe(node));
 }
 
 static entry_guard_t*
-each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
+each_remaining_by_bandwidth(smartlist_t *guards, int for_directory)
 {
-    entry_guard_t *guard = NULL;
-    smartlist_t *remaining = smartlist_new();
-
     char buf[HEX_DIGEST_LEN+1];
-    log_warn(LD_CIRC, "There are %d candidates", smartlist_len(nodes));
+    entry_guard_t *guard = NULL;
+    smartlist_t *remaining_nodes = smartlist_new();
 
-    smartlist_add_all(remaining, nodes);
-    while (smartlist_len(remaining) > 0) {
-        const node_t *node = next_node_by_bandwidth(remaining);
-        if (!node) {
+    log_warn(LD_CIRC, "There are %d candidates", smartlist_len(guards));
+
+    guards_to_nodes(remaining_nodes, guards);
+
+    while (smartlist_len(remaining_nodes) > 0) {
+        //XXX It would be easier if it worked on a smartlist of guards
+        const node_t *node = next_node_by_bandwidth(remaining_nodes);
+        if (!node)
             break;
-        }
 
-        entry_guard_t *g = choose_as_new_entry_guard((node_t*) node);
+        /** Find the guard (again) **/
+        //XXX it is easier to go from guard to node than the other way around
+        //because there is a global node list.
+        entry_guard_t *g = NULL;
+        SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+            if (0 == strcmp_len(e->identity, node->identity, DIGEST_LEN)) {
+                g = e;
+                break;
+            }
+        } SMARTLIST_FOREACH_END(e);
+
+        tor_assert(g);
+        choose_as_new_entry_guard((node_t*) node);
 
         base16_encode(buf, sizeof(buf), g->identity, DIGEST_LEN);
         log_warn(LD_CIRC, "Evaluating '%s' (%s)", g->nickname, buf);
 
         if (!is_live(g)) {
             log_warn(LD_CIRC, "  Removing (not live).");
-            smartlist_remove(nodes, node);
+            smartlist_remove(guards, g);
             continue;
         }
 
@@ -309,7 +297,7 @@ each_remaining_by_bandwidth(smartlist_t *nodes, int for_directory)
         break;
     }
 
-    tor_free(remaining);
+    tor_free(remaining_nodes);
     return guard;
 }
 
@@ -317,7 +305,7 @@ static entry_guard_t*
 each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
 {
     return each_remaining_by_bandwidth(
-                   guard_selection->remaining_utopic_guards,
+                   guard_selection->remaining_guards,
                    guard_selection->for_directory);
 }
 
@@ -329,9 +317,8 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
     entry_guard_t *guard = each_used_guard_not_in_primary_guards(
         guard_selection);
 
-    if (guard) {
+    if (guard)
         return guard;
-    }
 
     log_warn(LD_CIRC, "Will try REMAINING_UTOPIC_GUARDS.");
 
@@ -420,15 +407,9 @@ filter_set(const smartlist_t *guards, int for_directory)
 
 STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,
-                         const smartlist_t *sampled_utopic)
+                         const smartlist_t *sampled_guards)
 {
-    guard_selection->remaining_utopic_guards = smartlist_new();
-
-    /** Convert to guards **/
-    smartlist_t *sampled_guards = smartlist_new();
-    SMARTLIST_FOREACH_BEGIN(sampled_utopic, node_t *, node) {
-        smartlist_add(sampled_guards, entry_guard_new(node));
-    } SMARTLIST_FOREACH_END(node);
+    guard_selection->remaining_guards = smartlist_new();
 
     /** Filter the sampled set **/
     //XXX consider for_directory
@@ -438,12 +419,8 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
         //XXX expand and evaluate
     }
 
-    SMARTLIST_FOREACH_BEGIN(filtered, entry_guard_t *, guard) {
-        if (smartlist_contains(guard_selection->used_guards, guard))
-            continue;
-
-        smartlist_add(guard_selection->remaining_utopic_guards, guard);
-    } SMARTLIST_FOREACH_END(guard);
+		smartlist_subtract(filtered, guard_selection->used_guards);
+		smartlist_add_all(guard_selection->remaining_guards, filtered);
 }
 
 STATIC void
@@ -466,7 +443,7 @@ STATIC void
 guard_selection_free(guard_selection_t *guard_selection)
 {
     smartlist_free(guard_selection->primary_guards);
-    smartlist_free(guard_selection->remaining_utopic_guards);
+    smartlist_free(guard_selection->remaining_guards);
 }
 
 STATIC guard_selection_t*
@@ -482,6 +459,7 @@ choose_entry_guard_algo_start(smartlist_t *used_guards,
     guard_selection->used_guards = used_guards;
     guard_selection->num_primary_guards = n_primary_guards;
 
+    //XXX is sampled_guards a list of guard or node?
     fill_in_remaining_utopic(guard_selection, sampled_guards);
     fill_in_primary_guards(guard_selection);
 
@@ -527,32 +505,20 @@ nonbad_guards(smartlist_t *guards)
     return nonbad_guards;
 }
 
-static void
-add_nodes_to(smartlist_t *nodes, const smartlist_t *guards)
-{
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        const node_t *node = guard_to_node(e);
-        if (node && !smartlist_contains(nodes, node))
-            smartlist_add(nodes, (node_t*) node);
-    } SMARTLIST_FOREACH_END(e);
-}
-
+/* dest is a list of guards */
 static void
 remaining_guards_for_next_primary(guard_selection_t *guard_selection,
-          smartlist_t *dest)
+                                  smartlist_t *guards)
 {
-    smartlist_t *except = smartlist_new();
-    add_nodes_to(except, guard_selection->used_guards);
-    add_nodes_to(except, guard_selection->primary_guards);
-
-    smartlist_add_all(dest, guard_selection->remaining_utopic_guards);
-    smartlist_subtract(dest, except);
-    smartlist_free(except);
+    smartlist_add_all(guards, guard_selection->remaining_guards);
+    smartlist_subtract(guards, guard_selection->used_guards);
+    smartlist_subtract(guards, guard_selection->primary_guards);
 }
 
 STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection)
 {
+    const node_t *node = NULL;
     const smartlist_t *used = guard_selection->used_guards;
     const smartlist_t *primary = guard_selection->primary_guards;
 
@@ -561,18 +527,35 @@ next_primary_guard(guard_selection_t *guard_selection)
             return e;
     } SMARTLIST_FOREACH_END(e);
 
-    //Need to normalize, otherwise subtract wont work
-    smartlist_t *remaining = smartlist_new();
-    remaining_guards_for_next_primary(guard_selection, remaining);
-    const node_t *node = next_node_by_bandwidth(remaining);
-    tor_free(remaining);
+    { /** Get next remaining guard **/
+        smartlist_t *remaining_guards = smartlist_new();
+        smartlist_t *remaining_nodes = smartlist_new();
+
+        remaining_guards_for_next_primary(guard_selection, remaining_guards);
+        guards_to_nodes(remaining_nodes, remaining_guards);
+        node = next_node_by_bandwidth(remaining_nodes);
+
+        tor_free(remaining_nodes);
+        tor_free(remaining_guards);
+    }
 
     if (!node)
-      return NULL;
+        return NULL;
 
-    smartlist_remove(guard_selection->remaining_utopic_guards, node);
+    choose_as_new_entry_guard((node_t*) node);
 
-    return choose_as_new_entry_guard((node_t*) node);
+    /** Remove from remaining **/
+    entry_guard_t *guard = NULL;
+    SMARTLIST_FOREACH_BEGIN(guard_selection->remaining_guards,
+        entry_guard_t *, e) {
+        if (0 == strcmp_len(e->identity, node->identity, DIGEST_LEN)) {
+            guard = e;
+            SMARTLIST_DEL_CURRENT(guard_selection->remaining_guards, e);
+            break;
+        }
+    } SMARTLIST_FOREACH_END(e);
+
+    return guard;
 }
 
 /** returns a list of GUARDS **/
