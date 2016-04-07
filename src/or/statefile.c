@@ -69,7 +69,18 @@ static config_var_t state_vars_[] = {
   VAR("UsedGuard",               LINELIST_S,  UsedGuards,             NULL),
   VAR("UsedGuardDownSince",      LINELIST_S,  UsedGuards,             NULL),
   VAR("UsedGuardUnlistedSince",  LINELIST_S,  UsedGuards,             NULL),
+  VAR("UsedGuardAddedBy",        LINELIST_S,  UsedGuards,             NULL),
+  VAR("UsedGuardPathBias",       LINELIST_S,  UsedGuards,             NULL),
+  VAR("UsedGuardPathUseBias",    LINELIST_S,  UsedGuards,             NULL),
   V(UsedGuards,                  LINELIST_V,  NULL),
+
+  VAR("SampledGuard",               LINELIST_S,  SampledGuards,             NULL),
+  VAR("SampledGuardDownSince",      LINELIST_S,  SampledGuards,             NULL),
+  VAR("SampledGuardUnlistedSince",  LINELIST_S,  SampledGuards,             NULL),
+  VAR("SampledGuardAddedBy",        LINELIST_S,  SampledGuards,             NULL),
+  VAR("SampledGuardPathBias",       LINELIST_S,  SampledGuards,             NULL),
+  VAR("SampledGuardPathUseBias",    LINELIST_S,  SampledGuards,             NULL),
+  V(SampledGuards,                  LINELIST_V,  NULL),
 
   VAR("TransportProxy",               LINELIST_S, TransportProxies, NULL),
   V(TransportProxies,                 LINELIST_V, NULL),

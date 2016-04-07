@@ -4504,6 +4504,7 @@ typedef struct {
   /** A list of Entry Guard-related configuration lines. */
   config_line_t *EntryGuards;
   config_line_t *UsedGuards;
+  config_line_t *SampledGuards;
 
   config_line_t *TransportProxies;
 

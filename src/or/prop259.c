@@ -35,6 +35,44 @@ static smartlist_t *used_guards = NULL;
 static smartlist_t *sampled_guards = NULL;
 
 static int used_guards_dirty = 0;
+static int sampled_guards_dirty = 0;
+
+/** How long will we let a change in our guard nodes stay un-saved
+ * when we are trying to avoid disk writes? */
+#define SLOW_GUARD_STATE_FLUSH_TIME 600
+/** How long will we let a change in our guard nodes stay un-saved
+ * when we are not trying to avoid disk writes? */
+#define FAST_GUARD_STATE_FLUSH_TIME 30
+
+static void
+used_guards_changed(void)
+{
+  time_t when;
+  used_guards_dirty = 1;
+
+  if (get_options()->AvoidDiskWrites)
+    when = time(NULL) + SLOW_GUARD_STATE_FLUSH_TIME;
+  else
+    when = time(NULL) + FAST_GUARD_STATE_FLUSH_TIME;
+
+  /* or_state_save() will call guard_selection_update_state(). */
+  or_state_mark_dirty(get_or_state(), when);
+}
+
+static void
+sampled_guards_changed(void)
+{
+  time_t when;
+  sampled_guards_dirty = 1;
+
+  if (get_options()->AvoidDiskWrites)
+    when = time(NULL) + SLOW_GUARD_STATE_FLUSH_TIME;
+  else
+    when = time(NULL) + FAST_GUARD_STATE_FLUSH_TIME;
+
+  /* or_state_save() will call guard_selection_update_state(). */
+  or_state_mark_dirty(get_or_state(), when);
+}
 
 //XXX review if this is the right way of doing this
 static const node_t*
@@ -592,30 +630,11 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes)
     fill_in_sampled_guard_set(sampled_guards, utopic_nodes,
         sample_set_threshold * smartlist_len(utopic_nodes));
 
+    //XXX do this only when it changed
+    sampled_guards_changed();
+
     log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
         smartlist_len(sampled_guards), smartlist_len(utopic_nodes));
-}
-
-/** How long will we let a change in our guard nodes stay un-saved
- * when we are trying to avoid disk writes? */
-#define SLOW_GUARD_STATE_FLUSH_TIME 600
-/** How long will we let a change in our guard nodes stay un-saved
- * when we are not trying to avoid disk writes? */
-#define FAST_GUARD_STATE_FLUSH_TIME 30
-
-static void
-used_guards_changed(void)
-{
-  time_t when;
-  used_guards_dirty = 1;
-
-  if (get_options()->AvoidDiskWrites)
-    when = time(NULL) + SLOW_GUARD_STATE_FLUSH_TIME;
-  else
-    when = time(NULL) + FAST_GUARD_STATE_FLUSH_TIME;
-
-  /* or_state_save() will call guard_selection_update_state(). */
-  or_state_mark_dirty(get_or_state(), when);
 }
 
 //XXX Add tests
@@ -657,7 +676,7 @@ entry_guard_chosen_on_date(const time_t now)
 
 static int
 guards_parse_state(config_line_t *line, const char *state_version,
-                   const char* config_name, smartlist_t *used_guards,
+                   const char* config_name, smartlist_t *guards,
                    char **msg)
 {
     entry_guard_t *node = NULL;
@@ -930,22 +949,22 @@ guards_parse_state(config_line_t *line, const char *state_version,
     }
     SMARTLIST_FOREACH_END(e);
 
-    if (*msg || !used_guards) {
+    if (*msg || !guards) {
         SMARTLIST_FOREACH(new_entry_guards, entry_guard_t *, e,
             entry_guard_free(e));
         smartlist_free(new_entry_guards);
     } else {
         /* Free used guards and replace by guards in state, on success */
-        SMARTLIST_FOREACH(used_guards, entry_guard_t *, e,
+        SMARTLIST_FOREACH(guards, entry_guard_t *, e,
             entry_guard_free(e));
-        smartlist_clear(used_guards);
-        smartlist_add_all(used_guards, new_entry_guards);
+        smartlist_clear(guards);
+        smartlist_add_all(guards, new_entry_guards);
 
         if (smartlist_len(new_entry_guards))
             changed = 1;
 
-        log_warn(LD_CIRC, "USED_GUARDS loaded:");
-        log_guards(LOG_WARN, used_guards);
+        log_warn(LD_CIRC, "GUARDS loaded:");
+        log_guards(LOG_WARN, guards);
 
         //XXX double check this
         //entry_guards_dirty = 0;
@@ -961,6 +980,10 @@ guards_parse_state(config_line_t *line, const char *state_version,
 
     tor_free(down_since_config_name);
     tor_free(unlisted_since_config_name);
+    tor_free(added_by_config_name);
+    tor_free(path_use_bias_config_name);
+    tor_free(path_bias_config_name);
+
     return *msg ? -1 : changed;
 }
 
@@ -985,29 +1008,31 @@ entry_guards_parse_state_backward(const or_state_t *state,
     return ret;
 }
 
-//XXX Add test
-//XXX Make it able to also save SampledGuards
-STATIC void
-used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
+static void
+guards_update_state(config_line_t **next, const smartlist_t *guards, const char* config_name)
 {
-    config_line_t **next, *line;
+    log_warn(LD_CIRC, "Will store %s", config_name);
 
-    //EntryGuards is replaced by UsedGuards
-    config_free_lines(state->EntryGuards);
-    next = &state->EntryGuards;
-    *next = NULL;
+    config_line_t *line = NULL;
+    char *down_since_config_name = NULL;
+    char *unlisted_since_config_name = NULL;
+    char *added_by_config_name = NULL;
+    char *path_use_bias_config_name = NULL;
+    char *path_bias_config_name = NULL;
 
-    config_free_lines(state->UsedGuards);
-    next = &state->UsedGuards;
-    *next = NULL;
+    tor_asprintf(&down_since_config_name, "%sDownSince", config_name);
+    tor_asprintf(&unlisted_since_config_name, "%sUnlistedSince", config_name);
+    tor_asprintf(&added_by_config_name, "%sAddedBy", config_name);
+    tor_asprintf(&path_use_bias_config_name, "%sPathUseBias", config_name);
+    tor_asprintf(&path_bias_config_name, "%sPathBias", config_name);
 
-    SMARTLIST_FOREACH_BEGIN(used_guards, entry_guard_t *, e) {
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         char dbuf[HEX_DIGEST_LEN+1];
         if (!e->made_contact)
             continue; /* don't write this one to disk */
 
         *next = line = tor_malloc_zero(sizeof(config_line_t));
-        line->key = tor_strdup("UsedGuard");
+        line->key = tor_strdup(config_name);
 
         base16_encode(dbuf, sizeof(dbuf), e->identity, DIGEST_LEN);
         tor_asprintf(&line->value, "%s %s %sDirCache", e->nickname, dbuf,
@@ -1016,7 +1041,7 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
         next = &(line->next);
         if (e->unreachable_since) {
             *next = line = tor_malloc_zero(sizeof(config_line_t));
-            line->key = tor_strdup("UsedGuardDownSince");
+            line->key = tor_strdup(down_since_config_name);
             line->value = tor_malloc(ISO_TIME_LEN+1+ISO_TIME_LEN+1);
             format_iso_time(line->value, e->unreachable_since);
             if (e->last_attempted) {
@@ -1028,7 +1053,7 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
 
         if (e->bad_since) {
             *next = line = tor_malloc_zero(sizeof(config_line_t));
-            line->key = tor_strdup("UsedGuardUnlistedSince");
+            line->key = tor_strdup(unlisted_since_config_name);
             line->value = tor_malloc(ISO_TIME_LEN+1);
             format_iso_time(line->value, e->bad_since);
             next = &(line->next);
@@ -1039,7 +1064,7 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
             char d[HEX_DIGEST_LEN+1];
             char t[ISO_TIME_LEN+1];
             *next = line = tor_malloc_zero(sizeof(config_line_t));
-            line->key = tor_strdup("UsedGuardAddedBy");
+            line->key = tor_strdup(added_by_config_name);
             base16_encode(d, sizeof(d), e->identity, DIGEST_LEN);
             format_iso_time(t, e->chosen_on_date);
             tor_asprintf(&line->value, "%s %s %s",
@@ -1049,7 +1074,7 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
 
         if (e->circ_attempts > 0) {
             *next = line = tor_malloc_zero(sizeof(config_line_t));
-            line->key = tor_strdup("UsedGuardPathBias");
+            line->key = tor_strdup(path_bias_config_name);
             /* In the long run: circuit_success ~= successful_circuit_close +
              *                                     collapsed_circuits +
              *                                     unusable_circuits */
@@ -1063,7 +1088,7 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
 
         if (e->use_attempts > 0) {
             *next = line = tor_malloc_zero(sizeof(config_line_t));
-            line->key = tor_strdup("UsedGuardPathUseBias");
+            line->key = tor_strdup(path_use_bias_config_name);
 
             tor_asprintf(&line->value, "%f %f",
                 e->use_attempts,
@@ -1072,6 +1097,43 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
         }
 
     } SMARTLIST_FOREACH_END(e);
+
+    tor_free(down_since_config_name);
+    tor_free(unlisted_since_config_name);
+    tor_free(added_by_config_name);
+    tor_free(path_use_bias_config_name);
+    tor_free(path_bias_config_name);
+}
+
+//XXX Add test
+//XXX Make it able to also save SampledGuards
+STATIC void
+used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
+{
+    config_line_t **next = NULL;
+
+    //EntryGuards is replaced by UsedGuards
+    config_free_lines(state->EntryGuards);
+    next = &state->EntryGuards;
+    *next = NULL;
+
+    config_free_lines(state->UsedGuards);
+    next = &state->UsedGuards;
+    *next = NULL;
+
+    guards_update_state(next, used_guards, "UsedGuard");
+}
+
+static void
+sampled_guards_update_state(or_state_t *state, smartlist_t *sampled_guards)
+{
+    config_line_t **next = NULL;
+
+    config_free_lines(state->SampledGuards);
+    next = &state->SampledGuards;
+    *next = NULL;
+
+    guards_update_state(next, sampled_guards, "SampledGuard");
 }
 
 //These functions adapt our proposal to current tor code
@@ -1317,15 +1379,20 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg)
 void
 guard_selection_update_state(or_state_t *state, const or_options_t *options)
 {
-    if (!used_guards_dirty)
+    if (!used_guards_dirty && !sampled_guards_dirty)
         return;
 
-    used_guards_update_state(state, used_guards);
+    if (used_guards_dirty)
+        used_guards_update_state(state, used_guards);
+
+    if (sampled_guards_dirty)
+        sampled_guards_update_state(state, sampled_guards);
 
     if (!options->AvoidDiskWrites)
         or_state_mark_dirty(state, 0);
 
     used_guards_dirty = 0;
+    sampled_guards_dirty = 0;
 }
 
 entry_guard_t*
