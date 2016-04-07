@@ -100,8 +100,8 @@ STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection);
 
 STATIC void
-fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
-                         const int size);
+fill_in_sampled_guard_set(smartlist_t *sample, const smartlist_t *set,
+                          const int size);
 
 STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,

@@ -231,27 +231,22 @@ test_fill_in_sampled_set(void *arg)
 {
     smartlist_t *sample = smartlist_new();
     smartlist_t *set = smartlist_new();
-    node_t *node1 = tor_malloc_zero(sizeof(node_t));
-    node_t *node2 = tor_malloc_zero(sizeof(node_t));
-    node_t *node3 = tor_malloc_zero(sizeof(node_t));
     (void) arg;
 
     MOCK(node_sl_choose_by_bandwidth, node_sl_choose_by_bandwidth_mock);
 
-    smartlist_add(set, node1);
-    smartlist_add(set, node2);
-    smartlist_add(set, node3);
+    smartlist_t *our_nodelist = nodelist_get_list();
+    smartlist_add(set, smartlist_get(our_nodelist, 0));
+    smartlist_add(set, smartlist_get(our_nodelist, 1));
+    smartlist_add(set, smartlist_get(our_nodelist, 2));
 
-    fill_in_node_sampled_set(sample, set, 2);
+    fill_in_sampled_guard_set(sample, set, 2);
     tt_int_op(smartlist_len(sample), OP_EQ, 2);
 
   done:
     UNMOCK(node_sl_choose_by_bandwidth);
     smartlist_free(set);
     smartlist_free(sample);
-    tor_free(node1);
-    tor_free(node2);
-    tor_free(node3);
 }
 
 static void
@@ -1046,7 +1041,7 @@ struct testcase_t entrynodes_new_tests[] = {
         TT_FORK, &fake_network, NULL },
     { "fill_in_sampled_set",
         test_fill_in_sampled_set,
-        0, NULL, NULL },
+        TT_FORK, &fake_network, NULL },
     { "fill_in_remaining_utopic",
         test_fill_in_remaining_utopic,
         0, NULL, NULL },

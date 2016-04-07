@@ -30,7 +30,7 @@ static guard_selection_t *entry_guard_selection = NULL;
 /** Related to guard selection algorithm. **/
 //XXX Add proper documentation
 static smartlist_t *used_guards = NULL;
-static smartlist_t *sampled_utopic_guards = NULL;
+static smartlist_t *sampled_guards = NULL;
 
 static int used_guards_dirty = 0;
 
@@ -470,9 +470,10 @@ guard_selection_free(guard_selection_t *guard_selection)
 }
 
 STATIC guard_selection_t*
-choose_entry_guard_algo_start( smartlist_t *used_guards,
-    const smartlist_t *sampled_utopic,
-    routerset_t *exclude_nodes, int n_primary_guards, int for_directory)
+choose_entry_guard_algo_start(smartlist_t *used_guards,
+                              const smartlist_t *sampled_guards,
+                              routerset_t *exclude_nodes, int n_primary_guards,
+                              int for_directory)
 {
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
@@ -481,17 +482,16 @@ choose_entry_guard_algo_start( smartlist_t *used_guards,
     guard_selection->used_guards = used_guards;
     guard_selection->num_primary_guards = n_primary_guards;
 
-    //XXX should not we remove excluded nodes from sampled sets?
-    fill_in_remaining_utopic(guard_selection, sampled_utopic);
+    fill_in_remaining_utopic(guard_selection, sampled_guards);
     fill_in_primary_guards(guard_selection);
 
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
         "- used: %p,\n"
-        "- sampled_utopic: %p,\n"
+        "- sampled_guards: %p,\n"
         "- exclude_nodes: %p,\n"
         "- n_primary_guards: %d,\n"
         "- for_directory: %d\n",
-        used_guards, sampled_utopic, exclude_nodes,
+        used_guards, sampled_guards, exclude_nodes,
         n_primary_guards, for_directory);
 
     return guard_selection;
@@ -575,19 +575,20 @@ next_primary_guard(guard_selection_t *guard_selection)
     return choose_as_new_entry_guard((node_t*) node);
 }
 
+/** returns a list of GUARDS **/
 STATIC void
-fill_in_node_sampled_set(smartlist_t *sample, const smartlist_t *set,
-                         const int size)
+fill_in_sampled_guard_set(smartlist_t *guards_sample, const smartlist_t *nodes,
+                          const int size)
 {
     smartlist_t *remaining = smartlist_new();
 
-    smartlist_add_all(remaining, set);
-    while (smartlist_len(sample) < size && smartlist_len(remaining) > 0) {
+    smartlist_add_all(remaining, nodes);
+    while (smartlist_len(guards_sample) < size && smartlist_len(remaining) > 0) {
         const node_t *node = next_node_by_bandwidth(remaining);
         if (!node)
             break;
 
-        smartlist_add(sample, (node_t*) node);
+        smartlist_add(guards_sample, entry_guard_new(node));
     }
     smartlist_free(remaining);
 }
@@ -600,14 +601,14 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes)
 
     //XXX persist sampled sets in state file
 
-    if (!sampled_utopic_guards)
-        sampled_utopic_guards = smartlist_new();
+    if (!sampled_guards)
+        sampled_guards = smartlist_new();
 
-    fill_in_node_sampled_set(sampled_utopic_guards, utopic_nodes,
+    fill_in_sampled_guard_set(sampled_guards, utopic_nodes,
         sample_set_threshold * smartlist_len(utopic_nodes));
 
     log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
-        smartlist_len(sampled_utopic_guards), smartlist_len(utopic_nodes));
+        smartlist_len(sampled_guards), smartlist_len(utopic_nodes));
 }
 
 /** How long will we let a change in our guard nodes stay un-saved
@@ -918,7 +919,7 @@ entry_guard_selection_init(void)
         guard_selection_parse_state(get_or_state(), 1, NULL);
 
     entry_guard_selection = choose_entry_guard_algo_start(
-        used_guards, sampled_utopic_guards,
+        used_guards, sampled_guards,
         options->ExcludeNodes,
         num_needed, for_directory);
 }
