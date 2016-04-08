@@ -1330,6 +1330,8 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     node = guard_to_node(guard);
     tor_assert(node);
 
+    // This is another part of IS_SUITABLE. It's here to avoid
+    // passing the exit node to the guard_selection_t
     if (is_related_to_exit(node, chosen_exit))
         goto retry;
 
@@ -1377,19 +1379,20 @@ entry_guards_update_profiles(const or_options_t *options)
 }
 
 static int
-register_guard_connection_status(const entry_guard_t *guard,
-                                 int succeeded, time_t now)
+decide_if_should_continue(const entry_guard_t *guard, int succeeded,
+                          time_t now)
 {
     int should_continue = 0;
 
-    log_warn(LD_CIRC, "Guard %s has succeeded = %d.",
-        node_describe(guard_to_node(guard)), succeeded);
-
+    //XXX Is this possible?
     if (!entry_guard_selection) {
         log_warn(LD_CIRC, "We have no guard_selection algo."
             " Should not continue.");
-        return should_continue;
+        return 0;
     }
+
+    log_warn(LD_CIRC, "Guard %s has succeeded = %d.",
+        node_describe(guard_to_node(guard)), succeeded);
 
     //XXX add this to options
     int internet_likely_down_interval = 5;
@@ -1400,7 +1403,7 @@ register_guard_connection_status(const entry_guard_t *guard,
     log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
     //XXX We need to find a way to clear this when this callback is not
-    //invoked (when there is already a connection stablished to this guard)
+    //invoked (when there is already a connection established to this guard)
     if (pending_guard == guard)
         pending_guard = NULL;
 
@@ -1416,16 +1419,57 @@ register_guard_connection_status(const entry_guard_t *guard,
     return should_continue;
 }
 
-//XXX This is copied from entrynodes.c
+int
+update_entry_guards_connection_status(entry_guard_t *entry,
+                                      const int succeeded, const time_t now)
+{
+    int changed = 0;
+    char buf[HEX_DIGEST_LEN+1];
+    base16_encode(buf, sizeof(buf), entry->identity, DIGEST_LEN);
+
+    if (succeeded) {
+        if (entry->unreachable_since) {
+            log_info(LD_CIRC, "Entry guard '%s' (%s) is now reachable again. Good.",
+                entry->nickname, buf);
+            entry->can_retry = 0;
+            entry->unreachable_since = 0;
+            entry->last_attempted = now;
+            control_event_guard(entry->nickname, entry->identity, "UP");
+            changed = 1;
+        }
+        if (!entry->made_contact) {
+            entry->made_contact = 1;
+            changed = 1;
+        }
+    } else { /* ! succeeded */
+        if (entry->made_contact && !entry->unreachable_since) {
+            log_info(LD_CIRC, "Unable to connect to entry guard '%s' (%s). "
+                "Marking as unreachable.", entry->nickname, buf);
+            entry->unreachable_since = entry->last_attempted = now;
+            control_event_guard(entry->nickname, entry->identity, "DOWN");
+            changed = 1;
+            entry->can_retry = 0; /* We gave it an early chance; no good. */
+        } else {
+            char tbuf[ISO_TIME_LEN+1];
+            format_iso_time(tbuf, entry->unreachable_since);
+            log_debug(LD_CIRC, "Failed to connect to unreachable entry guard "
+                "'%s' (%s).  It has been unreachable since %s.",
+                entry->nickname, buf, tbuf);
+            entry->last_attempted = now;
+            entry->can_retry = 0; /* We gave it an early chance; no good. */
+        }
+    }
+
+    return changed;
+}
+
 int
 guard_selection_register_connect_status(const char *digest, int succeeded,
                                         int mark_relay_status, time_t now)
 {
   int changed = 0;
-  int refuse_conn = 0;
-  int first_contact = 0;
+  int should_continue = 0;
   entry_guard_t *entry = NULL;
-  char buf[HEX_DIGEST_LEN+1];
 
   if (!pending_guard)
       return 0;
@@ -1434,104 +1478,22 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   if (!fast_memeq(pending_guard->identity, digest, DIGEST_LEN))
       return 0;
 
+  /* Process the pending gaurd */
   entry = (entry_guard_t*) pending_guard;
   pending_guard = NULL;
-
-  base16_encode(buf, sizeof(buf), entry->identity, DIGEST_LEN);
-
-  if (succeeded) {
-    if (entry->unreachable_since) {
-      log_info(LD_CIRC, "Entry guard '%s' (%s) is now reachable again. Good.",
-               entry->nickname, buf);
-      entry->can_retry = 0;
-      entry->unreachable_since = 0;
-      entry->last_attempted = now;
-      control_event_guard(entry->nickname, entry->identity, "UP");
-      changed = 1;
-    }
-    if (!entry->made_contact) {
-      entry->made_contact = 1;
-      first_contact = changed = 1;
-    }
-  } else { /* ! succeeded */
-    if (!entry->made_contact) {
-      /* We've never connected to this one. */
-      //XXX Which log makes sense here?
-      //log_info(LD_CIRC,
-      //         "Connection to never-contacted entry guard '%s' (%s) failed. "
-      //         "Removing from the list. %d/%d entry guards usable/new.",
-      //         entry->nickname, buf,
-      //         num_live_entry_guards(0)-1, smartlist_len(entry_guards)-1);
-
-      //XXX Add me back
-      //control_event_guard(entry->nickname, entry->identity, "DROPPED");
-      //entry_guard_free(entry);
-      //smartlist_del_keeporder(entry_guards, idx);
-      //log_entry_guards(LOG_INFO);
-      //changed = 1;
-    } else if (!entry->unreachable_since) {
-      log_info(LD_CIRC, "Unable to connect to entry guard '%s' (%s). "
-               "Marking as unreachable.", entry->nickname, buf);
-      entry->unreachable_since = entry->last_attempted = now;
-      control_event_guard(entry->nickname, entry->identity, "DOWN");
-      changed = 1;
-      entry->can_retry = 0; /* We gave it an early chance; no good. */
-    } else {
-      char tbuf[ISO_TIME_LEN+1];
-      format_iso_time(tbuf, entry->unreachable_since);
-      log_debug(LD_CIRC, "Failed to connect to unreachable entry guard "
-                "'%s' (%s).  It has been unreachable since %s.",
-                entry->nickname, buf, tbuf);
-      entry->last_attempted = now;
-      entry->can_retry = 0; /* We gave it an early chance; no good. */
-    }
-  }
 
   /* if the caller asked us to, also update the is_running flags for this
    * relay */
   if (mark_relay_status)
     router_set_status(digest, succeeded);
 
-#ifndef USE_PROP_259
-  if (first_contact) {
-    /* We've just added a new long-term entry guard. Perhaps the network just
-     * came back? We should give our earlier entries another try too,
-     * and close this connection so we don't use it before we've given
-     * the others a shot. */
-    SMARTLIST_FOREACH_BEGIN(entry_guards, entry_guard_t *, e) {
-        if (e == entry)
-          break;
-        if (e->made_contact) {
-          const char *msg;
-          const node_t *r = entry_is_live(e,
-                     ENTRY_NEED_CAPACITY | ENTRY_ASSUME_REACHABLE,
-                     &msg);
-          if (r && e->unreachable_since) {
-            refuse_conn = 1;
-            e->can_retry = 1;
-          }
-        }
-    } SMARTLIST_FOREACH_END(e);
-    if (refuse_conn) {
-      log_info(LD_CIRC,
-               "Connected to new entry guard '%s' (%s). Marking earlier "
-               "entry guards up. %d/%d entry guards usable/new.",
-               entry->nickname, buf,
-               num_live_entry_guards(0), smartlist_len(entry_guards));
-      log_entry_guards(LOG_INFO);
-      changed = 1;
-    }
-  }
-
-#else
-  (void) first_contact;
-  refuse_conn = register_guard_connection_status(entry, succeeded, now);
-#endif
+  changed = update_entry_guards_connection_status(entry, succeeded, now);
+  should_continue = decide_if_should_continue(entry, succeeded, now);
 
   if (changed)
     entry_guards_changed();
 
-  return refuse_conn ? -1 : 0;
+  return should_continue ? -1 : 0;
 }
 
 int

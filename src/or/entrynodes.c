@@ -778,24 +778,8 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
   if (!entry)
     return 0;
 
-  base16_encode(buf, sizeof(buf), entry->identity, DIGEST_LEN);
-
-  if (succeeded) {
-    if (entry->unreachable_since) {
-      log_info(LD_CIRC, "Entry guard '%s' (%s) is now reachable again. Good.",
-               entry->nickname, buf);
-      entry->can_retry = 0;
-      entry->unreachable_since = 0;
-      entry->last_attempted = now;
-      control_event_guard(entry->nickname, entry->identity, "UP");
-      changed = 1;
-    }
-    if (!entry->made_contact) {
-      entry->made_contact = 1;
-      first_contact = changed = 1;
-    }
-  } else { /* ! succeeded */
-    if (!entry->made_contact) {
+  //Specific to the old behavior
+  if (!succeeded && !entry->made_contact) {
       /* We've never connected to this one. */
       log_info(LD_CIRC,
                "Connection to never-contacted entry guard '%s' (%s) failed. "
@@ -807,23 +791,10 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
       smartlist_del_keeporder(entry_guards, idx);
       log_entry_guards(LOG_INFO);
       changed = 1;
-    } else if (!entry->unreachable_since) {
-      log_info(LD_CIRC, "Unable to connect to entry guard '%s' (%s). "
-               "Marking as unreachable.", entry->nickname, buf);
-      entry->unreachable_since = entry->last_attempted = now;
-      control_event_guard(entry->nickname, entry->identity, "DOWN");
-      changed = 1;
-      entry->can_retry = 0; /* We gave it an early chance; no good. */
-    } else {
-      char tbuf[ISO_TIME_LEN+1];
-      format_iso_time(tbuf, entry->unreachable_since);
-      log_debug(LD_CIRC, "Failed to connect to unreachable entry guard "
-                "'%s' (%s).  It has been unreachable since %s.",
-                entry->nickname, buf, tbuf);
-      entry->last_attempted = now;
-      entry->can_retry = 0; /* We gave it an early chance; no good. */
-    }
   }
+
+  changed = update_entry_guards_connection_status(entry, succeeded, now)
+      || changed;
 
   /* if the caller asked us to, also update the is_running flags for this
    * relay */
