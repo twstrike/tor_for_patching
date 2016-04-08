@@ -1034,18 +1034,13 @@ guards_parse_state(config_line_t *line, const char *state_version,
         smartlist_clear(guards);
         smartlist_add_all(guards, new_entry_guards);
 
-        if (smartlist_len(new_entry_guards))
+        remove_obsolete_guards(now, new_entry_guards);
+        if (smartlist_len(new_entry_guards)) {
             changed = 1;
 
-        log_warn(LD_CIRC, "GUARDS loaded:");
-        log_guards(LOG_WARN, guards);
-
-        //XXX double check this
-        //entry_guards_dirty = 0;
-        ///* XXX024 hand new_entry_guards to this func, and move it up a
-        // * few lines, so we don't have to re-dirty it */
-        //if (remove_obsolete_entry_guards(now))
-        //    entry_guards_dirty = 1;
+            log_warn(LD_CIRC, "GUARDS loaded:");
+            log_guards(LOG_WARN, guards);
+        }
 
         //XXX should we?
         //This updates the using_as_guard for each node
@@ -1763,44 +1758,46 @@ guards_get_lifetime(void)
 int
 remove_obsolete_guards(time_t now, smartlist_t *guards)
 {
-  int changed = 0, i;
-  int32_t guard_lifetime = guards_get_lifetime();
+    log_warn(LD_CIRC, "Will remove OBSOLETE guards");
 
-  for (i = 0; i < smartlist_len(guards); ++i) {
-    entry_guard_t *entry = smartlist_get(guards, i);
-    const char *ver = entry->chosen_by_version;
-    const char *msg = NULL;
-    tor_version_t v;
-    int version_is_bad = 0, date_is_bad = 0;
-    if (!ver) {
-      msg = "does not say what version of Tor it was selected by";
-      version_is_bad = 1;
-    } else if (tor_version_parse(ver, &v)) {
-      msg = "does not seem to be from any recognized version of Tor";
-      version_is_bad = 1;
-    }
-    if (!version_is_bad && entry->chosen_on_date + guard_lifetime < now) {
-      /* It's been too long since the date listed in our state file. */
-      msg = "was selected several months ago";
-      date_is_bad = 1;
+    int changed = 0, i;
+    int32_t guard_lifetime = guards_get_lifetime();
+
+    for (i = 0; i < smartlist_len(guards); ++i) {
+        entry_guard_t *entry = smartlist_get(guards, i);
+        const char *ver = entry->chosen_by_version;
+        const char *msg = NULL;
+        tor_version_t v;
+        int version_is_bad = 0, date_is_bad = 0;
+        if (!ver) {
+            msg = "does not say what version of Tor it was selected by";
+            version_is_bad = 1;
+        } else if (tor_version_parse(ver, &v)) {
+            msg = "does not seem to be from any recognized version of Tor";
+            version_is_bad = 1;
+        }
+        if (!version_is_bad && entry->chosen_on_date + guard_lifetime < now) {
+            /* It's been too long since the date listed in our state file. */
+            msg = "was selected several months ago";
+            date_is_bad = 1;
+        }
+
+        if (version_is_bad || date_is_bad) { /* we need to drop it */
+            char dbuf[HEX_DIGEST_LEN+1];
+            tor_assert(msg);
+            base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
+            log_fn(version_is_bad ? LOG_NOTICE : LOG_INFO, LD_CIRC,
+                "Entry guard '%s' (%s) %s. (Version=%s.) Replacing it.",
+                entry->nickname, dbuf, msg, ver?escaped(ver):"none");
+            control_event_guard(entry->nickname, entry->identity, "DROPPED");
+            entry_guard_free(entry);
+            smartlist_del_keeporder(guards, i--);
+            log_guards(LOG_INFO, guards);
+            changed = 1;
+        }
     }
 
-    if (version_is_bad || date_is_bad) { /* we need to drop it */
-      char dbuf[HEX_DIGEST_LEN+1];
-      tor_assert(msg);
-      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
-      log_fn(version_is_bad ? LOG_NOTICE : LOG_INFO, LD_CIRC,
-             "Entry guard '%s' (%s) %s. (Version=%s.) Replacing it.",
-             entry->nickname, dbuf, msg, ver?escaped(ver):"none");
-      control_event_guard(entry->nickname, entry->identity, "DROPPED");
-      entry_guard_free(entry);
-      smartlist_del_keeporder(guards, i--);
-      log_guards(LOG_INFO, guards);
-      changed = 1;
-    }
-  }
-
-  return changed ? 1 : 0;
+    return changed ? 1 : 0;
 }
 
 /** How long (in seconds) do we allow an entry guard to be nonfunctional,
@@ -1813,30 +1810,32 @@ remove_obsolete_guards(time_t now, smartlist_t *guards)
 int
 remove_dead_guards(time_t now, smartlist_t* guards)
 {
-  char dbuf[HEX_DIGEST_LEN+1];
-  char tbuf[ISO_TIME_LEN+1];
-  int i;
-  int changed = 0;
+    log_warn(LD_CIRC, "Will remove DEAD guards");
 
-  for (i = 0; i < smartlist_len(guards); ) {
-    entry_guard_t *entry = smartlist_get(guards, i);
-    if (entry->bad_since &&
-        ! entry->path_bias_disabled &&
-        entry->bad_since + ENTRY_GUARD_REMOVE_AFTER < now) {
+    char dbuf[HEX_DIGEST_LEN+1];
+    char tbuf[ISO_TIME_LEN+1];
+    int i;
+    int changed = 0;
 
-      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
-      format_local_iso_time(tbuf, entry->bad_since);
-      log_info(LD_CIRC, "Entry guard '%s' (%s) has been down or unlisted "
-               "since %s local time; removing.",
-               entry->nickname, dbuf, tbuf);
-      control_event_guard(entry->nickname, entry->identity, "DROPPED");
-      entry_guard_free(entry);
-      smartlist_del_keeporder(guards, i);
-      log_guards(LOG_INFO, guards);
-      changed = 1;
-    } else
-      ++i;
-  }
-  return changed ? 1 : 0;
+    for (i = 0; i < smartlist_len(guards); ) {
+        entry_guard_t *entry = smartlist_get(guards, i);
+        if (entry->bad_since &&
+            ! entry->path_bias_disabled &&
+            entry->bad_since + ENTRY_GUARD_REMOVE_AFTER < now) {
+
+            base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
+            format_local_iso_time(tbuf, entry->bad_since);
+            log_info(LD_CIRC, "Entry guard '%s' (%s) has been down or unlisted"
+                " since %s local time; removing.",
+                entry->nickname, dbuf, tbuf);
+            control_event_guard(entry->nickname, entry->identity, "DROPPED");
+            entry_guard_free(entry);
+            smartlist_del_keeporder(guards, i);
+            log_guards(LOG_INFO, guards);
+            changed = 1;
+        } else
+            ++i;
+    }
+    return changed ? 1 : 0;
 }
 
