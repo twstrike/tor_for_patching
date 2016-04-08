@@ -532,8 +532,11 @@ fill_in_primary_guards(guard_selection_t *guard_selection)
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection)
 {
-    smartlist_free(guard_selection->primary_guards);
-    smartlist_free(guard_selection->remaining_guards);
+		if(guard_selection->primary_guards)
+				smartlist_free(guard_selection->primary_guards);
+
+		if (guard_selection->remaining_guards)
+				smartlist_free(guard_selection->remaining_guards);
 }
 
 STATIC guard_selection_t*
