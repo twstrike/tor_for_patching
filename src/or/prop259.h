@@ -65,8 +65,8 @@ void
 entry_guards_update_profiles(const or_options_t *options);
 
 int
-guard_selection_register_connect_status(const entry_guard_t *guard,
-                                        int succeeded, time_t now);
+guard_selection_register_connect_status(const char *digest, int succeeded,
+                                        int mark_relay_status, time_t now);
 
 int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,

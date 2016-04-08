@@ -751,6 +751,11 @@ int
 entry_guard_register_connect_status(const char *digest, int succeeded,
                                     int mark_relay_status, time_t now)
 {
+#ifdef USE_PROP_259
+    return guard_selection_register_connect_status(digest, succeeded,
+        mark_relay_status, now);
+#endif
+
   int changed = 0;
   int refuse_conn = 0;
   int first_contact = 0;
@@ -758,7 +763,6 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
   int idx = -1;
   char buf[HEX_DIGEST_LEN+1];
 
-  //XXX This must be removed
   if (! entry_guards)
     return 0;
 
@@ -826,7 +830,6 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
   if (mark_relay_status)
     router_set_status(digest, succeeded);
 
-#ifndef USE_PROP_259
   if (first_contact) {
     /* We've just added a new long-term entry guard. Perhaps the network just
      * came back? We should give our earlier entries another try too,
@@ -856,12 +859,6 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
       changed = 1;
     }
   }
-
-#else
-  (void) first_contact;
-  refuse_conn = guard_selection_register_connect_status(entry,
-      succeeded, now);
-#endif
 
   if (changed)
     entry_guards_changed();
