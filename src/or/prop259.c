@@ -8,6 +8,7 @@
 
 //XXX Where is this called?
 //We need to remove the global
+//- entry_guards_compute_status
 //- get_entry_guards()
 //- num_live_entry_guards()
 //- update_node_guard_status()
@@ -1247,6 +1248,43 @@ decide_if_should_continue(const entry_guard_t *guard, int succeeded,
     }
 
     return should_continue;
+}
+
+/** How long (in seconds) do we allow an entry guard to be nonfunctional,
+ * unlisted, excluded, or otherwise nonusable before we give up on it? */
+#define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60)
+
+/** Remove all entry guards that have been down or unlisted for so
+ * long that we don't think they'll come up again. Return 1 if we
+ * removed any, or 0 if we did nothing. */
+int
+remove_dead_guards(time_t now, smartlist_t* guards)
+{
+  char dbuf[HEX_DIGEST_LEN+1];
+  char tbuf[ISO_TIME_LEN+1];
+  int i;
+  int changed = 0;
+
+  for (i = 0; i < smartlist_len(guards); ) {
+    entry_guard_t *entry = smartlist_get(guards, i);
+    if (entry->bad_since &&
+        ! entry->path_bias_disabled &&
+        entry->bad_since + ENTRY_GUARD_REMOVE_AFTER < now) {
+
+      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
+      format_local_iso_time(tbuf, entry->bad_since);
+      log_info(LD_CIRC, "Entry guard '%s' (%s) has been down or unlisted "
+               "since %s local time; removing.",
+               entry->nickname, dbuf, tbuf);
+      control_event_guard(entry->nickname, entry->identity, "DROPPED");
+      entry_guard_free(entry);
+      smartlist_del_keeporder(guards, i);
+      log_guards(LOG_INFO, guards);
+      changed = 1;
+    } else
+      ++i;
+  }
+  return changed ? 1 : 0;
 }
 
 //These functions adapt our proposal to current tor code

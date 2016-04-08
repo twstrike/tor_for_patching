@@ -626,31 +626,7 @@ remove_obsolete_entry_guards(time_t now)
 static int
 remove_dead_entry_guards(time_t now)
 {
-  char dbuf[HEX_DIGEST_LEN+1];
-  char tbuf[ISO_TIME_LEN+1];
-  int i;
-  int changed = 0;
-
-  for (i = 0; i < smartlist_len(entry_guards); ) {
-    entry_guard_t *entry = smartlist_get(entry_guards, i);
-    if (entry->bad_since &&
-        ! entry->path_bias_disabled &&
-        entry->bad_since + ENTRY_GUARD_REMOVE_AFTER < now) {
-
-      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
-      format_local_iso_time(tbuf, entry->bad_since);
-      log_info(LD_CIRC, "Entry guard '%s' (%s) has been down or unlisted "
-               "since %s local time; removing.",
-               entry->nickname, dbuf, tbuf);
-      control_event_guard(entry->nickname, entry->identity, "DROPPED");
-      entry_guard_free(entry);
-      smartlist_del_keeporder(entry_guards, i);
-      log_entry_guards(LOG_INFO);
-      changed = 1;
-    } else
-      ++i;
-  }
-  return changed ? 1 : 0;
+  return remove_dead_guards(now, entry_guards);
 }
 
 /** Remove all currently listed entry guards. So new ones will be chosen. */
