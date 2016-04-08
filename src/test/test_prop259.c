@@ -121,6 +121,7 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     guardlist_free(used_guards);
     guardlist_free(sampled_utopic);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -176,6 +177,7 @@ test_next_primary_guard(void *arg)
     tor_free(g3);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -222,6 +224,7 @@ test_fill_in_primary_guards(void *arg)
     tor_free(g4);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -287,6 +290,7 @@ test_fill_in_remaining_utopic(void *arg)
     guardlist_free(used);
     guardlist_free(sampled);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -317,6 +321,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
     guardlist_free(sampled_utopic);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -372,6 +377,7 @@ test_NEXT_transitions_to_PRIMARY_GUARDS_and_saves_previous_state(void *arg)
     tor_free(g3);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
     tor_free(options);
 }
 
@@ -427,6 +433,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     routerset_free(exclude_nodes);
     tor_free(options);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -458,6 +465,7 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
     guardlist_free(used_guards);
     guardlist_free(sampled_utopic);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
     tor_free(options);
 }
 
@@ -490,6 +498,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     guardlist_free(used_guards);
     guardlist_free(sampled_utopic);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
     tor_free(options);
 }
 
@@ -547,6 +556,7 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
     tor_free(g3);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
     tor_free(options);
 }
 
@@ -613,6 +623,7 @@ test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg)
     tor_free(g3);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
     tor_free(options);
     remove_all_entry_guards();
 }
@@ -641,6 +652,7 @@ test_TRY_UTOPIC_transitions_to_PRIMARY_GUARDS(void *arg)
   done:
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
     tor_free(options);
 }
 
@@ -740,6 +752,7 @@ test_ON_NEW_CONSENSUS(void *arg)
     tor_free(g5);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -758,6 +771,7 @@ test_choose_entry_guard_algo_should_continue_when_circuit_fails(void *arg)
 
   done:
 		guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
@@ -776,49 +790,52 @@ test_should_not_continue_when_circuit_succeeds_for_first_time(void *arg)
 
   done:
 		guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
 test_should_continue_when_last_sucess_was_before_likely_down_interval(
     void *arg)
 {
-  guard_selection_t *guard_selection =
-      tor_malloc_zero(sizeof(guard_selection_t));
-  int succeeded = 1;
-  time_t now = time(NULL);
-  (void) arg;
+    guard_selection_t *guard_selection =
+        tor_malloc_zero(sizeof(guard_selection_t));
+    int succeeded = 1;
+    time_t now = time(NULL);
+    (void) arg;
 
-  guard_selection->primary_guards = smartlist_new();
-  guard_selection->last_success = now - 61;
-  int should_continue = choose_entry_guard_algo_should_continue
-    (guard_selection, succeeded, now, 1);
+    guard_selection->primary_guards = smartlist_new();
+    guard_selection->last_success = now - 61;
+    int should_continue = choose_entry_guard_algo_should_continue
+        (guard_selection, succeeded, now, 1);
 
-  tt_int_op(should_continue, OP_EQ, 1);
+    tt_int_op(should_continue, OP_EQ, 1);
 
- done:
-  guard_selection_free(guard_selection);
+  done:
+    guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
 test_should_not_continue_when_last_success_was_after_likely_down_interval(
     void *arg)
 {
-  guard_selection_t *guard_selection =
-      tor_malloc_zero(sizeof(guard_selection_t));
-  int succeeded = 1;
-  time_t now = time(NULL);
-  (void) arg;
+    guard_selection_t *guard_selection =
+        tor_malloc_zero(sizeof(guard_selection_t));
+    int succeeded = 1;
+    time_t now = time(NULL);
+    (void) arg;
 
-  guard_selection->used_guards = guardlist_new();
-  guard_selection->last_success = now - 60;
-  int should_continue = choose_entry_guard_algo_should_continue
-    (guard_selection, succeeded, now, 1);
+    guard_selection->used_guards = guardlist_new();
+    guard_selection->last_success = now - 60;
+    int should_continue = choose_entry_guard_algo_should_continue
+        (guard_selection, succeeded, now, 1);
 
-  tt_int_op(should_continue, OP_EQ, 0);
+    tt_int_op(should_continue, OP_EQ, 0);
 
- done:
-  guardlist_free(guard_selection->used_guards);
-  guard_selection_free(guard_selection);
+  done:
+    guardlist_free(guard_selection->used_guards);
+    guard_selection_free(guard_selection);
+    tor_free(guard_selection);
 }
 
 static void
