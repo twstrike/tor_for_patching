@@ -250,7 +250,10 @@ or_state_validate(or_state_t *state, char **msg)
   if (entry_guards_parse_state(state, 0, msg)<0)
     return -1;
 #else
-  if (guard_selection_parse_state(state, 0, msg)<0)
+  if (guard_selection_parse_used_guards_state(state, 0, msg)<0)
+    return -1;
+
+  if (guard_selection_parse_sampled_guards_state(state, 0, msg)<0)
     return -1;
 #endif
 
@@ -277,7 +280,13 @@ or_state_set(or_state_t *new_state)
     ret = -1;
   }
 #else
-  if (guard_selection_parse_state(global_state, 1, &err)<0) {
+  if (guard_selection_parse_used_guards_state(global_state, 1, &err)<0) {
+    log_warn(LD_GENERAL,"%s",err);
+    tor_free(err);
+    ret = -1;
+  }
+
+  if (guard_selection_parse_sampled_guards_state(global_state, 1, &err)<0) {
     log_warn(LD_GENERAL,"%s",err);
     tor_free(err);
     ret = -1;

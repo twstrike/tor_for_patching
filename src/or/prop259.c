@@ -691,11 +691,7 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes)
     //XXX Extract a configuration from this
     const double sample_set_threshold = 0.005;
 
-    //XXX persist sampled sets in state file
-
-    if (!sampled_guards)
-        sampled_guards = guardlist_new();
-
+    tor_assert(sampled_guards);
     fill_in_sampled_guard_set(sampled_guards, utopic_nodes,
         sample_set_threshold * smartlist_len(utopic_nodes));
 
@@ -1064,6 +1060,14 @@ guards_parse_state(config_line_t *line, const char *state_version,
     return *msg ? -1 : changed;
 }
 
+static int
+sampled_guards_parse_state(const or_state_t *state, smartlist_t *sample,
+                           char **msg)
+{
+    return guards_parse_state(state->SampledGuards, state->TorVersion,
+        "SampledGuard", sample, msg);
+}
+
 STATIC int
 used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                         char **msg)
@@ -1245,6 +1249,8 @@ decide_if_should_continue(const entry_guard_t *guard, int succeeded,
     return should_continue;
 }
 
+
+
 //These functions adapt our proposal to current tor code
 
 // PUBLIC INTERFACE ----------------------------------------
@@ -1293,7 +1299,10 @@ entry_guard_selection_init(void)
 
     //XXX Is this the right place to ensure it is loaded from state file?
     if (!used_guards)
-        guard_selection_parse_state(get_or_state(), 1, NULL);
+        guard_selection_parse_used_guards_state(get_or_state(), 1, NULL);
+
+    if (!sampled_guards)
+        guard_selection_parse_sampled_guards_state(get_or_state(), 1, NULL);
 
     entry_guard_selection = choose_entry_guard_algo_start(
         used_guards, sampled_guards,
@@ -1483,9 +1492,7 @@ entry_guards_update_profiles(const or_options_t *options)
 
             //XXX update_node_guard_status();
 
-            if (!sampled_guards)
-                sampled_guards = guardlist_new();
-
+            tor_assert(sampled_guards);
             fill_in_sampled_guard_set(sampled_guards, sample,
                 smartlist_len(sample));
 
@@ -1597,32 +1604,6 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   return should_continue ? -1 : 0;
 }
 
-int
-guard_selection_parse_state(const or_state_t *state, int set, char **msg)
-{
-    log_warn(LD_CIRC, "Will load used guards from state file.");
-
-    if (!used_guards)
-        used_guards = guardlist_new();
-
-    smartlist_t *guards = set ? smartlist_new() : NULL;
-    int ret = entry_guards_parse_state_backward(state, guards, msg);
-    if (ret == 0) {
-        ret = used_guards_parse_state(state, guards, msg);
-    }
-
-    if (set && ret == 1) {
-        guardlist_add_all_smarlist(used_guards, guards);
-        /* We have made contact to all USED_GUARDS */
-        GUARDLIST_FOREACH(used_guards, entry_guard_t *, entry,
-            entry->made_contact = 1;
-        );
-    }
-
-    smartlist_free(guards);
-    return ret;
-}
-
 void
 guard_selection_update_state(or_state_t *state, const or_options_t *options)
 {
@@ -1677,5 +1658,60 @@ log_guards(int severity, const smartlist_t *guards)
   smartlist_free(elements);
   log_fn(severity,LD_CIRC,"%s",s);
   tor_free(s);
+}
+
+int
+guard_selection_parse_sampled_guards_state(const or_state_t *state, int set,
+                                           char **msg)
+{
+    log_warn(LD_CIRC, "Will load sample set from state file.");
+
+    if (set) {
+        tor_assert(!sampled_guards);
+        sampled_guards = guardlist_new();
+    }
+
+    smartlist_t *guards = set ? smartlist_new() : NULL;
+    int ret = sampled_guards_parse_state(state, guards, msg);
+
+    if (set && ret == 1) {
+        //XXX Should we mark them as made_contact if they are also in used?
+        guardlist_add_all_smarlist(sampled_guards, guards);
+    }
+
+    smartlist_free(guards);
+    return ret;
+}
+
+int
+guard_selection_parse_used_guards_state(const or_state_t *state, int set,
+                                        char **msg)
+{
+    log_warn(LD_CIRC, "Will load used guards from state file.");
+
+    if (set) {
+        tor_assert(!used_guards);
+        used_guards = guardlist_new();
+    }
+
+    smartlist_t *guards = set ? smartlist_new() : NULL;
+    int ret = entry_guards_parse_state_backward(state, guards, msg);
+    if (ret == 0) {
+        ret = used_guards_parse_state(state, guards, msg);
+    }
+
+    if (set && ret == 1) {
+        guardlist_add_all_smarlist(used_guards, guards);
+        /* We have made contact to all USED_GUARDS */
+        GUARDLIST_FOREACH(used_guards, entry_guard_t *, entry,
+            entry->made_contact = 1;
+        );
+    }
+
+    //XXX Parse sampled set
+    //Should we update their
+
+    smartlist_free(guards);
+    return ret;
 }
 

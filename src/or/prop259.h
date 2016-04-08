@@ -77,7 +77,12 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
           int succeeded, time_t now, int internet_likely_down_interval);
 
 int
-guard_selection_parse_state(const or_state_t *state, int set, char **msg);
+guard_selection_parse_used_guards_state(const or_state_t *state, int set,
+                                        char **msg);
+
+int
+guard_selection_parse_sampled_guards_state(const or_state_t *state, int set,
+                                           char **msg);
 
 void
 guard_selection_update_state(or_state_t *state, const or_options_t *options);
