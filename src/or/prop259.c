@@ -151,18 +151,6 @@ is_related_to_exit(const node_t *node, const node_t *chosen_exit)
     return retval;
 }
 
-static int
-is_suitable(const entry_guard_t *entry, int for_directory)
-{
-    if (!is_live(entry))
-        return 0;
-
-    if (for_directory && !entry->is_dir_cache)
-        return 0;
-
-    return 1;
-}
-
 MOCK_IMPL(STATIC int,
 is_live,(const entry_guard_t *guard))
 {
@@ -177,11 +165,9 @@ is_bad,(const entry_guard_t *guard))
     return (node_get_by_id(guard->identity) == NULL);
 }
 
-static int
-should_ignore(const entry_guard_t *guard, int for_directory)
-{
-    return !is_suitable(guard, for_directory);
-}
+/** XXX Now we have a clear vision of what is "bad" vs "unlisted" we should
+ * revisit this.
+ **/
 
 static int
 should_try(const entry_guard_t* guard)
@@ -193,11 +179,31 @@ should_try(const entry_guard_t* guard)
 }
 
 static int
+is_suitable(const entry_guard_t *entry, int for_directory)
+{
+    if (!is_live(entry))
+        return 0;
+
+    if (for_directory && !entry->is_dir_cache)
+        return 0;
+
+    return 1;
+}
+
+static int
+should_ignore(const entry_guard_t *guard, int for_directory)
+{
+    return !is_suitable(guard, for_directory);
+}
+
+static int
 is_eligible(const entry_guard_t* guard, int for_directory)
 {
     return should_try(guard) &&
         !should_ignore(guard, for_directory);
 }
+
+/** -------------------------------------- **/
 
 static void
 mark_for_retry(const smartlist_t *guards)
@@ -479,12 +485,12 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 }
 
 static smartlist_t*
-filter_set(const guardlist_t *guards, int for_directory)
+filter_set(const guardlist_t *guards)
 {
     smartlist_t *filtered = smartlist_new();
 
     GUARDLIST_FOREACH_BEGIN(guards, entry_guard_t *, guard) {
-        if (is_suitable(guard, for_directory))
+        if (is_live(guard))
             smartlist_add(filtered, guard);
     } SMARTLIST_FOREACH_END(guard);
 
@@ -503,7 +509,7 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
 
     /** Filter the sampled set **/
     //XXX consider for_directory
-    smartlist_t *filtered = filter_set(sampled_guards, 0);
+    smartlist_t *filtered = filter_set(sampled_guards);
 
     if (smartlist_len(filtered) < MINIMUM_FILTERED_SAMPLE_SIZE) {
         //XXX expand and evaluate
