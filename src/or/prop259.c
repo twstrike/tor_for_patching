@@ -1518,6 +1518,8 @@ entry_guards_update_profiles(const or_options_t *options)
     // XXX we put this here for now because it's consuming guards and trying
     // to fill the sample_set with option->EntryNodes or options->UseBridge
     // or other
+    // XXX We probably want to do this on options_act because this can change
+    // before we receive a consensus
     if (entry_list_is_constrained(options)) {
         fill_in_restricted(options);
     } else {
