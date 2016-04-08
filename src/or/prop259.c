@@ -717,7 +717,6 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
     }
 
     smartlist_free(fps);
-    guard_selection_free(guard_selection);
 }
 
 /** Largest amount that we'll backdate chosen_on_date */
@@ -1391,9 +1390,6 @@ decide_if_should_continue(const entry_guard_t *guard, int succeeded,
         return 0;
     }
 
-    log_warn(LD_CIRC, "Guard %s has succeeded = %d.",
-        node_describe(guard_to_node(guard)), succeeded);
-
     //XXX add this to options
     int internet_likely_down_interval = 5;
 
@@ -1402,13 +1398,9 @@ decide_if_should_continue(const entry_guard_t *guard, int succeeded,
 
     log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
-    //XXX We need to find a way to clear this when this callback is not
-    //invoked (when there is already a connection established to this guard)
-    if (pending_guard == guard)
-        pending_guard = NULL;
-
     if (!should_continue) {
         choose_entry_guard_algo_end(entry_guard_selection, guard);
+        guard_selection_free(entry_guard_selection);
         tor_free(entry_guard_selection);
     } else {
         //XXX entry_guard_register_connect_status() is smarter and only calls
@@ -1480,7 +1472,13 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
 
   /* Process the pending gaurd */
   entry = (entry_guard_t*) pending_guard;
+
+  //XXX We need to find a way to clear this when this callback is not
+  //invoked (when there is already a connection established to this guard)
   pending_guard = NULL;
+
+  log_warn(LD_CIRC, "Guard %s has succeeded = %d. Processing...",
+      node_describe(guard_to_node(entry)), succeeded);
 
   /* if the caller asked us to, also update the is_running flags for this
    * relay */
