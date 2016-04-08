@@ -1249,8 +1249,6 @@ decide_if_should_continue(const entry_guard_t *guard, int succeeded,
     return should_continue;
 }
 
-
-
 //These functions adapt our proposal to current tor code
 
 // PUBLIC INTERFACE ----------------------------------------
@@ -1410,6 +1408,99 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 //which should also calls used_guards_changed()
 
 //XXX Add tests
+static void
+fill_in_from_entrynodes(const or_options_t *options, guardlist_t *dest)
+{
+    tor_assert(dest);
+
+    smartlist_t *entry_nodes, *worse_entry_nodes, *entry_fps;
+    smartlist_t *old_entry_guards_on_list, *old_entry_guards_not_on_list;
+    // old entry guards in the primary
+    old_entry_guards_on_list = smartlist_new();
+    // old entry guards not in the primary
+    old_entry_guards_not_on_list = smartlist_new();
+
+    // EntryNodes in options
+    entry_nodes = smartlist_new();
+    // EntryNodes in options but not is_possible_gurad
+    worse_entry_nodes = smartlist_new();
+
+    // convert EntryNodes to entry_nodes excluding ExcludeNodes
+    routerset_get_all_nodes(entry_nodes, options->EntryNodes,
+        options->ExcludeNodes, 0);
+
+    //add fingerprints from entry_nodes
+    entry_fps = smartlist_new();
+    SMARTLIST_FOREACH(entry_nodes, const node_t *,node,
+        smartlist_add(entry_fps, (void*)node->identity));
+
+    //XXX split up old guards into two list according to
+    //USED_GUARDS (sure ?) list
+    if (entry_guard_selection && entry_guard_selection->used_guards) {
+        SMARTLIST_FOREACH(entry_guard_selection->used_guards->list,
+            entry_guard_t *, e, {
+            if (smartlist_contains_digest(entry_fps, e->identity))
+                smartlist_add(old_entry_guards_on_list, e);
+            else
+                smartlist_add(old_entry_guards_not_on_list, e);
+        });
+    }
+
+    /* Remove all currently configured guard nodes, excluded nodes, unreachable
+     * nodes, or non-Guard nodes from entry_nodes. */
+    SMARTLIST_FOREACH_BEGIN(entry_nodes, const node_t *, node) {
+        if (entry_guard_get_by_id_digest(node->identity)) {
+            SMARTLIST_DEL_CURRENT(entry_nodes, node);
+            continue;
+        } else if (! node->is_possible_guard) {
+            smartlist_add(worse_entry_nodes, (node_t*)node);
+            SMARTLIST_DEL_CURRENT(entry_nodes, node);
+        }
+    } SMARTLIST_FOREACH_END(node);
+
+    smartlist_t *sample = smartlist_new();
+
+    /* First, the previously configured guards that are in EntryNodes. */
+    smartlist_add_all(sample, old_entry_guards_on_list);
+    /* Next, scramble the rest of EntryNodes, putting the guards first. */
+    smartlist_shuffle(entry_nodes);
+    smartlist_shuffle(worse_entry_nodes);
+    smartlist_add_all(entry_nodes, worse_entry_nodes);
+    /* Next, the rest of EntryNodes */
+    smartlist_add_all(sample, entry_nodes);
+
+    /* Finally, free the remaining previously configured guards that are not in
+     * EntryNodes. */
+    SMARTLIST_FOREACH(old_entry_guards_not_on_list, entry_guard_t *, e,
+        entry_guard_free(e));
+
+    //XXX update_node_guard_status();
+
+    /** Fill in ignoring sample size  **/
+    fill_in_sampled_guard_set(dest, sample,
+        smartlist_len(sample));
+
+    //XXX do this only when it changed
+    sampled_guards_changed();
+
+    log_warn(LD_CIRC, "We sampled %d from %d EntryNodes",
+        guardlist_len(dest), smartlist_len(sample));
+
+    smartlist_free(old_entry_guards_on_list);
+    smartlist_free(old_entry_guards_not_on_list);
+    smartlist_free(entry_nodes);
+    smartlist_free(worse_entry_nodes);
+    smartlist_free(entry_fps);
+}
+
+static void
+fill_in_restricted(const or_options_t *options)
+{
+    if (options->EntryNodes)
+        fill_in_from_entrynodes(options, sampled_guards);
+}
+
+//XXX Add tests
 void
 entry_guards_update_profiles(const or_options_t *options)
 {
@@ -1427,89 +1518,12 @@ entry_guards_update_profiles(const or_options_t *options)
     //the near ideal future.
     int for_directory = 0;
 
-    // XXX we put this here for now because it's consuming guards and trying to
-    // fill the sample_set with option->EntryNodes or options->UseBridge or other
-    if (entry_list_is_constrained(options)){
-        if (options->EntryNodes){
-            smartlist_t *entry_nodes, *worse_entry_nodes, *entry_fps;
-            smartlist_t *old_entry_guards_on_list, *old_entry_guards_not_on_list;
-            // old entry guards in the primary
-            old_entry_guards_on_list = smartlist_new();
-            // old entry guards not in the primary
-            old_entry_guards_not_on_list = smartlist_new();
-
-            // EntryNodes in options
-            entry_nodes = smartlist_new();
-            // EntryNodes in options but not is_possible_gurad
-            worse_entry_nodes = smartlist_new();
-
-            // convert EntryNodes to entry_nodes excluding ExcludeNodes
-            routerset_get_all_nodes(entry_nodes, options->EntryNodes,
-                    options->ExcludeNodes, 0);
-
-            //add fingerprints from entry_nodes
-            entry_fps = smartlist_new();
-            SMARTLIST_FOREACH(entry_nodes, const node_t *,node,
-                    smartlist_add(entry_fps, (void*)node->identity));
-
-            //XXX split up old guards into two list according to USED_GUARDS (sure ?) list
-            if(entry_guard_selection && entry_guard_selection->used_guards){
-                SMARTLIST_FOREACH(entry_guard_selection->used_guards->list, entry_guard_t *, e, {
-                  if (smartlist_contains_digest(entry_fps, e->identity))
-                    smartlist_add(old_entry_guards_on_list, e);
-                  else
-                    smartlist_add(old_entry_guards_not_on_list, e);
-                });
-            }
-
-            /* Remove all currently configured guard nodes, excluded nodes, unreachable
-             * nodes, or non-Guard nodes from entry_nodes. */
-            SMARTLIST_FOREACH_BEGIN(entry_nodes, const node_t *, node) {
-              if (entry_guard_get_by_id_digest(node->identity)) {
-                SMARTLIST_DEL_CURRENT(entry_nodes, node);
-                continue;
-              } else if (! node->is_possible_guard) {
-                smartlist_add(worse_entry_nodes, (node_t*)node);
-                SMARTLIST_DEL_CURRENT(entry_nodes, node);
-              }
-            } SMARTLIST_FOREACH_END(node);
-
-            smartlist_t *sample = smartlist_new();
-
-            /* First, the previously configured guards that are in EntryNodes. */
-            smartlist_add_all(sample, old_entry_guards_on_list);
-            /* Next, scramble the rest of EntryNodes, putting the guards first. */
-            smartlist_shuffle(entry_nodes);
-            smartlist_shuffle(worse_entry_nodes);
-            smartlist_add_all(entry_nodes, worse_entry_nodes);
-            /* Next, the rest of EntryNodes */
-            smartlist_add_all(sample, entry_nodes);
-
-            /* Finally, free the remaining previously configured guards that are not in
-             * EntryNodes. */
-            SMARTLIST_FOREACH(old_entry_guards_not_on_list, entry_guard_t *, e,
-                    entry_guard_free(e));
-
-            //XXX update_node_guard_status();
-
-            tor_assert(sampled_guards);
-            fill_in_sampled_guard_set(sampled_guards, sample,
-                smartlist_len(sample));
-
-            //XXX do this only when it changed
-            sampled_guards_changed();
-
-            log_warn(LD_CIRC, "We sampled %d from %d EntryNodes",
-                guardlist_len(sampled_guards), smartlist_len(sample));
-
-            smartlist_free(old_entry_guards_on_list);
-            smartlist_free(old_entry_guards_not_on_list);
-            smartlist_free(entry_nodes);
-            smartlist_free(worse_entry_nodes);
-            smartlist_free(entry_fps);
-        }
-    }
-    else{
+    // XXX we put this here for now because it's consuming guards and trying
+    // to fill the sample_set with option->EntryNodes or options->UseBridge
+    // or other
+    if (entry_list_is_constrained(options)) {
+        fill_in_restricted(options);
+    } else {
         smartlist_t *utopic = get_all_guards(for_directory);
         fill_in_sampled_sets(utopic);
         smartlist_free(utopic);
