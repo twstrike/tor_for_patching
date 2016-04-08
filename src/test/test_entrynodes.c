@@ -88,10 +88,6 @@ test_choose_random_entry_no_guards(void *arg)
 
   (void) arg;
 
-#ifdef USE_PROP_259
-  return;
-#endif
-
   MOCK(get_options, mock_get_options);
 
   /* Check that we get a guard if it passes preferred
@@ -169,10 +165,6 @@ test_choose_random_entry_one_possible_guard(void *arg)
   smartlist_t *our_nodelist = NULL;
 
   (void) arg;
-
-#ifdef USE_PROP_259
-  return;
-#endif
 
   MOCK(get_options, mock_get_options);
 
@@ -597,10 +589,6 @@ test_entry_guards_set_from_config(void *arg)
 
   (void) arg;
 
-#ifdef USE_PROP_259
-  return;
-#endif
-
   /* Prase EntryNodes as a routerset. */
   options->EntryNodes = routerset_new();
   retval = routerset_parse(options->EntryNodes,
@@ -853,14 +841,20 @@ static const struct testcase_setup_t fake_network = {
   fake_network_setup, fake_network_cleanup
 };
 
+#ifdef USE_PROP_259
+#define SHOULD_SKIP TT_SKIP
+#else
+#define SHOULD_SKIP 0
+#endif
+
 struct testcase_t entrynodes_tests[] = {
   { "entry_is_time_to_retry", test_entry_is_time_to_retry,
     TT_FORK, NULL, NULL },
   { "choose_random_entry_no_guards", test_choose_random_entry_no_guards,
-    TT_FORK, &fake_network, NULL },
+    TT_FORK | SHOULD_SKIP , &fake_network, NULL },
   { "choose_random_entry_one_possibleguard",
     test_choose_random_entry_one_possible_guard,
-    TT_FORK, &fake_network, NULL },
+    TT_FORK | SHOULD_SKIP, &fake_network, NULL },
   { "populate_live_entry_guards_1guard",
     test_populate_live_entry_guards_1guard,
     TT_FORK, &fake_network, NULL },
@@ -875,7 +869,7 @@ struct testcase_t entrynodes_tests[] = {
     TT_FORK, &fake_network, NULL },
   { "entry_guards_set_from_config",
     test_entry_guards_set_from_config,
-    TT_FORK, &fake_network, NULL },
+    TT_FORK | SHOULD_SKIP, &fake_network, NULL },
   { "entry_is_live",
     test_entry_is_live,
     TT_FORK, &fake_network, NULL },
