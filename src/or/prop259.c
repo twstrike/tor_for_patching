@@ -539,11 +539,11 @@ fill_in_primary_guards(guard_selection_t *guard_selection)
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection)
 {
-		if(guard_selection->primary_guards)
-				smartlist_free(guard_selection->primary_guards);
+    if (guard_selection->primary_guards)
+        smartlist_free(guard_selection->primary_guards);
 
-		if (guard_selection->remaining_guards)
-				smartlist_free(guard_selection->remaining_guards);
+    if (guard_selection->remaining_guards)
+        smartlist_free(guard_selection->remaining_guards);
 }
 
 STATIC guard_selection_t*
@@ -855,13 +855,16 @@ guards_parse_state(config_line_t *line, const char *state_version,
                     added_by_config_name);
                 continue;
             }
+
             if (base16_decode(d, sizeof(d), line->value, HEX_DIGEST_LEN)<0 ||
                 line->value[HEX_DIGEST_LEN] != ' ') {
                 log_warn(LD_BUG, "%s line %s does not begin with "
                     "hex digest", added_by_config_name, escaped(line->value));
                 continue;
             }
-            digestmap_set(added_by, d, tor_strdup(line->value+HEX_DIGEST_LEN+1));
+
+            digestmap_set(added_by, d,
+                tor_strdup(line->value+HEX_DIGEST_LEN+1));
         } else if (!strcasecmp(line->key, path_use_bias_config_name)) {
             const or_options_t *options = get_options();
             double use_cnt, success_cnt;
@@ -874,15 +877,16 @@ guards_parse_state(config_line_t *line, const char *state_version,
 
             if (tor_sscanf(line->value, "%lf %lf",
                 &use_cnt, &success_cnt) != 2) {
-                log_info(LD_GENERAL, "Malformed path use bias line for node %s",
-                    node->nickname);
+                log_info(LD_GENERAL, "Malformed path use bias line for node"
+                    " %s", node->nickname);
                 continue;
             }
 
             if (use_cnt < success_cnt) {
                 int severity = LOG_INFO;
                 /* If this state file was written by a Tor that would have
-                 * already fixed it, then the overcounting bug is still there.. */
+                 * already fixed it, then the overcounting bug is still
+                 * there.. */
                 if (tor_version_as_new_as(state_version, "0.2.4.13-alpha")) {
                     severity = LOG_NOTICE;
                 }
@@ -913,8 +917,8 @@ guards_parse_state(config_line_t *line, const char *state_version,
             }
         } else if (!strcasecmp(line->key, path_bias_config_name)) {
             const or_options_t *options = get_options();
-            double hop_cnt, success_cnt, timeouts, collapsed, successful_closed,
-                   unusable;
+            double hop_cnt, success_cnt, timeouts, collapsed,
+                   successful_closed, unusable;
 
             if (!node) {
                 tor_asprintf(msg, "Unable to parse entry nodes: "
@@ -930,7 +934,8 @@ guards_parse_state(config_line_t *line, const char *state_version,
                 &hop_cnt, &success_cnt, &successful_closed,
                 &collapsed, &unusable, &timeouts) != 6) {
                 int old_success, old_hops;
-                if (tor_sscanf(line->value, "%u %u", &old_success, &old_hops) != 2) {
+                if (tor_sscanf(line->value, "%u %u", &old_success,
+                    &old_hops) != 2) {
                     continue;
                 }
                 log_info(LD_GENERAL, "Reading old-style %s %s",
@@ -947,7 +952,8 @@ guards_parse_state(config_line_t *line, const char *state_version,
             if (hop_cnt < success_cnt) {
                 int severity = LOG_INFO;
                 /* If this state file was written by a Tor that would have
-                 * already fixed it, then the overcounting bug is still there.. */
+                 * already fixed it, then the overcounting bug is still
+                 * there.. */
                 if (tor_version_as_new_as(state_version, "0.2.4.13-alpha")) {
                     severity = LOG_NOTICE;
                 }
@@ -1071,7 +1077,8 @@ entry_guards_parse_state_backward(const or_state_t *state,
 }
 
 static void
-guards_update_state(config_line_t **next, const guardlist_t *guards, const char* config_name)
+guards_update_state(config_line_t **next, const guardlist_t *guards,
+                    const char* config_name)
 {
     log_warn(LD_CIRC, "Will store %s", config_name);
 
@@ -1193,6 +1200,40 @@ sampled_guards_update_state(or_state_t *state, guardlist_t *sampled_guards)
     *next = NULL;
 
     guards_update_state(next, sampled_guards, "SampledGuard");
+}
+
+static int
+decide_if_should_continue(const entry_guard_t *guard, int succeeded,
+                          time_t now)
+{
+    int should_continue = 0;
+
+    //XXX Is this possible?
+    if (!entry_guard_selection) {
+        log_warn(LD_CIRC, "We have no guard_selection algo."
+            " Should not continue.");
+        return 0;
+    }
+
+    //XXX add this to options
+    int internet_likely_down_interval = 5;
+
+    should_continue = choose_entry_guard_algo_should_continue(
+        entry_guard_selection, succeeded, now, internet_likely_down_interval);
+
+    log_warn(LD_CIRC, "Should continue? %d", should_continue);
+
+    if (!should_continue) {
+        choose_entry_guard_algo_end(entry_guard_selection, guard);
+        guard_selection_free(entry_guard_selection);
+        tor_free(entry_guard_selection);
+    } else {
+        //XXX entry_guard_register_connect_status() is smarter and only calls
+        //it when any guard has changed. We will get there.
+        used_guards_changed();
+    }
+
+    return should_continue;
 }
 
 //These functions adapt our proposal to current tor code
@@ -1377,40 +1418,6 @@ entry_guards_update_profiles(const or_options_t *options)
         choose_entry_guard_algo_new_consensus(entry_guard_selection);
 }
 
-static int
-decide_if_should_continue(const entry_guard_t *guard, int succeeded,
-                          time_t now)
-{
-    int should_continue = 0;
-
-    //XXX Is this possible?
-    if (!entry_guard_selection) {
-        log_warn(LD_CIRC, "We have no guard_selection algo."
-            " Should not continue.");
-        return 0;
-    }
-
-    //XXX add this to options
-    int internet_likely_down_interval = 5;
-
-    should_continue = choose_entry_guard_algo_should_continue(
-        entry_guard_selection, succeeded, now, internet_likely_down_interval);
-
-    log_warn(LD_CIRC, "Should continue? %d", should_continue);
-
-    if (!should_continue) {
-        choose_entry_guard_algo_end(entry_guard_selection, guard);
-        guard_selection_free(entry_guard_selection);
-        tor_free(entry_guard_selection);
-    } else {
-        //XXX entry_guard_register_connect_status() is smarter and only calls
-        //it when any guard has changed. We will get there.
-        used_guards_changed();
-    }
-
-    return should_continue;
-}
-
 int
 update_entry_guards_connection_status(entry_guard_t *entry,
                                       const int succeeded, const time_t now)
@@ -1421,8 +1428,9 @@ update_entry_guards_connection_status(entry_guard_t *entry,
 
     if (succeeded) {
         if (entry->unreachable_since) {
-            log_info(LD_CIRC, "Entry guard '%s' (%s) is now reachable again. Good.",
-                entry->nickname, buf);
+            log_info(LD_CIRC, "Entry guard '%s' (%s) is now reachable again."
+                " Good.", entry->nickname, buf);
+
             entry->can_retry = 0;
             entry->unreachable_since = 0;
             entry->last_attempted = now;

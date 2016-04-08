@@ -758,38 +758,38 @@ test_ON_NEW_CONSENSUS(void *arg)
 static void
 test_choose_entry_guard_algo_should_continue_when_circuit_fails(void *arg)
 {
-		guard_selection_t *guard_selection =
-				tor_malloc_zero(sizeof(guard_selection_t));
-		int succeeded = 0;
-		time_t now = time(NULL);
-		(void) arg;
+    guard_selection_t *guard_selection =
+        tor_malloc_zero(sizeof(guard_selection_t));
+    int succeeded = 0;
+    time_t now = time(NULL);
+    (void) arg;
 
-		int should_continue = choose_entry_guard_algo_should_continue
-				(guard_selection, succeeded, now, 5);
+    int should_continue = choose_entry_guard_algo_should_continue
+        (guard_selection, succeeded, now, 5);
 
-		tt_int_op(should_continue, OP_EQ, 1);
+    tt_int_op(should_continue, OP_EQ, 1);
 
   done:
-		guard_selection_free(guard_selection);
+    guard_selection_free(guard_selection);
     tor_free(guard_selection);
 }
 
 static void
 test_should_not_continue_when_circuit_succeeds_for_first_time(void *arg)
 {
-		guard_selection_t *guard_selection =
-				tor_malloc_zero(sizeof(guard_selection_t));
-		int succeeded = 1;
-		time_t now = time(NULL);
-		(void) arg;
+    guard_selection_t *guard_selection =
+        tor_malloc_zero(sizeof(guard_selection_t));
+    int succeeded = 1;
+    time_t now = time(NULL);
+    (void) arg;
 
-		int should_continue = choose_entry_guard_algo_should_continue
-				(guard_selection, succeeded, now, 5);
+    int should_continue = choose_entry_guard_algo_should_continue
+        (guard_selection, succeeded, now, 5);
 
-		tt_int_op(should_continue, OP_EQ, 0);
+    tt_int_op(should_continue, OP_EQ, 0);
 
   done:
-		guard_selection_free(guard_selection);
+    guard_selection_free(guard_selection);
     tor_free(guard_selection);
 }
 
