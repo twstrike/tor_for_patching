@@ -6,4 +6,4 @@ compiler:
   - clang
   - gcc
 install: ./autogen.sh
-script: ./configure --enable-prop259 --enable-coverage && make && make test
+script: ./configure --enable-prop259 --enable-coverage --disable-asciidoc && make && make test
