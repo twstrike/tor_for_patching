@@ -16,6 +16,10 @@ typedef enum {
 } guard_selection_state_t;
 
 typedef struct {
+    smartlist_t *list;
+} guardlist_t;
+
+typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
 
@@ -29,11 +33,29 @@ typedef struct {
     //They should be lists of entry_guard_t because they have been used as
     //guards
     smartlist_t *primary_guards;
-    smartlist_t *used_guards;
+    guardlist_t *used_guards;
 } guard_selection_t;
+
+guardlist_t* guardlist_new(void);
+
+void
+guardlist_add(guardlist_t *gl, entry_guard_t *e);
+
+int
+guardlist_len(guardlist_t *gl);
+
+void guardlist_free(guardlist_t*);
 
 void
 entry_guard_selection_init(void);
+
+#define GUARDLIST_FOREACH(a, b, c, d) \
+    SMARTLIST_FOREACH(a->list, b, c, d)
+
+#define GUARDLIST_FOREACH_BEGIN(a, b, c) \
+    SMARTLIST_FOREACH_BEGIN(a->list, b, c)
+
+#define GUARDLIST_FOREACH_END(a) SMARTLIST_FOREACH_END(a)
 
 const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
@@ -69,8 +91,8 @@ log_guards(int severity, const smartlist_t *guards);
 
 STATIC guard_selection_t*
 choose_entry_guard_algo_start(
-        smartlist_t *used_guards,
-        const smartlist_t *sampled_utopic_guards,
+        guardlist_t *used_guards,
+        const guardlist_t *sampled_utopic_guards,
         routerset_t *exclude_nodes,
         int n_primary_guards,
         int dir);
@@ -103,12 +125,12 @@ STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection);
 
 STATIC void
-fill_in_sampled_guard_set(smartlist_t *sample, const smartlist_t *set,
+fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *set,
                           const int size);
 
 STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,
-                         const smartlist_t *sampled_utopic);
+                         const guardlist_t *sampled_utopic);
 
 STATIC smartlist_t*
 nonbad_guards(smartlist_t *guards);
@@ -126,7 +148,7 @@ entry_guards_parse_state_backward(const or_state_t *state,
                                   smartlist_t *entry_guards, char **msg);
 
 STATIC void
-used_guards_update_state(or_state_t *state, smartlist_t *used_guards);
+used_guards_update_state(or_state_t *state, guardlist_t *used_guards);
 
 #endif
 

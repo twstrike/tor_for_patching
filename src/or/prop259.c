@@ -29,13 +29,63 @@
 static const node_t *pending_guard = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
-/** Related to guard selection algorithm. **/
-//XXX Add proper documentation
-static smartlist_t *used_guards = NULL;
-static smartlist_t *sampled_guards = NULL;
+static guardlist_t *used_guards = NULL;
+static guardlist_t *sampled_guards = NULL;
 
 static int used_guards_dirty = 0;
 static int sampled_guards_dirty = 0;
+
+guardlist_t*
+guardlist_new(void)
+{
+    //XXX We could keep a hashmap to make lookups faster
+    guardlist_t *gl = tor_malloc_zero(sizeof(guardlist_t));
+    gl->list = smartlist_new();
+    return gl;
+}
+
+static entry_guard_t*
+guardlist_get_by_digest(const guardlist_t *guards, const char *digest)
+{
+    //XXX This could benefit from a hashmap
+    GUARDLIST_FOREACH(guards, entry_guard_t *, entry,
+        if (tor_memeq(digest, entry->identity, DIGEST_LEN))
+            return entry;
+    );
+
+    return NULL;
+}
+
+int
+guardlist_len(guardlist_t *gl)
+{
+    if (!gl)
+        return 0;
+
+    return smartlist_len(gl->list);
+}
+
+void
+guardlist_add(guardlist_t *gl, entry_guard_t *e)
+{
+    smartlist_add(gl->list, e);
+}
+
+static void
+guardlist_add_all_smarlist(guardlist_t *gl, const smartlist_t *sl)
+{
+    smartlist_add_all(gl->list, sl);
+}
+
+void
+guardlist_free(guardlist_t *gl)
+{
+  if (!gl)
+    return;
+
+  smartlist_free(gl->list);
+  tor_free(gl);
+}
 
 /** How long will we let a change in our guard nodes stay un-saved
  * when we are trying to avoid disk writes? */
@@ -169,13 +219,13 @@ mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 {
     log_warn(LD_CIRC, "Will retry remaining used guards.");
 
-    SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
+    GUARDLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
         if (smartlist_contains(guard_selection->primary_guards, e)) {
             continue;
         }
 
         e->can_retry = 1;
-    } SMARTLIST_FOREACH_END(e);
+    } GUARDLIST_FOREACH_END(e);
 }
 
 static void
@@ -265,7 +315,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 {
     char buf[HEX_DIGEST_LEN+1];
 
-    SMARTLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
+    GUARDLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
         if (smartlist_contains(guard_selection->primary_guards, e)) {
             continue;
         }
@@ -429,11 +479,11 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 }
 
 static smartlist_t*
-filter_set(const smartlist_t *guards, int for_directory)
+filter_set(const guardlist_t *guards, int for_directory)
 {
     smartlist_t *filtered = smartlist_new();
 
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, guard) {
+    GUARDLIST_FOREACH_BEGIN(guards, entry_guard_t *, guard) {
         if (is_suitable(guard, for_directory))
             smartlist_add(filtered, guard);
     } SMARTLIST_FOREACH_END(guard);
@@ -447,7 +497,7 @@ filter_set(const smartlist_t *guards, int for_directory)
 
 STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,
-                         const smartlist_t *sampled_guards)
+                         const guardlist_t *sampled_guards)
 {
     guard_selection->remaining_guards = smartlist_new();
 
@@ -459,7 +509,7 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
         //XXX expand and evaluate
     }
 
-    smartlist_subtract(filtered, guard_selection->used_guards);
+    smartlist_subtract(filtered, guard_selection->used_guards->list);
     smartlist_add_all(guard_selection->remaining_guards, filtered);
 }
 
@@ -487,8 +537,8 @@ guard_selection_free(guard_selection_t *guard_selection)
 }
 
 STATIC guard_selection_t*
-choose_entry_guard_algo_start(smartlist_t *used_guards,
-                              const smartlist_t *sampled_guards,
+choose_entry_guard_algo_start(guardlist_t *used_guards,
+                              const guardlist_t *sampled_guards,
                               routerset_t *exclude_nodes, int n_primary_guards,
                               int for_directory)
 {
@@ -551,7 +601,7 @@ remaining_guards_for_next_primary(guard_selection_t *guard_selection,
                                   smartlist_t *guards)
 {
     smartlist_add_all(guards, guard_selection->remaining_guards);
-    smartlist_subtract(guards, guard_selection->used_guards);
+    smartlist_subtract(guards, guard_selection->used_guards->list);
     smartlist_subtract(guards, guard_selection->primary_guards);
 }
 
@@ -559,10 +609,10 @@ STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection)
 {
     const node_t *node = NULL;
-    const smartlist_t *used = guard_selection->used_guards;
+    const guardlist_t *used = guard_selection->used_guards;
     const smartlist_t *primary = guard_selection->primary_guards;
 
-    SMARTLIST_FOREACH_BEGIN(used, entry_guard_t *, e) {
+    GUARDLIST_FOREACH_BEGIN(used, entry_guard_t *, e) {
         if (!smartlist_contains(primary, e) && !is_bad(e))
             return e;
     } SMARTLIST_FOREACH_END(e);
@@ -600,18 +650,18 @@ next_primary_guard(guard_selection_t *guard_selection)
 
 /** returns a list of GUARDS **/
 STATIC void
-fill_in_sampled_guard_set(smartlist_t *sample, const smartlist_t *nodes,
+fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *nodes,
                           const int size)
 {
     smartlist_t *remaining = smartlist_new();
 
     smartlist_add_all(remaining, nodes);
-    while (smartlist_len(sample) < size && smartlist_len(remaining) > 0) {
+    while (guardlist_len(sample) < size && smartlist_len(remaining) > 0) {
         const node_t *node = next_node_by_bandwidth(remaining);
         if (!node)
             break;
 
-        smartlist_add(sample, entry_guard_new(node));
+        guardlist_add(sample, entry_guard_new(node));
     }
     smartlist_free(remaining);
 }
@@ -625,7 +675,7 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes)
     //XXX persist sampled sets in state file
 
     if (!sampled_guards)
-        sampled_guards = smartlist_new();
+        sampled_guards = guardlist_new();
 
     fill_in_sampled_guard_set(sampled_guards, utopic_nodes,
         sample_set_threshold * smartlist_len(utopic_nodes));
@@ -634,7 +684,7 @@ fill_in_sampled_sets(const smartlist_t *utopic_nodes)
     sampled_guards_changed();
 
     log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
-        smartlist_len(sampled_guards), smartlist_len(utopic_nodes));
+        guardlist_len(sampled_guards), smartlist_len(utopic_nodes));
 }
 
 //XXX Add tests
@@ -646,13 +696,13 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
 
     //XXX The entry_guard_t generated by NEXT() is not the same
     //as the loaded by the file, so we need to compare the digests.
-    smartlist_t *used = guard_selection->used_guards;
+    guardlist_t *used = guard_selection->used_guards;
     smartlist_t *fps = smartlist_new();
-    SMARTLIST_FOREACH(used, entry_guard_t *, e,
+    GUARDLIST_FOREACH(used, entry_guard_t *, e,
         smartlist_add(fps, (void*)e->identity));
 
     if (!smartlist_contains_digest(fps, guard->identity)) {
-        smartlist_add(used, (entry_guard_t*) guard);
+        guardlist_add(used, (entry_guard_t*) guard);
         used_guards_changed();
     }
 
@@ -702,8 +752,11 @@ guards_parse_state(config_line_t *line, const char *state_version,
         if (!strcasecmp(line->key, config_name)) {
             smartlist_t *args = smartlist_new();
             node = tor_malloc_zero(sizeof(entry_guard_t));
+
             /* all entry guards on disk have been contacted */
-            node->made_contact = 1;
+            //Not true, only valid for USED_GUARDS
+            //node->made_contact = 1;
+
             smartlist_add(new_entry_guards, node);
             smartlist_split_string(args, line->value, " ",
                 SPLIT_SKIP_SPACE|SPLIT_IGNORE_BLANK, 0);
@@ -1009,7 +1062,7 @@ entry_guards_parse_state_backward(const or_state_t *state,
 }
 
 static void
-guards_update_state(config_line_t **next, const smartlist_t *guards, const char* config_name)
+guards_update_state(config_line_t **next, const guardlist_t *guards, const char* config_name)
 {
     log_warn(LD_CIRC, "Will store %s", config_name);
 
@@ -1026,7 +1079,7 @@ guards_update_state(config_line_t **next, const smartlist_t *guards, const char*
     tor_asprintf(&path_use_bias_config_name, "%sPathUseBias", config_name);
     tor_asprintf(&path_bias_config_name, "%sPathBias", config_name);
 
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+    GUARDLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         char dbuf[HEX_DIGEST_LEN+1];
         *next = line = tor_malloc_zero(sizeof(config_line_t));
         line->key = tor_strdup(config_name);
@@ -1105,7 +1158,7 @@ guards_update_state(config_line_t **next, const smartlist_t *guards, const char*
 //XXX Add test
 //XXX Make it able to also save SampledGuards
 STATIC void
-used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
+used_guards_update_state(or_state_t *state, guardlist_t *used_guards)
 {
     config_line_t **next = NULL;
 
@@ -1122,7 +1175,7 @@ used_guards_update_state(or_state_t *state, smartlist_t *used_guards)
 }
 
 static void
-sampled_guards_update_state(or_state_t *state, smartlist_t *sampled_guards)
+sampled_guards_update_state(or_state_t *state, guardlist_t *sampled_guards)
 {
     config_line_t **next = NULL;
 
@@ -1358,7 +1411,7 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg)
     log_warn(LD_CIRC, "Will load used guards from state file.");
 
     if (!used_guards)
-        used_guards = smartlist_new();
+        used_guards = guardlist_new();
 
     smartlist_t *guards = set ? smartlist_new() : NULL;
     int ret = entry_guards_parse_state_backward(state, guards, msg);
@@ -1367,7 +1420,7 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg)
     }
 
     if (set && ret == 1)
-        smartlist_add_all(used_guards, guards);
+        guardlist_add_all_smarlist(used_guards, guards);
 
     smartlist_free(guards);
     return ret;
@@ -1392,24 +1445,13 @@ guard_selection_update_state(or_state_t *state, const or_options_t *options)
     sampled_guards_dirty = 0;
 }
 
-entry_guard_t*
-guard_get_by_digest(const char *digest, const smartlist_t *guards)
-{
-    SMARTLIST_FOREACH(guards, entry_guard_t *, entry,
-        if (tor_memeq(digest, entry->identity, DIGEST_LEN))
-            return entry;
-    );
-
-    return NULL;
-}
-
 entry_guard_t *
 used_guard_get_by_digest(const char *digest)
 {
     if (!entry_guard_selection)
         return NULL;
 
-    return guard_get_by_digest(digest, entry_guard_selection->used_guards);
+    return guardlist_get_by_digest(entry_guard_selection->used_guards, digest);
 }
 
 void

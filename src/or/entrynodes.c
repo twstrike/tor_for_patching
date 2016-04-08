@@ -758,6 +758,7 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
   int idx = -1;
   char buf[HEX_DIGEST_LEN+1];
 
+  //XXX This must be removed
   if (! entry_guards)
     return 0;
 
