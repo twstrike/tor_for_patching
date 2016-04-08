@@ -1508,9 +1508,6 @@ entry_guards_update_profiles(const or_options_t *options)
     return; //do nothing
 #endif
 
-    //XXX remove
-    (void) options;
-
     log_warn(LD_CIRC, "Received a new consensus");
 
     //We recreate the sample sets without restricting to directory
