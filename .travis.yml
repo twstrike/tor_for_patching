@@ -1,0 +1,9 @@
+language: c
+branches:
+    only:
+        - prop259
+compiler:
+  - clang
+  - gcc
+install: ./autogen.sh
+script: ./configure --enable-prop259 --enable-coverage && make && make test
