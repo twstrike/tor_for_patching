@@ -88,7 +88,7 @@ test_choose_random_entry_no_guards(void *arg)
 
   (void) arg;
 
-#ifndef USE_PROP_259
+#ifdef USE_PROP_259
   return;
 #endif
 
@@ -170,7 +170,7 @@ test_choose_random_entry_one_possible_guard(void *arg)
 
   (void) arg;
 
-#ifndef USE_PROP_259
+#ifdef USE_PROP_259
   return;
 #endif
 
@@ -597,7 +597,7 @@ test_entry_guards_set_from_config(void *arg)
 
   (void) arg;
 
-#ifndef USE_PROP_259
+#ifdef USE_PROP_259
   return;
 #endif
 
