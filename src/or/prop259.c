@@ -6,6 +6,15 @@
 
 #define PROP259_PRIVATE
 
+//XXX Where is this called?
+//We need to remove the global
+//- get_entry_guards()
+//- num_live_entry_guards()
+//- update_node_guard_status()
+//- getinfo_helper_entry_guards()
+//- entries_retry_helper()
+//- any_bridge_supports_microdescriptors()
+
 //XXX Think about it from a modularity perspective and reduce
 //the number of dependencies.
 #include "prop259.h"
