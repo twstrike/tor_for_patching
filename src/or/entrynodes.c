@@ -542,36 +542,6 @@ pick_entry_guards(const or_options_t *options, int for_directory)
     entry_guards_changed();
 }
 
-/** How long (in seconds) do we allow an entry guard to be nonfunctional,
- * unlisted, excluded, or otherwise nonusable before we give up on it? */
-#define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60)
-
-/**
- * Return the minimum lifetime of working entry guard, in seconds,
- * as given in the consensus networkstatus.  (Plus CHOSEN_ON_DATE_SLOP,
- * so that we can do the chosen_on_date randomization while achieving the
- * desired minimum lifetime.)
- */
-static int32_t
-guards_get_lifetime(void)
-{
-  const or_options_t *options = get_options();
-#define DFLT_GUARD_LIFETIME (86400 * 60)   /* Two months. */
-#define MIN_GUARD_LIFETIME  (86400 * 30)   /* One months. */
-#define MAX_GUARD_LIFETIME  (86400 * 1826) /* Five years. */
-
-  if (options->GuardLifetime >= 1) {
-    return CLAMP(MIN_GUARD_LIFETIME,
-                 options->GuardLifetime,
-                 MAX_GUARD_LIFETIME) + CHOSEN_ON_DATE_SLOP;
-  }
-
-  return networkstatus_get_param(NULL, "GuardLifetime",
-                                 DFLT_GUARD_LIFETIME,
-                                 MIN_GUARD_LIFETIME,
-                                 MAX_GUARD_LIFETIME) + CHOSEN_ON_DATE_SLOP;
-}
-
 /** Remove any entry guard which was selected by an unknown version of Tor,
  * or which was selected by a version of Tor that's known to select
  * entry guards badly, or which was selected more 2 months ago. */
@@ -580,44 +550,7 @@ guards_get_lifetime(void)
 static int
 remove_obsolete_entry_guards(time_t now)
 {
-  int changed = 0, i;
-  int32_t guard_lifetime = guards_get_lifetime();
-
-  for (i = 0; i < smartlist_len(entry_guards); ++i) {
-    entry_guard_t *entry = smartlist_get(entry_guards, i);
-    const char *ver = entry->chosen_by_version;
-    const char *msg = NULL;
-    tor_version_t v;
-    int version_is_bad = 0, date_is_bad = 0;
-    if (!ver) {
-      msg = "does not say what version of Tor it was selected by";
-      version_is_bad = 1;
-    } else if (tor_version_parse(ver, &v)) {
-      msg = "does not seem to be from any recognized version of Tor";
-      version_is_bad = 1;
-    }
-    if (!version_is_bad && entry->chosen_on_date + guard_lifetime < now) {
-      /* It's been too long since the date listed in our state file. */
-      msg = "was selected several months ago";
-      date_is_bad = 1;
-    }
-
-    if (version_is_bad || date_is_bad) { /* we need to drop it */
-      char dbuf[HEX_DIGEST_LEN+1];
-      tor_assert(msg);
-      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
-      log_fn(version_is_bad ? LOG_NOTICE : LOG_INFO, LD_CIRC,
-             "Entry guard '%s' (%s) %s. (Version=%s.) Replacing it.",
-             entry->nickname, dbuf, msg, ver?escaped(ver):"none");
-      control_event_guard(entry->nickname, entry->identity, "DROPPED");
-      entry_guard_free(entry);
-      smartlist_del_keeporder(entry_guards, i--);
-      log_entry_guards(LOG_INFO);
-      changed = 1;
-    }
-  }
-
-  return changed ? 1 : 0;
+  return remove_obsolete_guards(now, entry_guards);
 }
 
 /** Remove all entry guards that have been down or unlisted for so

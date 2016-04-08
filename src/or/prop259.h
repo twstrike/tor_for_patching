@@ -96,6 +96,9 @@ used_guard_get_by_digest(const char *digest);
 int
 remove_dead_guards(time_t now, smartlist_t* guards);
 
+int
+remove_obsolete_guards(time_t now, smartlist_t* guards);
+
 void
 log_guards(int severity, const smartlist_t *guards);
 

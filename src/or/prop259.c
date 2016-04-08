@@ -1250,43 +1250,6 @@ decide_if_should_continue(const entry_guard_t *guard, int succeeded,
     return should_continue;
 }
 
-/** How long (in seconds) do we allow an entry guard to be nonfunctional,
- * unlisted, excluded, or otherwise nonusable before we give up on it? */
-#define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60)
-
-/** Remove all entry guards that have been down or unlisted for so
- * long that we don't think they'll come up again. Return 1 if we
- * removed any, or 0 if we did nothing. */
-int
-remove_dead_guards(time_t now, smartlist_t* guards)
-{
-  char dbuf[HEX_DIGEST_LEN+1];
-  char tbuf[ISO_TIME_LEN+1];
-  int i;
-  int changed = 0;
-
-  for (i = 0; i < smartlist_len(guards); ) {
-    entry_guard_t *entry = smartlist_get(guards, i);
-    if (entry->bad_since &&
-        ! entry->path_bias_disabled &&
-        entry->bad_since + ENTRY_GUARD_REMOVE_AFTER < now) {
-
-      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
-      format_local_iso_time(tbuf, entry->bad_since);
-      log_info(LD_CIRC, "Entry guard '%s' (%s) has been down or unlisted "
-               "since %s local time; removing.",
-               entry->nickname, dbuf, tbuf);
-      control_event_guard(entry->nickname, entry->identity, "DROPPED");
-      entry_guard_free(entry);
-      smartlist_del_keeporder(guards, i);
-      log_guards(LOG_INFO, guards);
-      changed = 1;
-    } else
-      ++i;
-  }
-  return changed ? 1 : 0;
-}
-
 //These functions adapt our proposal to current tor code
 
 // PUBLIC INTERFACE ----------------------------------------
@@ -1764,5 +1727,116 @@ guard_selection_parse_used_guards_state(const or_state_t *state, int set,
 
     smartlist_free(guards);
     return ret;
+}
+
+/**
+ * Return the minimum lifetime of working entry guard, in seconds,
+ * as given in the consensus networkstatus.  (Plus CHOSEN_ON_DATE_SLOP,
+ * so that we can do the chosen_on_date randomization while achieving the
+ * desired minimum lifetime.)
+ */
+static int32_t
+guards_get_lifetime(void)
+{
+  const or_options_t *options = get_options();
+#define DFLT_GUARD_LIFETIME (86400 * 60)   /* Two months. */
+#define MIN_GUARD_LIFETIME  (86400 * 30)   /* One months. */
+#define MAX_GUARD_LIFETIME  (86400 * 1826) /* Five years. */
+
+  if (options->GuardLifetime >= 1) {
+    return CLAMP(MIN_GUARD_LIFETIME,
+                 options->GuardLifetime,
+                 MAX_GUARD_LIFETIME) + CHOSEN_ON_DATE_SLOP;
+  }
+
+  return networkstatus_get_param(NULL, "GuardLifetime",
+                                 DFLT_GUARD_LIFETIME,
+                                 MIN_GUARD_LIFETIME,
+                                 MAX_GUARD_LIFETIME) + CHOSEN_ON_DATE_SLOP;
+}
+
+/** Remove any entry guard which was selected by an unknown version of Tor,
+ * or which was selected by a version of Tor that's known to select
+ * entry guards badly, or which was selected more 2 months ago. */
+/* XXXX The "obsolete guards" and "chosen long ago guards" things should
+ * probably be different functions. */
+int
+remove_obsolete_guards(time_t now, smartlist_t *guards)
+{
+  int changed = 0, i;
+  int32_t guard_lifetime = guards_get_lifetime();
+
+  for (i = 0; i < smartlist_len(guards); ++i) {
+    entry_guard_t *entry = smartlist_get(guards, i);
+    const char *ver = entry->chosen_by_version;
+    const char *msg = NULL;
+    tor_version_t v;
+    int version_is_bad = 0, date_is_bad = 0;
+    if (!ver) {
+      msg = "does not say what version of Tor it was selected by";
+      version_is_bad = 1;
+    } else if (tor_version_parse(ver, &v)) {
+      msg = "does not seem to be from any recognized version of Tor";
+      version_is_bad = 1;
+    }
+    if (!version_is_bad && entry->chosen_on_date + guard_lifetime < now) {
+      /* It's been too long since the date listed in our state file. */
+      msg = "was selected several months ago";
+      date_is_bad = 1;
+    }
+
+    if (version_is_bad || date_is_bad) { /* we need to drop it */
+      char dbuf[HEX_DIGEST_LEN+1];
+      tor_assert(msg);
+      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
+      log_fn(version_is_bad ? LOG_NOTICE : LOG_INFO, LD_CIRC,
+             "Entry guard '%s' (%s) %s. (Version=%s.) Replacing it.",
+             entry->nickname, dbuf, msg, ver?escaped(ver):"none");
+      control_event_guard(entry->nickname, entry->identity, "DROPPED");
+      entry_guard_free(entry);
+      smartlist_del_keeporder(guards, i--);
+      log_guards(LOG_INFO, guards);
+      changed = 1;
+    }
+  }
+
+  return changed ? 1 : 0;
+}
+
+/** How long (in seconds) do we allow an entry guard to be nonfunctional,
+ * unlisted, excluded, or otherwise nonusable before we give up on it? */
+#define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60)
+
+/** Remove all entry guards that have been down or unlisted for so
+ * long that we don't think they'll come up again. Return 1 if we
+ * removed any, or 0 if we did nothing. */
+int
+remove_dead_guards(time_t now, smartlist_t* guards)
+{
+  char dbuf[HEX_DIGEST_LEN+1];
+  char tbuf[ISO_TIME_LEN+1];
+  int i;
+  int changed = 0;
+
+  for (i = 0; i < smartlist_len(guards); ) {
+    entry_guard_t *entry = smartlist_get(guards, i);
+    if (entry->bad_since &&
+        ! entry->path_bias_disabled &&
+        entry->bad_since + ENTRY_GUARD_REMOVE_AFTER < now) {
+
+      base16_encode(dbuf, sizeof(dbuf), entry->identity, DIGEST_LEN);
+      format_local_iso_time(tbuf, entry->bad_since);
+      log_info(LD_CIRC, "Entry guard '%s' (%s) has been down or unlisted "
+               "since %s local time; removing.",
+               entry->nickname, dbuf, tbuf);
+      control_event_guard(entry->nickname, entry->identity, "DROPPED");
+      entry_guard_free(entry);
+      smartlist_del_keeporder(guards, i);
+      log_guards(LOG_INFO, guards);
+      changed = 1;
+    } else
+      ++i;
+  }
+  return changed ? 1 : 0;
 }
 
