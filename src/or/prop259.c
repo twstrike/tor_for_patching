@@ -342,7 +342,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
         if (is_eligible(e, guard_selection->for_directory))
             return e;
 
-    } SMARTLIST_FOREACH_END(e);
+    } GUARDLIST_FOREACH_END(e);
 
     return NULL;
 }
@@ -634,7 +634,7 @@ next_primary_guard(guard_selection_t *guard_selection)
     GUARDLIST_FOREACH_BEGIN(used, entry_guard_t *, e) {
         if (!smartlist_contains(primary, e) && !is_bad(e))
             return e;
-    } SMARTLIST_FOREACH_END(e);
+    } GUARDLIST_FOREACH_END(e);
 
     { /** Get next remaining guard **/
         smartlist_t *remaining_guards = smartlist_new();
@@ -1171,7 +1171,7 @@ guards_update_state(config_line_t **next, const guardlist_t *guards,
             next = &(line->next);
         }
 
-    } SMARTLIST_FOREACH_END(e);
+    } GUARDLIST_FOREACH_END(e);
 
     tor_free(down_since_config_name);
     tor_free(unlisted_since_config_name);
@@ -1611,8 +1611,13 @@ guard_selection_parse_state(const or_state_t *state, int set, char **msg)
         ret = used_guards_parse_state(state, guards, msg);
     }
 
-    if (set && ret == 1)
+    if (set && ret == 1) {
         guardlist_add_all_smarlist(used_guards, guards);
+        /* We have made contact to all USED_GUARDS */
+        GUARDLIST_FOREACH(used_guards, entry_guard_t *, entry,
+            entry->made_contact = 1;
+        );
+    }
 
     smartlist_free(guards);
     return ret;
