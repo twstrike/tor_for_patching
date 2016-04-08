@@ -1004,6 +1004,8 @@ test_used_guards_parse_state_backward_compatible(void *arg)
   /* Details of our fake guard node */
   const char *nickname = "hagbard";
   const char *fpr = "B29D536DD1752D542E1FBB3C9CE4449D51298212";
+  const char *tor_version = "0.2.5.3-alpha-dev";
+  const char *added_at = get_yesterday_date_str();
   const char *unlisted_since = "2014-06-08 16:16:50";
   const char *down_since = "2014-06-07 16:16:40";
 
@@ -1026,6 +1028,11 @@ test_used_guards_parse_state_backward_compatible(void *arg)
     state_line = smartlist_new();
     smartlist_add_asprintf(state_line, "EntryGuardUnlistedSince");
     smartlist_add_asprintf(state_line, "%s", unlisted_since);
+    smartlist_add(entry_state_lines, state_line);
+
+    state_line = smartlist_new();
+    smartlist_add_asprintf(state_line, "EntryGuardAddedBy");
+    smartlist_add_asprintf(state_line, "%s %s %s", fpr, tor_version, added_at);
     smartlist_add(entry_state_lines, state_line);
   }
 
@@ -1051,6 +1058,8 @@ test_used_guards_parse_state_backward_compatible(void *arg)
 
     tt_assert(e->is_dir_cache); /* Verify dirness */
 
+    tt_str_op(e->chosen_by_version, OP_EQ, tor_version); /* Verify version */
+
     tt_assert(e->bad_since); /* Verify bad_since timestamp */
     format_iso_time(str_time, e->bad_since);
     tt_str_op(str_time, OP_EQ, unlisted_since);
@@ -1061,7 +1070,6 @@ test_used_guards_parse_state_backward_compatible(void *arg)
 
     /* The rest should be unset */
     tt_assert(!e->made_contact);
-    tt_assert(!e->chosen_by_version);
     tt_assert(!e->can_retry);
     tt_assert(!e->path_bias_noticed);
     tt_assert(!e->path_bias_warned);
