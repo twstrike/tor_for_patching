@@ -1028,9 +1028,6 @@ guards_update_state(config_line_t **next, const smartlist_t *guards, const char*
 
     SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         char dbuf[HEX_DIGEST_LEN+1];
-        if (!e->made_contact)
-            continue; /* don't write this one to disk */
-
         *next = line = tor_malloc_zero(sizeof(config_line_t));
         line->key = tor_strdup(config_name);
 
