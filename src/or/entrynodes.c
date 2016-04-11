@@ -425,7 +425,7 @@ entry_guard_free(entry_guard_t *e)
  * If <b>chosen</b> is defined, use that one, and if it's not
  * already in our entry_guards list, put it at the *beginning*.
  * Else, put the one we pick at the end of the list. */
-const node_t *
+STATIC const node_t *
 add_an_entry_guard(const node_t *chosen, int reset_status, int prepend,
                    int for_discovery, int for_directory)
 {

@@ -81,10 +81,6 @@ entry_guard_t* entry_guard_new(const node_t *node);
 
 void entry_guard_free(entry_guard_t *e);
 
-const node_t *add_an_entry_guard(const node_t *chosen,
-                                        int reset_status, int prepend,
-                                        int for_discovery, int for_directory);
-
 /** Flags to be passed to entry_is_live() to indicate what kind of
  * entry nodes we are looking for. */
 typedef enum {
@@ -99,6 +95,10 @@ const node_t *entry_is_live(const entry_guard_t *e,
                             const char **msg);
 
 #ifdef ENTRYNODES_PRIVATE
+STATIC const node_t *add_an_entry_guard(const node_t *chosen,
+                                        int reset_status, int prepend,
+                                        int for_discovery, int for_directory);
+
 STATIC int populate_live_entry_guards(smartlist_t *live_entry_guards,
                                       const smartlist_t *all_entry_guards,
                                       const node_t *chosen_exit,

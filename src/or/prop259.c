@@ -6,15 +6,21 @@
 
 #define PROP259_PRIVATE
 
-//XXX Where is this called?
-//We need to remove the global
-//- entry_guards_compute_status
+//XXX Remove the global entry_guards. To do so, we need to replace:
 //- get_entry_guards()
 //- num_live_entry_guards()
-//- update_node_guard_status()
 //- getinfo_helper_entry_guards()
 //- entries_retry_helper()
 //- any_bridge_supports_microdescriptors()
+//- update_node_guard_status (OK - called from *set_from_config and
+//  *parse_state. This is an optimization to set the using_as_guard flag.)
+//- entry_guards_compute_status (OK - when a new consensus arrives)
+//- log_entry_guards (OK - wont be used)
+//- add_an_entry_guard (OK - wont be used)
+//- entry_guard_register_connect_status (OK - wont be used)
+//- entry_guards_set_from_config (OK - wont be used)
+//- entry_guards_parse_state and entry_guards_update_state (OK - wont be used)
+//- choose_random_entry_impl (OK - wont be used)
 
 //XXX Think about it from a modularity perspective and reduce
 //the number of dependencies.
