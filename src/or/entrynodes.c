@@ -2297,7 +2297,11 @@ int
 any_bridge_descriptors_known(void)
 {
   tor_assert(get_options()->UseBridges);
+#ifndef USE_PROP_259
   return choose_random_entry(NULL) != NULL;
+#else
+  return known_entry_bridge();
+#endif
 }
 
 /** Return the number of bridges that have descriptors that are marked with

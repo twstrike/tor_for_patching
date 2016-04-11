@@ -1518,10 +1518,17 @@ fill_in_from_bridges(guardlist_t *dest){
     smartlist_free(sample);
 }
 
-void add_an_entry_bridge(node_t *node){
+void
+add_an_entry_bridge(node_t *node){
     if (!bridges) bridges = smartlist_new();
     if (!smartlist_contains(bridges, node->identity))
         smartlist_add(bridges, node);
+}
+
+int
+known_entry_bridge(void){
+    if (bridges && smartlist_len(bridges)) return 1;
+    return 0;
 }
 
 static void

@@ -102,6 +102,9 @@ remove_obsolete_guards(time_t now, smartlist_t* guards);
 void
 add_an_entry_bridge(node_t *node);
 
+int
+known_entry_bridge(void);
+
 void
 log_guards(int severity, const smartlist_t *guards);
 
