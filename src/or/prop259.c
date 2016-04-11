@@ -1497,14 +1497,33 @@ fill_in_restricted(const or_options_t *options)
 }
 
 //XXX Add tests
-void
-entry_guards_update_profiles(const or_options_t *options)
+static void
+prune_guardlist(const time_t now, guardlist_t *gl)
 {
-#ifndef USE_PROP_259
-    return; //do nothing
-#endif
+    int changed = 0;
+    log_warn(LD_CIRC, "Prunning a list of guards");
 
+    changed = remove_dead_guards(now, gl->list);
+    if (changed)
+        log_warn(LD_CIRC, "Removed some dead guards");
+
+    changed = remove_obsolete_guards(now, gl->list);
+    if (changed)
+        log_warn(LD_CIRC, "Removed some obsolete guards");
+}
+
+//XXX Add tests
+//This matches entry_guards_compute_status
+void
+entry_guards_update_profiles(const or_options_t *options, const time_t now)
+{
     log_warn(LD_CIRC, "Received a new consensus");
+
+    if (used_guards)
+        prune_guardlist(now, used_guards);
+
+    if (sampled_guards)
+        prune_guardlist(now, sampled_guards);
 
     //We recreate the sample sets without restricting to directory
     //guards, because most of the entry guards will be directory in

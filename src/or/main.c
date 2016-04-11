@@ -1022,8 +1022,11 @@ directory_info_has_arrived(time_t now, int from_cache, int suppress_logs)
 
     /* if we have enough dir info, then update our guard status with
      * whatever we just learned. */
+#ifndef USE_PROP_259
     entry_guards_compute_status(options, now);
-    entry_guards_update_profiles(options);
+#else
+    entry_guards_update_profiles(options, now);
+#endif
 
     /* Don't even bother trying to get extrainfo until the rest of our
      * directory info is up-to-date */
