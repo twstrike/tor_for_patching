@@ -48,6 +48,7 @@ static guard_selection_t *entry_guard_selection = NULL;
 
 static guardlist_t *used_guards = NULL;
 static guardlist_t *sampled_guards = NULL;
+static smartlist_t *bridges = NULL;
 
 static int used_guards_dirty = 0;
 static int sampled_guards_dirty = 0;
@@ -1493,6 +1494,34 @@ fill_in_from_entrynodes(const or_options_t *options, guardlist_t *dest)
     smartlist_free(entry_nodes);
     smartlist_free(worse_entry_nodes);
     smartlist_free(entry_fps);
+    smartlist_free(sample);
+}
+
+static void
+fill_in_from_bridges(guardlist_t *dest){
+    tor_assert(dest);
+    smartlist_t *sample = smartlist_new();
+    if (bridges) {
+        smartlist_add_all(sample, bridges);
+    }
+
+    /** Fill in ignoring sample size  **/
+    fill_in_sampled_guard_set(dest, sample,
+        smartlist_len(sample));
+
+    //XXX do this only when it changed
+    sampled_guards_changed();
+
+    log_warn(LD_CIRC, "We sampled %d from %d EntryNodes",
+        guardlist_len(dest), smartlist_len(sample));
+
+    smartlist_free(sample);
+}
+
+void add_an_entry_bridge(node_t *node){
+    if (!bridges) bridges = smartlist_new();
+    if (!smartlist_contains(bridges, node->identity))
+        smartlist_add(bridges, node);
 }
 
 static void
@@ -1500,6 +1529,8 @@ fill_in_restricted(const or_options_t *options)
 {
     if (options->EntryNodes)
         fill_in_from_entrynodes(options, sampled_guards);
+    if (options->UseBridges)
+        fill_in_from_bridges(sampled_guards);
 }
 
 //XXX Add tests

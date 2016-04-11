@@ -100,6 +100,9 @@ int
 remove_obsolete_guards(time_t now, smartlist_t* guards);
 
 void
+add_an_entry_bridge(node_t *node);
+
+void
 log_guards(int severity, const smartlist_t *guards);
 
 #ifdef PROP259_PRIVATE

@@ -2268,7 +2268,11 @@ learned_bridge_descriptor(routerinfo_t *ri, int from_cache)
                    (int) bridge->port);
       }
       //XXX maybe not useful after prop259
+#ifdef USE_PROP_259
+      add_an_entry_bridge(node);
+#else
       add_an_entry_guard(node, 1, 1, 0, 0);
+#endif
 
       log_notice(LD_DIR, "new bridge descriptor '%s' (%s): %s", ri->nickname,
                  from_cache ? "cached" : "fresh", router_describe(ri));
