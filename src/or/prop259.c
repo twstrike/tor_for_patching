@@ -1289,12 +1289,12 @@ entry_guard_selection_init(void)
     return; //do nothing
 #endif
 
-    if (!router_have_minimum_dir_info()) {
+    const or_options_t *options = get_options();
+    if (!router_have_minimum_dir_info() && !options->UseBridges) {
         log_warn(LD_CIRC, "Cant initialize without a consensus.");
         return;
     }
 
-    const or_options_t *options = get_options();
     const int for_directory = 0; //XXX how to get this at this moment?
     const int num_needed = decide_num_guards(options, for_directory);
 
@@ -1308,7 +1308,7 @@ entry_guard_selection_init(void)
     entry_guard_selection = choose_entry_guard_algo_start(
         used_guards, sampled_guards,
         options->ExcludeNodes,
-        num_needed, for_directory);
+        options->UseBridges ? 1 : num_needed , for_directory);
 }
 
 //XXX Add tests
@@ -1523,6 +1523,7 @@ add_an_entry_bridge(node_t *node){
     if (!bridges) bridges = smartlist_new();
     if (!smartlist_contains(bridges, node->identity))
         smartlist_add(bridges, node);
+    entry_guards_update_profiles(get_options(),time(NULL));
 }
 
 int
