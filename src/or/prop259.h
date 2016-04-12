@@ -127,6 +127,10 @@ is_live,(const entry_guard_t *guard));
 STATIC entry_guard_t *
 choose_entry_guard_algo_next(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now);
+
+STATIC smartlist_t *
+filter_set(const guardlist_t *guards);
+
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection);
 

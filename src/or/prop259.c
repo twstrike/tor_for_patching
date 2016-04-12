@@ -502,7 +502,7 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
     return NULL;
 }
 
-static smartlist_t*
+STATIC smartlist_t *
 filter_set(const guardlist_t *guards)
 {
     smartlist_t *filtered = smartlist_new();
@@ -510,7 +510,7 @@ filter_set(const guardlist_t *guards)
     GUARDLIST_FOREACH_BEGIN(guards, entry_guard_t *, guard) {
         if (is_live(guard))
             smartlist_add(filtered, guard);
-    } SMARTLIST_FOREACH_END(guard);
+    } GUARDLIST_FOREACH_END(guard);
 
     return filtered;
 }

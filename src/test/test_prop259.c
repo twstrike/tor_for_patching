@@ -1090,6 +1090,27 @@ test_used_guards_parse_state_backward_compatible(void *arg)
   tor_free(msg);
 }
 
+static void
+test_should_filter_out_not_is_live_guard(void *arg)
+{
+    (void) arg;
+    MOCK(is_live, is_live_mock);
+    guardlist_t *guards = guardlist_new();
+    entry_guard_t *g1 = tor_malloc_zero(sizeof(entry_guard_t));
+    entry_guard_t *g2 = tor_malloc_zero(sizeof(entry_guard_t));
+    g1->unreachable_since = 1;
+    guardlist_add(guards, g1);
+    guardlist_add(guards, g2);
+
+    smartlist_t *filteredset = filter_set(guards);
+    tt_int_op(smartlist_len(filteredset), OP_EQ, 1);
+
+ done:
+  UNMOCK(is_live);
+  tor_free(guards);
+  tor_free(filteredset);
+}
+
 struct testcase_t entrynodes_new_tests[] = {
     { "used_guards_parse_state",
         test_used_guards_parse_state,
@@ -1150,6 +1171,9 @@ struct testcase_t entrynodes_new_tests[] = {
       0, NULL, NULL },
     { "should_not_continue_when_last_success_was_after_likely_down_interval",
     test_should_not_continue_when_last_success_was_after_likely_down_interval,
+      0, NULL, NULL },
+    { "should_filter_out_not_is_live_guard",
+    test_should_filter_out_not_is_live_guard,
       0, NULL, NULL },
 
     END_OF_TESTCASES
