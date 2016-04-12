@@ -1308,7 +1308,7 @@ entry_guard_selection_init(void)
     entry_guard_selection = choose_entry_guard_algo_start(
         used_guards, sampled_guards,
         options->ExcludeNodes,
-        options->UseBridges ? 1 : num_needed , for_directory);
+        entry_list_is_constrained(options) ? 1 : num_needed , for_directory);
 }
 
 //XXX Add tests
