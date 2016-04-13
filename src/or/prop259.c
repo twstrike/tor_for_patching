@@ -513,14 +513,19 @@ filter_set(const guardlist_t *guards, smartlist_t *all_guards,
             smartlist_add(filtered, guard);
     } GUARDLIST_FOREACH_END(guard);
 
+    (void)min_filtered_sample_size;
+    (void)all_guards;
+    /* comment out expanding for now
     while (smartlist_len(filtered) < min_filtered_sample_size)
-      {
-	guardlist_t * extended = guardlist_new();
-	guardlist_add_all_smarlist(extended, guards->list);
-	entry_guard_t *ng = each_remaining_by_bandwidth(all_guards, 0);
-	guardlist_add(extended, ng);
-	return filter_set(extended, all_guards, min_filtered_sample_size);
-      }
+    {
+        guardlist_t * extended = guardlist_new();
+        guardlist_add_all_smarlist(extended, guards->list);
+        entry_guard_t *ng = each_remaining_by_bandwidth(all_guards, 0);
+        tor_assert(ng);
+        guardlist_add(extended, ng);
+        return filter_set(extended, all_guards, min_filtered_sample_size);
+    }
+    */
 
     return filtered;
 }
