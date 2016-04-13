@@ -587,7 +587,6 @@ choose_entry_guard_algo_start(guardlist_t *used_guards,
     guard_selection->num_primary_guards = n_primary_guards;
 
     //XXX is sampled_guards a list of guard or node?
-    printf("sampled guards = %d\n", guardlist_len(sampled_guards));
     fill_in_remaining_utopic(guard_selection, sampled_guards);
     fill_in_primary_guards(guard_selection);
 

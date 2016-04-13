@@ -93,6 +93,7 @@ is_live_mock(const entry_guard_t *guard)
 static entry_guard_t*
 each_remaining_by_bandwidth_mock(smartlist_t *guards, int for_directory)
 {
+  (void) guards;
   (void) for_directory;
 
   return tor_malloc_zero(sizeof(entry_guard_t));
