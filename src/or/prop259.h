@@ -49,7 +49,7 @@ void
 guardlist_add(guardlist_t *gl, entry_guard_t *e);
 
 int
-guardlist_len(guardlist_t *gl);
+guardlist_len(const guardlist_t *gl);
 
 void guardlist_free(guardlist_t*);
 
@@ -140,7 +140,7 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 
 STATIC smartlist_t *
 filter_set(const guardlist_t *guards, smartlist_t *all_guards,
-	   int min_filtered_sample_size, int max_sample_size_threshold);
+	   int min_filtered_sample_size, double max_sample_size_threshold);
 
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection);
