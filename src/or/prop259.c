@@ -503,30 +503,29 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 }
 
 STATIC smartlist_t *
-filter_set(const guardlist_t *guards, smartlist_t *all_guards,
-	   int min_filtered_sample_size, double max_sample_size_threshold)
+filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
+        int min_filtered_sample_size, int max_sample_size_threshold)
 {
     smartlist_t *filtered = smartlist_new();
 
-    GUARDLIST_FOREACH_BEGIN(guards, entry_guard_t *, guard) {
+    GUARDLIST_FOREACH_BEGIN(sampled_guards, entry_guard_t *, guard) {
         if (is_live(guard))
             smartlist_add(filtered, guard);
     } GUARDLIST_FOREACH_END(guard);
 
-    while (smartlist_len(filtered) < min_filtered_sample_size){
-        log_err(LD_BUG,
+    if (smartlist_len(filtered) < min_filtered_sample_size){
+        log_warn(LD_CIRC,
                 "size of sampled_guards %d\n",
                 guardlist_len(sampled_guards));
-        int sample_threshold = max_sample_size_threshold * guardlist_len(sampled_guards);
-        if (!(guardlist_len(guards) < sample_threshold)) {
-            log_err(LD_BUG,
-                    "size of the set to be filtered is bigger than %d\n",
-                    sample_threshold);
+        if (guardlist_len(sampled_guards) >= max_sample_size_threshold) {
+            log_err(LD_GENERAL,
+                    "Size of the set to be filtered is bigger than %d ",
+                    max_sample_size_threshold);
             return NULL;
         }
 
         guardlist_t *extended = guardlist_new();
-        guardlist_add_all_smarlist(extended, guards->list);
+        guardlist_add_all_smarlist(extended, sampled_guards->list);
         entry_guard_t *ng = each_remaining_by_bandwidth(all_guards, 0);
         guardlist_add(extended, ng);
         return filter_set(
@@ -542,7 +541,7 @@ filter_set(const guardlist_t *guards, smartlist_t *all_guards,
 
 //XXX define the values for this
 #define MINIMUM_FILTERED_SAMPLE_SIZE 20
-#define MAXIMUM_SAMPLE_SIZE_THRESHOLD 0.03
+#define MAXIMUM_SAMPLE_SIZE_THRESHOLD 1.03
 #define MAXIMUM_RETRIES 10
 
 STATIC void
@@ -561,10 +560,10 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
       : MAXIMUM_SAMPLE_SIZE_THRESHOLD;
     smartlist_t *filtered = filter_set(sampled_guards,
             get_all_guards(guard_selection->for_directory),
-            min_sample, max_sample_size_threshold);
+            min_sample, max_sample_size_threshold * guardlist_len(sampled_guards));
 
     smartlist_subtract(filtered, guard_selection->used_guards->list);
-    smartlist_add_all(guard_selection->remaining_guards, filtered);
+    if(filtered) smartlist_add_all(guard_selection->remaining_guards, filtered);
 }
 
 STATIC void

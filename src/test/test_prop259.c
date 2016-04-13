@@ -1174,7 +1174,7 @@ test_should_expand_when_filtered_guards_lower_than_min(void *arg)
 
     int min_sample_size = 3;
 
-    smartlist_t *filtered = filter_set(guards, all_guards, min_sample_size, 1);
+    smartlist_t *filtered = filter_set(guards, all_guards, min_sample_size, 2 * guardlist_len(guards));
 
     tt_int_op(smartlist_len(filtered), OP_EQ, 3);
 
