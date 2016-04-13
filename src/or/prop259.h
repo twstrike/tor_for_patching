@@ -27,6 +27,9 @@ typedef struct {
     int num_primary_guards;
     time_t last_success;
 
+    //The minimum size of the sampled set after filtering.
+    int min_filtered_sample_size;
+
     //List of entry_guard_t
     smartlist_t *remaining_guards;
 
@@ -124,12 +127,16 @@ is_bad,(const entry_guard_t *guard));
 MOCK_DECL(STATIC int,
 is_live,(const entry_guard_t *guard));
 
+MOCK_DECL(STATIC entry_guard_t*, each_remaining_by_bandwidth,
+	  (smartlist_t *guards, int for_directory));
+
 STATIC entry_guard_t *
 choose_entry_guard_algo_next(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now);
 
 STATIC smartlist_t *
-filter_set(const guardlist_t *guards);
+filter_set(const guardlist_t *guards, smartlist_t *all_guards,
+	   int min_filtered_sample_size);
 
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection);

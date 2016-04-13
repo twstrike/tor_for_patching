@@ -362,8 +362,8 @@ choose_as_new_entry_guard(node_t *node)
     log_info(LD_CIRC, "Chose %s as new entry guard.", node_describe(node));
 }
 
-static entry_guard_t*
-each_remaining_by_bandwidth(smartlist_t *guards, int for_directory)
+MOCK_IMPL(STATIC entry_guard_t*, each_remaining_by_bandwidth,
+	  (smartlist_t *guards, int for_directory))
 {
     char buf[HEX_DIGEST_LEN+1];
     entry_guard_t *guard = NULL;
@@ -503,7 +503,8 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 }
 
 STATIC smartlist_t *
-filter_set(const guardlist_t *guards)
+filter_set(const guardlist_t *guards, smartlist_t *all_guards,
+	   int min_filtered_sample_size)
 {
     smartlist_t *filtered = smartlist_new();
 
@@ -512,11 +513,21 @@ filter_set(const guardlist_t *guards)
             smartlist_add(filtered, guard);
     } GUARDLIST_FOREACH_END(guard);
 
+    while (smartlist_len(filtered) < min_filtered_sample_size)
+      {
+	guardlist_t * extended = guardlist_new();
+	guardlist_add_all_smarlist(extended, guards->list);
+	entry_guard_t *ng = each_remaining_by_bandwidth(all_guards, 0);
+	guardlist_add(extended, ng);
+	return filter_set(extended, all_guards, min_filtered_sample_size);
+      }
+
     return filtered;
 }
 
 //XXX define the values for this
 #define MINIMUM_FILTERED_SAMPLE_SIZE 20
+#define MAXIMUM_SAMPLE_SIZE_THRESHOLD 0.03
 #define MAXIMUM_RETRIES 10
 
 STATIC void
@@ -527,11 +538,10 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
 
     /** Filter the sampled set **/
     //XXX consider for_directory
-    smartlist_t *filtered = filter_set(sampled_guards);
-
-    if (smartlist_len(filtered) < MINIMUM_FILTERED_SAMPLE_SIZE) {
-        //XXX expand and evaluate
-    }
+    int min_sample = guard_selection->min_filtered_sample_size > 0 ? guard_selection->min_filtered_sample_size : MINIMUM_FILTERED_SAMPLE_SIZE;
+    smartlist_t *filtered = filter_set(sampled_guards,
+			        get_all_guards(guard_selection->for_directory),
+				min_sample);
 
     smartlist_subtract(filtered, guard_selection->used_guards->list);
     smartlist_add_all(guard_selection->remaining_guards, filtered);
@@ -577,6 +587,7 @@ choose_entry_guard_algo_start(guardlist_t *used_guards,
     guard_selection->num_primary_guards = n_primary_guards;
 
     //XXX is sampled_guards a list of guard or node?
+    printf("sampled guards = %d\n", guardlist_len(sampled_guards));
     fill_in_remaining_utopic(guard_selection, sampled_guards);
     fill_in_primary_guards(guard_selection);
 
