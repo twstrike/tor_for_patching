@@ -558,12 +558,16 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
     double max_sample_size_threshold = guard_selection->max_sample_size_threshold > 0
       ? guard_selection->max_sample_size_threshold
       : MAXIMUM_SAMPLE_SIZE_THRESHOLD;
-    smartlist_t *filtered = filter_set(sampled_guards,
-            get_all_guards(guard_selection->for_directory),
-            min_sample, max_sample_size_threshold * guardlist_len(sampled_guards));
+    if (entry_list_is_constrained(get_options())){
+        smartlist_add_all(guard_selection->remaining_guards, sampled_guards->list);
+    } else {
+        smartlist_t *filtered = filter_set(sampled_guards,
+                get_all_guards(guard_selection->for_directory),
+                min_sample, max_sample_size_threshold * guardlist_len(sampled_guards));
 
-    smartlist_subtract(filtered, guard_selection->used_guards->list);
-    if(filtered) smartlist_add_all(guard_selection->remaining_guards, filtered);
+        smartlist_subtract(filtered, guard_selection->used_guards->list);
+        if(filtered) smartlist_add_all(guard_selection->remaining_guards, filtered);
+    }
 }
 
 STATIC void
