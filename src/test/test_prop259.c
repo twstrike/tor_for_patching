@@ -1147,7 +1147,7 @@ test_should_filter_out_not_is_live_guard(void *arg)
     MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
     MOCK(is_live, is_live_mock);
 
-    smartlist_t *filteredset = filter_set(guards, smartlist_new(), 1);
+    smartlist_t *filteredset = filter_set(guards, smartlist_new(), 1, 1);
     tt_int_op(smartlist_len(filteredset), OP_EQ, 1);
 
  done:
@@ -1174,9 +1174,43 @@ test_should_expand_when_filtered_guards_lower_than_min(void *arg)
 
     int min_sample_size = 3;
 
-    smartlist_t *filtered = filter_set(guards, all_guards, min_sample_size);
+    smartlist_t *filtered = filter_set(guards, all_guards, min_sample_size, 1);
 
     tt_int_op(smartlist_len(filtered), OP_EQ, 3);
+
+ done:
+  UNMOCK(is_live);
+  UNMOCK(each_remaining_by_bandwidth);
+  tor_free(guards);
+  smartlist_free(filtered);
+  smartlist_free(all_guards);
+}
+
+static void
+test_should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max(void *arg)
+{
+    guardlist_t *guards = guardlist_new();
+    entry_guard_t *g1 = tor_malloc_zero(sizeof(entry_guard_t));
+    entry_guard_t *g2 = tor_malloc_zero(sizeof(entry_guard_t));
+    smartlist_t *all_guards = smartlist_new();
+    (void) arg;
+
+    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(is_live, is_live_mock);
+
+    guardlist_add(guards, g1);
+    guardlist_add(guards, g2);
+    smartlist_add(all_guards, tor_malloc_zero(sizeof(entry_guard_t)));
+    sampled_guards = guardlist_new();
+    guardlist_add(sampled_guards, tor_malloc_zero(sizeof(entry_guard_t)));
+
+    int min_sample_size = 3;
+    int max_sample_size = 1;
+
+    smartlist_t *filtered = filter_set
+      (guards, all_guards, min_sample_size, max_sample_size);
+
+    tt_assert(filtered == NULL);
 
  done:
   UNMOCK(is_live);
@@ -1253,7 +1287,9 @@ struct testcase_t entrynodes_new_tests[] = {
     { "should_expand_when_filtered_guards_lower_than_min",
       test_should_expand_when_filtered_guards_lower_than_min,
       0, NULL, NULL },
+    { "should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max",
+      test_should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max,
+      0, NULL, NULL },
 
     END_OF_TESTCASES
 };
-

@@ -47,7 +47,7 @@ static const entry_guard_t *pending_guard = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
 static guardlist_t *used_guards = NULL;
-static guardlist_t *sampled_guards = NULL;
+STATIC guardlist_t *sampled_guards = NULL;
 static smartlist_t *bridges = NULL;
 
 static int used_guards_dirty = 0;
@@ -504,7 +504,7 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 
 STATIC smartlist_t *
 filter_set(const guardlist_t *guards, smartlist_t *all_guards,
-	   int min_filtered_sample_size)
+	   int min_filtered_sample_size, int max_sample_size_threshold)
 {
     smartlist_t *filtered = smartlist_new();
 
@@ -515,17 +515,27 @@ filter_set(const guardlist_t *guards, smartlist_t *all_guards,
 
     (void)min_filtered_sample_size;
     (void)all_guards;
-    /* comment out expanding for now
     while (smartlist_len(filtered) < min_filtered_sample_size)
-    {
-        guardlist_t * extended = guardlist_new();
-        guardlist_add_all_smarlist(extended, guards->list);
-        entry_guard_t *ng = each_remaining_by_bandwidth(all_guards, 0);
-        tor_assert(ng);
-        guardlist_add(extended, ng);
-        return filter_set(extended, all_guards, min_filtered_sample_size);
-    }
-    */
+      {
+	int sample_threshold = max_sample_size_threshold * guardlist_len(sampled_guards);
+	if (!guardlist_len(guards) < sample_threshold) {
+	  log_err(LD_BUG,
+		  "size of the set to be filtered is bigger than %d\n",
+		  sample_threshold);
+	  return NULL;
+	}
+
+	guardlist_t * extended = guardlist_new();
+	guardlist_add_all_smarlist(extended, guards->list);
+	entry_guard_t *ng = each_remaining_by_bandwidth(all_guards, 0);
+	guardlist_add(extended, ng);
+	return filter_set(
+			  extended,
+			  all_guards,
+			  min_filtered_sample_size,
+			  max_sample_size_threshold
+			  );
+      }
 
     return filtered;
 }
@@ -543,10 +553,15 @@ fill_in_remaining_utopic(guard_selection_t *guard_selection,
 
     /** Filter the sampled set **/
     //XXX consider for_directory
-    int min_sample = guard_selection->min_filtered_sample_size > 0 ? guard_selection->min_filtered_sample_size : MINIMUM_FILTERED_SAMPLE_SIZE;
+    int min_sample = guard_selection->min_filtered_sample_size > 0
+      ? guard_selection->min_filtered_sample_size
+      : MINIMUM_FILTERED_SAMPLE_SIZE;
+    int max_sample = guard_selection->max_sample_size_threshold > 0
+      ? guard_selection->max_sample_size_threshold
+      : MAXIMUM_SAMPLE_SIZE_THRESHOLD;
     smartlist_t *filtered = filter_set(sampled_guards,
 			        get_all_guards(guard_selection->for_directory),
-				min_sample);
+				       min_sample, max_sample);
 
     smartlist_subtract(filtered, guard_selection->used_guards->list);
     smartlist_add_all(guard_selection->remaining_guards, filtered);

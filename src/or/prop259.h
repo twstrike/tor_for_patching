@@ -19,6 +19,8 @@ typedef struct {
     smartlist_t *list;
 } guardlist_t;
 
+STATIC guardlist_t *sampled_guards;
+
 typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
@@ -29,6 +31,8 @@ typedef struct {
 
     //The minimum size of the sampled set after filtering.
     int min_filtered_sample_size;
+    //Fraction of GUARDS used as an upper bound when expanding SAMPLED_GUARDS.
+    int max_sample_size_threshold;
 
     //List of entry_guard_t
     smartlist_t *remaining_guards;
@@ -136,7 +140,7 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 
 STATIC smartlist_t *
 filter_set(const guardlist_t *guards, smartlist_t *all_guards,
-	   int min_filtered_sample_size);
+	   int min_filtered_sample_size, int max_sample_size_threshold);
 
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection);
