@@ -253,7 +253,7 @@ mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 }
 
 static void
-transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection)
+transition_to_previous_state_or_try_remaining(guard_selection_t *guard_selection)
 {
     if (guard_selection->previous_state != STATE_INVALID) {
         log_warn(LD_CIRC, "Going back to previous state");
@@ -282,7 +282,7 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 
     log_warn(LD_CIRC, "No PRIMARY_GUARDS is live.");
 
-    transition_to_previous_state_or_try_utopic(guard_selection);
+    transition_to_previous_state_or_try_remaining(guard_selection);
     return NULL;
 }
 
