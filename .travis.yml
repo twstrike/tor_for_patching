@@ -8,5 +8,5 @@ compiler:
 install: ./autogen.sh
 script:
     - ./configure --enable-prop259 --enable-coverage --disable-asciidoc --enable-gcc-warnings
-    - make && make test
+    - make && make check
     - make check-spaces
