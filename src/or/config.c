@@ -49,6 +49,7 @@
 #include "transports.h"
 #include "ext_orport.h"
 #include "torgzip.h"
+#include "prop259.h"
 #ifdef _WIN32
 #include <shlobj.h>
 #endif
@@ -1759,6 +1760,7 @@ options_act(const or_options_t *old_options)
                "Changed to using entry guards or bridges, or changed "
                "preferred or excluded node lists. "
                "Abandoning previous circuits.");
+      guard_selection_fill_in_from_entrynodes(options);
       circuit_mark_all_unused_circs();
       circuit_mark_all_dirty_circs_as_unusable();
       revise_trackexithosts = 1;

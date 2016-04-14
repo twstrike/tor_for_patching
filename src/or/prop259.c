@@ -567,7 +567,6 @@ fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_guards)
 {
     guard_selection->remaining_guards = smartlist_new();
-
     if (entry_list_is_constrained(get_options())){
         smartlist_add_all(guard_selection->remaining_guards, sampled_guards->list);
     } else {
@@ -581,7 +580,6 @@ STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection)
 {
     guard_selection->primary_guards = smartlist_new();
-
     int num_guards = guard_selection->num_primary_guards;
     smartlist_t *primary = guard_selection->primary_guards;
     while (smartlist_len(primary) < num_guards) {
@@ -629,36 +627,6 @@ choose_entry_guard_algo_start(guardlist_t *used_guards,
         n_primary_guards, for_directory);
 
     return guard_selection;
-}
-
-STATIC void
-choose_entry_guard_algo_new_consensus(guard_selection_t *guard_selection)
-{
-    int num_guards = guard_selection->num_primary_guards;
-    smartlist_t *guards = guard_selection->primary_guards;
-
-    while (smartlist_len(nonbad_guards(guards)) < num_guards) {
-        entry_guard_t *guard = next_primary_guard(guard_selection);
-        if (guard != NULL) {
-            if (!smartlist_contains(guards, guard)) {
-                smartlist_add(guards, guard);
-            }
-        } else {
-            break;
-        }
-    }
-}
-
-STATIC smartlist_t*
-nonbad_guards(smartlist_t *guards)
-{
-    smartlist_t *nonbad_guards = smartlist_new();
-    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-        if (!is_bad(e))
-            smartlist_add(nonbad_guards, e);
-    } SMARTLIST_FOREACH_END(e);
-
-    return nonbad_guards;
 }
 
 /* dest is a list of guards */
@@ -1346,7 +1314,7 @@ entry_guard_selection_init(void)
 
     entry_guard_selection = choose_entry_guard_algo_start(
         used_guards, sampled_guards,
-        entry_list_is_constrained(options) ? 1 : num_needed , for_directory);
+        num_needed , for_directory);
 }
 
 //XXX Add tests
@@ -1561,7 +1529,7 @@ add_an_entry_bridge(node_t *node){
     if (!bridges) bridges = smartlist_new();
     if (!smartlist_contains(bridges, node->identity))
         smartlist_add(bridges, node);
-    entry_guards_update_profiles(get_options(),time(NULL));
+    fill_in_from_bridges(sampled_guards);
 }
 
 int
@@ -1570,13 +1538,10 @@ known_entry_bridge(void){
     return 0;
 }
 
-STATIC void
-fill_in_restricted(const or_options_t *options)
+void
+guard_selection_fill_in_from_entrynodes(const or_options_t *options)
 {
-    if (options->EntryNodes)
-        fill_in_from_entrynodes(options, sampled_guards);
-    if (options->UseBridges)
-        fill_in_from_bridges(sampled_guards);
+    fill_in_from_entrynodes(options, sampled_guards);
 }
 
 //XXX Add tests
@@ -1601,34 +1566,27 @@ void
 entry_guards_update_profiles(const or_options_t *options, const time_t now)
 {
     log_warn(LD_CIRC, "Received a new consensus");
+    if (entry_list_is_constrained(options)){
+        //We make have new info about EntryNodes refill it if possible
+        if (options->EntryNodes)
+            guard_selection_fill_in_from_entrynodes(options);
+    } else{
+        if (used_guards)
+            prune_guardlist(now, used_guards);
 
-    if (used_guards)
-        prune_guardlist(now, used_guards);
+        if (sampled_guards)
+            prune_guardlist(now, sampled_guards);
 
-    if (sampled_guards)
-        prune_guardlist(now, sampled_guards);
+        //We recreate the sample sets without restricting to directory
+        //guards, because most of the entry guards will be directory in
+        //the near ideal future.
+        int for_directory = 0;
 
-    //We recreate the sample sets without restricting to directory
-    //guards, because most of the entry guards will be directory in
-    //the near ideal future.
-    int for_directory = 0;
-
-    // XXX we put this here for now because it's consuming guards and trying
-    // to fill the sample_set with option->EntryNodes or options->UseBridge
-    // or other
-    // XXX We probably want to do this on options_act because this can change
-    // before we receive a consensus
-    if (entry_list_is_constrained(options)) {
-        fill_in_restricted(options);
-    } else {
         smartlist_t *utopic = get_all_guards(for_directory);
         fill_in_sampled_sets(utopic);
         smartlist_free(utopic);
-    }
 
-    //XXX Is this necessary?
-    if (entry_guard_selection)
-        choose_entry_guard_algo_new_consensus(entry_guard_selection);
+    }
 }
 
 int

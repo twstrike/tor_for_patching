@@ -686,105 +686,6 @@ test_TRY_REMAINING_transitions_to_PRIMARY_GUARDS(void *arg)
 }
 
 static void
-test_ON_NEW_CONSENSUS(void *arg)
-{
-    guard_selection_t *guard_selection = tor_malloc_zero(
-        sizeof(guard_selection_t));
-    guardlist_t *used_guards = guardlist_new();
-    smartlist_t *primary_guards = smartlist_new();
-    entry_guard_t *g1, *g2, *g3, *g4, *g5;
-    (void) arg;
-
-    MOCK(is_bad, is_bad_mock);
-
-    g1 = tor_malloc_zero(sizeof(entry_guard_t));
-    g2 = tor_malloc_zero(sizeof(entry_guard_t));
-    g3 = tor_malloc_zero(sizeof(entry_guard_t));
-    g4 = tor_malloc_zero(sizeof(entry_guard_t));
-    g5 = tor_malloc_zero(sizeof(entry_guard_t));
-
-    g1->bad_since = 0;
-    g2->bad_since = 0;
-    g3->bad_since = 0;
-    g4->bad_since = 1;
-    g5->bad_since = 1;
-
-    smartlist_add(primary_guards, g1);
-    smartlist_add(primary_guards, g2);
-    smartlist_add(primary_guards, g3);
-    guardlist_add(used_guards, g1);
-    guardlist_add(used_guards, g2);
-    guardlist_add(used_guards, g4);
-    guardlist_add(used_guards, g5);
-
-    guard_selection->primary_guards = primary_guards;
-    guard_selection->used_guards = used_guards;
-    guard_selection->num_primary_guards = 3;
-
-    g1->bad_since = 1;
-    g2->bad_since = 1;
-    g3->bad_since = 0;
-    g4->bad_since = 0;
-    g5->bad_since = 0;
-
-    choose_entry_guard_algo_new_consensus(guard_selection);
-
-    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)),
-        OP_EQ, 3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0),
-        OP_EQ, g3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1),
-        OP_EQ, g4);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2),
-        OP_EQ, g5);
-
-    g1->bad_since = 0;
-    g2->bad_since = 0;
-    g3->bad_since = 0;
-    g4->bad_since = 0;
-    g5->bad_since = 0;
-
-    choose_entry_guard_algo_new_consensus(guard_selection);
-
-    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)),
-        OP_EQ, 5);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0),
-        OP_EQ, g1);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1),
-        OP_EQ, g2);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2),
-        OP_EQ, g3);
-
-    g1->bad_since = 0;
-    g2->bad_since = 1;
-    g3->bad_since = 0;
-    g4->bad_since = 1;
-    g5->bad_since = 0;
-
-    choose_entry_guard_algo_new_consensus(guard_selection);
-
-    tt_int_op(smartlist_len(nonbad_guards(guard_selection->primary_guards)),
-        OP_EQ, 3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),0),
-        OP_EQ, g1);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),1),
-        OP_EQ, g3);
-    tt_ptr_op(smartlist_get(nonbad_guards(guard_selection->primary_guards),2),
-        OP_EQ, g5);
-
-  done:
-    UNMOCK(is_bad);
-    tor_free(g1);
-    tor_free(g2);
-    tor_free(g3);
-    tor_free(g4);
-    tor_free(g5);
-    guardlist_free(used_guards);
-    guard_selection_free(guard_selection);
-    tor_free(guard_selection);
-}
-
-static void
 test_choose_entry_guard_algo_should_continue_when_circuit_fails(void *arg)
 {
     guard_selection_t *guard_selection =
@@ -1250,9 +1151,6 @@ struct testcase_t entrynodes_new_tests[] = {
         TT_FORK, &fake_network, NULL },
     { "STATE_TRY_REMAINING_transitions_to_STATE_PRIMARY_GUARDS",
         test_TRY_REMAINING_transitions_to_PRIMARY_GUARDS,
-        0, NULL, NULL },
-    { "ON_NEW_CONSENSUS",
-        test_ON_NEW_CONSENSUS,
         0, NULL, NULL },
     { "should_continue_when_circuit_fails",
       test_choose_entry_guard_algo_should_continue_when_circuit_fails,

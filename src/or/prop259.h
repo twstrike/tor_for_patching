@@ -113,6 +113,9 @@ known_entry_bridge(void);
 void
 log_guards(int severity, const smartlist_t *guards);
 
+void
+guard_selection_fill_in_from_entrynodes(const or_options_t *options);
+
 #ifdef PROP259_PRIVATE
 
 STATIC guard_selection_t*
@@ -145,9 +148,6 @@ guard_selection_free(guard_selection_t *guard_selection);
 STATIC void
 transition_to(guard_selection_t *algo, guard_selection_state_t state);
 
-STATIC void
-choose_entry_guard_algo_new_consensus(guard_selection_t *guard_selection);
-
 STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection);
 
@@ -164,12 +164,6 @@ fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *set,
 STATIC void
 fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_utopic);
-
-STATIC void
-fill_in_restricted(const or_options_t *options);
-
-STATIC smartlist_t*
-nonbad_guards(smartlist_t *guards);
 
 STATIC void
 choose_entry_guard_algo_end(guard_selection_t *guard_selection,
