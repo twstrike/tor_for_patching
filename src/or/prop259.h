@@ -166,6 +166,9 @@ STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_utopic);
 
+STATIC void
+fill_in_restricted(const or_options_t *options);
+
 STATIC smartlist_t*
 nonbad_guards(smartlist_t *guards);
 

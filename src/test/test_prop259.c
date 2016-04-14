@@ -1201,8 +1201,6 @@ test_should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max(voi
     guardlist_add(guards, g1);
     guardlist_add(guards, g2);
     smartlist_add(all_guards, tor_malloc_zero(sizeof(entry_guard_t)));
-    sampled_guards = guardlist_new();
-    guardlist_add(sampled_guards, tor_malloc_zero(sizeof(entry_guard_t)));
 
     int min_sample_size = 3;
     int max_sample_size = 1;

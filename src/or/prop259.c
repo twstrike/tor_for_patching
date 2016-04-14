@@ -47,7 +47,7 @@ static const entry_guard_t *pending_guard = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
 static guardlist_t *used_guards = NULL;
-STATIC guardlist_t *sampled_guards = NULL;
+static guardlist_t *sampled_guards = NULL;
 static smartlist_t *bridges = NULL;
 
 static int used_guards_dirty = 0;
@@ -1565,7 +1565,7 @@ known_entry_bridge(void){
     return 0;
 }
 
-static void
+STATIC void
 fill_in_restricted(const or_options_t *options)
 {
     if (options->EntryNodes)
