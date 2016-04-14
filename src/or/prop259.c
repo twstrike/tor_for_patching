@@ -736,7 +736,7 @@ static void
 fill_in_sampled_sets(const smartlist_t *utopic_nodes)
 {
     //XXX Extract a configuration from this
-    const double sample_set_threshold = 0.005;
+    const double sample_set_threshold = 0.02;
 
     tor_assert(sampled_guards);
     fill_in_sampled_guard_set(sampled_guards, utopic_nodes,
