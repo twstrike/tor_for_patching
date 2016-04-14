@@ -260,7 +260,7 @@ transition_to_previous_state_or_try_utopic(guard_selection_t *guard_selection)
         transition_to(guard_selection, guard_selection->previous_state);
     } else {
         mark_remaining_used_for_retry(guard_selection);
-        transition_to(guard_selection, STATE_TRY_UTOPIC);
+        transition_to(guard_selection, STATE_TRY_REMAINING);
     }
 }
 
@@ -297,8 +297,8 @@ transition_to(guard_selection_t *guard_selection,
     case STATE_PRIMARY_GUARDS:
         log_warn(LD_CIRC, "Transitioned to STATE_PRIMARY_GUARDS.");
         break;
-    case STATE_TRY_UTOPIC:
-        log_warn(LD_CIRC, "Transitioned to STATE_TRY_UTOPIC.");
+    case STATE_TRY_REMAINING:
+        log_warn(LD_CIRC, "Transitioned to STATE_TRY_REMAINING.");
         break;
     }
 
@@ -424,7 +424,7 @@ each_remaining_guard_by_bandwidth(guard_selection_t* guard_selection)
 }
 
 static entry_guard_t*
-state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
+state_TRY_REMAINING_next(guard_selection_t *guard_selection)
 {
     log_warn(LD_CIRC, "Will try USED_GUARDS not in PRIMARY_GUARDS.");
 
@@ -434,7 +434,7 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
     if (guard)
         return guard;
 
-    log_warn(LD_CIRC, "Will try REMAINING_UTOPIC_GUARDS.");
+    log_warn(LD_CIRC, "Will try REMAINING_REMAINING_GUARDS.");
 
     guard = each_remaining_guard_by_bandwidth(guard_selection);
     if (guard) {
@@ -495,8 +495,8 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
         return NULL;
     case STATE_PRIMARY_GUARDS:
         return state_PRIMARY_GUARDS_next(guard_selection);
-    case STATE_TRY_UTOPIC:
-        return state_TRY_UTOPIC_next(guard_selection);
+    case STATE_TRY_REMAINING:
+        return state_TRY_REMAINING_next(guard_selection);
     }
 
     return NULL;

@@ -331,8 +331,8 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
         dir);
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
-    transition_to(guard_selection, STATE_TRY_UTOPIC);
-    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
+    transition_to(guard_selection, STATE_TRY_REMAINING);
+    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_REMAINING);
 
   done:
     UNMOCK(is_live);
@@ -375,14 +375,14 @@ test_NEXT_transitions_to_PRIMARY_GUARDS_and_saves_previous_state(void *arg)
     g1->last_attempted = now - 3*60;
     g2->last_attempted = now - 10;
 
-    guard_selection->state = STATE_TRY_UTOPIC;
+    guard_selection->state = STATE_TRY_REMAINING;
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_guards = remaining_guards;
 
     chosen = choose_entry_guard_algo_next(guard_selection, options, now-1);
     tt_ptr_op(chosen, OP_EQ, g3);
-    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
+    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_REMAINING);
 
     chosen = choose_entry_guard_algo_next(guard_selection, options, now);
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
@@ -455,7 +455,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
 }
 
 static void
-test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
+test_PRIMARY_GUARDS_transitions_to_TRY_REMAINING_when_theres_not_previous_state(
                                                                     void *arg)
 {
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
@@ -478,7 +478,7 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
     choose_entry_guard_algo_next(guard_selection, options, 0);
-    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
+    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_REMAINING);
 
   done:
     UNMOCK(each_remaining_by_bandwidth);
@@ -512,9 +512,9 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
         dir);
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
-    guard_selection->previous_state = STATE_TRY_UTOPIC;
+    guard_selection->previous_state = STATE_TRY_REMAINING;
     choose_entry_guard_algo_next(guard_selection, options, 0);
-    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_UTOPIC);
+    tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_REMAINING);
 
   done:
     UNMOCK(each_remaining_by_bandwidth);
@@ -527,7 +527,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
 }
 
 static void
-test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
+test_TRY_REMAINING_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
 {
     entry_guard_t* guard = NULL;
     guardlist_t *used_guards = guardlist_new();
@@ -557,7 +557,7 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
     tt_int_op(is_live(g3), OP_EQ, 1);
 
     guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-    guard_selection->state = STATE_TRY_UTOPIC;
+    guard_selection->state = STATE_TRY_REMAINING;
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
 
@@ -587,7 +587,7 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
 }
 
 static void
-test_TRY_UTOPIC_returns_each_REMAINING_GUARD_by_bandwidth_weights(void *arg)
+test_TRY_REMAINING_returns_each_REMAINING_GUARD_by_bandwidth_weights(void *arg)
 {
     guard_selection_t *guard_selection = NULL;
     smartlist_t *primary_guards = smartlist_new();
@@ -620,7 +620,7 @@ test_TRY_UTOPIC_returns_each_REMAINING_GUARD_by_bandwidth_weights(void *arg)
     smartlist_add(remaining_guards, g3);
 
     guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-    guard_selection->state = STATE_TRY_UTOPIC;
+    guard_selection->state = STATE_TRY_REMAINING;
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_guards = remaining_guards;
@@ -655,7 +655,7 @@ test_TRY_UTOPIC_returns_each_REMAINING_GUARD_by_bandwidth_weights(void *arg)
 }
 
 static void
-test_TRY_UTOPIC_transitions_to_PRIMARY_GUARDS(void *arg)
+test_TRY_REMAINING_transitions_to_PRIMARY_GUARDS(void *arg)
 {
     entry_guard_t* guard = NULL;
     guard_selection_t *guard_selection = NULL;
@@ -668,7 +668,7 @@ test_TRY_UTOPIC_transitions_to_PRIMARY_GUARDS(void *arg)
     MOCK(is_live, is_live_mock);
 
     guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-    guard_selection->state = STATE_TRY_UTOPIC;
+    guard_selection->state = STATE_TRY_REMAINING;
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
     guard_selection->remaining_guards = remaining_guards;
@@ -1239,17 +1239,17 @@ struct testcase_t entrynodes_new_tests[] = {
     { "STATE_PRIMARY_GUARDS_transitions_to_previous_state",
         test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one,
         0, NULL, NULL },
-    { "STATE_PRIMARY_GUARDS_transitions_to_STATE_TRY_UTOPIC",
-  test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state,
+    { "STATE_PRIMARY_GUARDS_transitions_to_STATE_TRY_REMAINING",
+  test_PRIMARY_GUARDS_transitions_to_TRY_REMAINING_when_theres_not_previous_state,
         0, NULL, NULL },
-    { "STATE_TRY_UTOPIC_returns_USED_NOT_PRIMARY",
-        test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS,
+    { "STATE_TRY_REMAINING_returns_USED_NOT_PRIMARY",
+        test_TRY_REMAINING_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS,
         0, NULL, NULL },
-    { "STATE_TRY_UTOPIC_returns_REMAINING_GUARD",
-        test_TRY_UTOPIC_returns_each_REMAINING_GUARD_by_bandwidth_weights,
+    { "STATE_TRY_REMAINING_returns_REMAINING_GUARD",
+        test_TRY_REMAINING_returns_each_REMAINING_GUARD_by_bandwidth_weights,
         TT_FORK, &fake_network, NULL },
-    { "STATE_TRY_UTOPIC_transitions_to_STATE_PRIMARY_GUARDS",
-        test_TRY_UTOPIC_transitions_to_PRIMARY_GUARDS,
+    { "STATE_TRY_REMAINING_transitions_to_STATE_PRIMARY_GUARDS",
+        test_TRY_REMAINING_transitions_to_PRIMARY_GUARDS,
         0, NULL, NULL },
     { "ON_NEW_CONSENSUS",
         test_ON_NEW_CONSENSUS,

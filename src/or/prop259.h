@@ -12,7 +12,7 @@
 typedef enum {
     STATE_INVALID = 0,
     STATE_PRIMARY_GUARDS,
-    STATE_TRY_UTOPIC,
+    STATE_TRY_REMAINING,
 } guard_selection_state_t;
 
 typedef struct {
