@@ -599,7 +599,7 @@ guard_selection_free(guard_selection_t *guard_selection)
 STATIC guard_selection_t*
 choose_entry_guard_algo_start(guardlist_t *used_guards,
                               const guardlist_t *sampled_guards,
-                              routerset_t *exclude_nodes, int n_primary_guards,
+                              int n_primary_guards,
                               int for_directory)
 {
     guard_selection_t *guard_selection = tor_malloc_zero(
@@ -616,10 +616,9 @@ choose_entry_guard_algo_start(guardlist_t *used_guards,
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
         "- used: %p,\n"
         "- sampled_guards: %p,\n"
-        "- exclude_nodes: %p,\n"
         "- n_primary_guards: %d,\n"
         "- for_directory: %d\n",
-        used_guards, sampled_guards, exclude_nodes,
+        used_guards, sampled_guards,
         n_primary_guards, for_directory);
 
     return guard_selection;
@@ -1340,7 +1339,6 @@ entry_guard_selection_init(void)
 
     entry_guard_selection = choose_entry_guard_algo_start(
         used_guards, sampled_guards,
-        options->ExcludeNodes,
         entry_list_is_constrained(options) ? 1 : num_needed , for_directory);
 }
 

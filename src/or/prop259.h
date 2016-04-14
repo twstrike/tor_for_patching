@@ -119,7 +119,6 @@ STATIC guard_selection_t*
 choose_entry_guard_algo_start(
         guardlist_t *used_guards,
         const guardlist_t *sampled_utopic_guards,
-        routerset_t *exclude_nodes,
         int n_primary_guards,
         int dir);
 

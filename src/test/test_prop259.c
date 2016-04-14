@@ -110,7 +110,6 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     guard_selection_t *guard_selection = NULL;
     guardlist_t *used_guards = guardlist_new();
     guardlist_t *sampled_utopic = guardlist_new();
-    routerset_t *exclude_nodes = routerset_new();
     (void) arg;
 
     MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
@@ -122,7 +121,6 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
-        exclude_nodes,
         n_primary_guards,
         dir);
 
@@ -131,7 +129,6 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
   done:
     UNMOCK(each_remaining_by_bandwidth);
     UNMOCK(is_live);
-    routerset_free(exclude_nodes);
     guardlist_free(used_guards);
     guardlist_free(sampled_utopic);
     guard_selection_free(guard_selection);
@@ -321,7 +318,6 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
     guard_selection_t *guard_selection;
     guardlist_t *sampled_utopic = guardlist_new();
     guardlist_t *used_guards = guardlist_new();
-    routerset_t *exclude_nodes = routerset_new();
     int n_primary_guards = 0;
     int dir = 0;
 
@@ -331,7 +327,6 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
     guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
-        exclude_nodes,
         n_primary_guards,
         dir);
 
@@ -342,7 +337,6 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
   done:
     UNMOCK(is_live);
     UNMOCK(each_remaining_by_bandwidth);
-    routerset_free(exclude_nodes);
     guardlist_free(sampled_utopic);
     guardlist_free(used_guards);
     guard_selection_free(guard_selection);
@@ -412,7 +406,6 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     guard_selection_t *guard_selection;
     guardlist_t *sampled_utopic = guardlist_new();
     guardlist_t *used_guards = guardlist_new();
-    routerset_t *exclude_nodes = routerset_new();
     entry_guard_t *entry1 = NULL, *entry2 = NULL;
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
     (void) arg;
@@ -427,7 +420,6 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
-        exclude_nodes,
         n_primary_guards,
         dir);
 
@@ -457,7 +449,6 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     tor_free(entry2);
     guardlist_free(used_guards);
     guardlist_free(sampled_utopic);
-    routerset_free(exclude_nodes);
     tor_free(options);
     guard_selection_free(guard_selection);
     tor_free(guard_selection);
@@ -473,7 +464,6 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
     guard_selection_t *guard_selection;
     guardlist_t *sampled_utopic = guardlist_new();
     guardlist_t *used_guards = guardlist_new();
-    routerset_t *exclude_nodes = routerset_new();
     int n_primary_guards = 0;
     int dir = 0;
 
@@ -483,7 +473,6 @@ test_PRIMARY_GUARDS_transitions_to_TRY_UTOPIC_when_theres_not_previous_state(
     guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
-        exclude_nodes,
         n_primary_guards,
         dir);
 
@@ -510,7 +499,6 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     guard_selection_t *guard_selection;
     guardlist_t *sampled_utopic = guardlist_new();
     guardlist_t *used_guards = guardlist_new();
-    routerset_t *exclude_nodes = routerset_new();
     int n_primary_guards = 0;
     int dir = 0;
 
@@ -520,7 +508,6 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     guard_selection = choose_entry_guard_algo_start(
         used_guards,
         sampled_utopic,
-        exclude_nodes,
         n_primary_guards,
         dir);
 
