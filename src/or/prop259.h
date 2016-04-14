@@ -19,8 +19,6 @@ typedef struct {
     smartlist_t *list;
 } guardlist_t;
 
-STATIC guardlist_t *sampled_guards;
-
 typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
