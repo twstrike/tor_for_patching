@@ -544,27 +544,34 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
 #define MAXIMUM_SAMPLE_SIZE_THRESHOLD 1.03
 #define MAXIMUM_RETRIES 10
 
+static smartlist_t*
+filter_sampled(guard_selection_t *guard_selection,
+		 const guardlist_t *sampled_guards)
+{
+    int min_filtered_guards = guard_selection->min_filtered_sample_size > 0
+      ? guard_selection->min_filtered_sample_size
+      : MINIMUM_FILTERED_SAMPLE_SIZE;
+    double sampled_guards_ratio = guard_selection->max_sample_size_threshold > 0
+      ? guard_selection->max_sample_size_threshold
+      : MAXIMUM_SAMPLE_SIZE_THRESHOLD;
+    double sampled_guards_threshold = sampled_guards_ratio * guardlist_len(sampled_guards);
+
+    return filter_set(sampled_guards,
+		    get_all_guards(guard_selection->for_directory),
+		    min_filtered_guards,
+		    sampled_guards_threshold);
+}
+
 STATIC void
 fill_in_remaining_utopic(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_guards)
 {
     guard_selection->remaining_guards = smartlist_new();
 
-    /** Filter the sampled set **/
-    //XXX consider for_directory
-    int min_sample = guard_selection->min_filtered_sample_size > 0
-      ? guard_selection->min_filtered_sample_size
-      : MINIMUM_FILTERED_SAMPLE_SIZE;
-    double max_sample_size_threshold = guard_selection->max_sample_size_threshold > 0
-      ? guard_selection->max_sample_size_threshold
-      : MAXIMUM_SAMPLE_SIZE_THRESHOLD;
     if (entry_list_is_constrained(get_options())){
         smartlist_add_all(guard_selection->remaining_guards, sampled_guards->list);
     } else {
-        smartlist_t *filtered = filter_set(sampled_guards,
-                get_all_guards(guard_selection->for_directory),
-                min_sample, max_sample_size_threshold * guardlist_len(sampled_guards));
-
+        smartlist_t *filtered = filter_sampled(guard_selection, sampled_guards);
         smartlist_subtract(filtered, guard_selection->used_guards->list);
         if(filtered) smartlist_add_all(guard_selection->remaining_guards, filtered);
     }
