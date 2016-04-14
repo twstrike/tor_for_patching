@@ -262,7 +262,7 @@ test_fill_in_sampled_set(void *arg)
 }
 
 static void
-test_fill_in_remaining_utopic(void *arg)
+test_fill_in_remaining_guards(void *arg)
 {
     guard_selection_t *guard_selection = tor_malloc_zero(
         sizeof(guard_selection_t));
@@ -287,7 +287,7 @@ test_fill_in_remaining_utopic(void *arg)
 
     guard_selection->used_guards = used;
     guard_selection->min_filtered_sample_size = 3;
-    fill_in_remaining_utopic(guard_selection, sampled);
+    fill_in_remaining_guards(guard_selection, sampled);
 
     tt_int_op(smartlist_len(guard_selection->remaining_guards),
         OP_EQ, 2);
@@ -587,7 +587,7 @@ test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
 }
 
 static void
-test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights(void *arg)
+test_TRY_UTOPIC_returns_each_REMAINING_GUARD_by_bandwidth_weights(void *arg)
 {
     guard_selection_t *guard_selection = NULL;
     smartlist_t *primary_guards = smartlist_new();
@@ -1224,8 +1224,8 @@ struct testcase_t entrynodes_new_tests[] = {
     { "fill_in_sampled_set",
         test_fill_in_sampled_set,
         TT_FORK, &fake_network, NULL },
-    { "fill_in_remaining_utopic",
-        test_fill_in_remaining_utopic,
+    { "fill_in_remaining_guards",
+        test_fill_in_remaining_guards,
         TT_FORK, &fake_network, NULL },
     { "state_machine_transitions_to",
         test_state_machine_should_use_new_state_as_current_state,
@@ -1245,8 +1245,8 @@ struct testcase_t entrynodes_new_tests[] = {
     { "STATE_TRY_UTOPIC_returns_USED_NOT_PRIMARY",
         test_TRY_UTOPIC_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS,
         0, NULL, NULL },
-    { "STATE_TRY_UTOPIC_returns_REMAINING_UTOPIC",
-        test_TRY_UTOPIC_returns_each_REMAINING_UTOPIC_by_bandwidth_weights,
+    { "STATE_TRY_UTOPIC_returns_REMAINING_GUARD",
+        test_TRY_UTOPIC_returns_each_REMAINING_GUARD_by_bandwidth_weights,
         TT_FORK, &fake_network, NULL },
     { "STATE_TRY_UTOPIC_transitions_to_STATE_PRIMARY_GUARDS",
         test_TRY_UTOPIC_transitions_to_PRIMARY_GUARDS,

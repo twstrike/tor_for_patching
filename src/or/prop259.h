@@ -162,7 +162,7 @@ fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *set,
                           const int size);
 
 STATIC void
-fill_in_remaining_utopic(guard_selection_t *guard_selection,
+fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_utopic);
 
 STATIC void

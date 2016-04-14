@@ -416,7 +416,7 @@ MOCK_IMPL(STATIC entry_guard_t*, each_remaining_by_bandwidth,
 }
 
 static entry_guard_t*
-each_remaining_utopic_by_bandwidth(guard_selection_t* guard_selection)
+each_remaining_guard_by_bandwidth(guard_selection_t* guard_selection)
 {
     return each_remaining_by_bandwidth(
                    guard_selection->remaining_guards,
@@ -436,7 +436,7 @@ state_TRY_UTOPIC_next(guard_selection_t *guard_selection)
 
     log_warn(LD_CIRC, "Will try REMAINING_UTOPIC_GUARDS.");
 
-    guard = each_remaining_utopic_by_bandwidth(guard_selection);
+    guard = each_remaining_guard_by_bandwidth(guard_selection);
     if (guard) {
         return guard;
     }
@@ -563,7 +563,7 @@ filter_sampled(guard_selection_t *guard_selection,
 }
 
 STATIC void
-fill_in_remaining_utopic(guard_selection_t *guard_selection,
+fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_guards)
 {
     guard_selection->remaining_guards = smartlist_new();
@@ -617,7 +617,7 @@ choose_entry_guard_algo_start(guardlist_t *used_guards,
     guard_selection->num_primary_guards = n_primary_guards;
 
     //XXX is sampled_guards a list of guard or node?
-    fill_in_remaining_utopic(guard_selection, sampled_guards);
+    fill_in_remaining_guards(guard_selection, sampled_guards);
     fill_in_primary_guards(guard_selection);
 
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
