@@ -1288,7 +1288,7 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 }
 
 //XXX Add tests
-guard_selection_t *
+STATIC guard_selection_t *
 entry_guard_selection_init(void)
 {
 #ifndef USE_PROP_259

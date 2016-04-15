@@ -51,9 +51,6 @@ guardlist_len(const guardlist_t *gl);
 
 void guardlist_free(guardlist_t*);
 
-guard_selection_t *
-entry_guard_selection_init(void);
-
 #define GUARDLIST_FOREACH(a, b, c, d) \
     SMARTLIST_FOREACH(a->list, b, c, d)
 
@@ -117,6 +114,9 @@ void
 guard_selection_fill_in_from_entrynodes(const or_options_t *options);
 
 #ifdef PROP259_PRIVATE
+
+STATIC guard_selection_t *
+entry_guard_selection_init(void);
 
 STATIC guard_selection_t*
 choose_entry_guard_algo_start(
