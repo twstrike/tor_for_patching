@@ -1226,13 +1226,13 @@ sampled_guards_update_state(or_state_t *state, guardlist_t *sampled_guards)
 }
 
 static int
-decide_if_should_continue(const entry_guard_t *guard, int succeeded,
+decide_if_should_continue(guard_selection_t *guard_selection,const entry_guard_t *guard, int succeeded,
                           time_t now)
 {
     int should_continue = 0;
 
     //XXX Is this possible?
-    if (!entry_guard_selection) {
+    if (!guard_selection) {
         log_warn(LD_CIRC, "We have no guard_selection algo."
             " Should not continue.");
         return 0;
@@ -1242,14 +1242,13 @@ decide_if_should_continue(const entry_guard_t *guard, int succeeded,
     int internet_likely_down_interval = 5;
 
     should_continue = choose_entry_guard_algo_should_continue(
-        entry_guard_selection, succeeded, now, internet_likely_down_interval);
+        guard_selection, succeeded, now, internet_likely_down_interval);
 
     log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
     if (!should_continue) {
-        choose_entry_guard_algo_end(entry_guard_selection, guard);
-        guard_selection_free(entry_guard_selection);
-        tor_free(entry_guard_selection);
+        choose_entry_guard_algo_end(guard_selection, guard);
+        guard_selection_free(guard_selection);
     } else {
         //XXX entry_guard_register_connect_status() is smarter and only calls
         //it when any guard has changed. We will get there.
@@ -1289,17 +1288,17 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 }
 
 //XXX Add tests
-void
+guard_selection_t *
 entry_guard_selection_init(void)
 {
 #ifndef USE_PROP_259
-    return; //do nothing
+    return NULL; //do nothing
 #endif
 
     const or_options_t *options = get_options();
     if (!router_have_minimum_dir_info() && !options->UseBridges) {
         log_warn(LD_CIRC, "Cant initialize without a consensus.");
-        return;
+        return NULL;
     }
 
     const int for_directory = 0; //XXX how to get this at this moment?
@@ -1312,7 +1311,7 @@ entry_guard_selection_init(void)
     if (!sampled_guards)
         guard_selection_parse_sampled_guards_state(get_or_state(), 1, NULL);
 
-    entry_guard_selection = choose_entry_guard_algo_start(
+    return choose_entry_guard_algo_start(
         used_guards, sampled_guards,
         num_needed , for_directory);
 }
@@ -1322,6 +1321,7 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
+    (void) for_directory;
     //XXX This might not work. What guarantees we have that the previously
     //chosen guard meets all the constraints we have now. They can have
     //changed between last run and this run.
@@ -1343,7 +1343,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //circuits. The same entry guard will be used for all the circuits in this
     //batch until it fails.
     if (!entry_guard_selection)
-        entry_guard_selection_init();
+        entry_guard_selection = entry_guard_selection_init();
 
     //We can not choose guards yet, probably due not having enough guards
     //same as !router_have_minimum_dir_info()
@@ -1375,10 +1375,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
         *n_options_out = 0;
 
     //XXX see entry_guards_set_from_config(options);
-
-    const int num_needed = decide_num_guards(options, for_directory);
-    entry_guard_selection->for_directory = for_directory;
-    entry_guard_selection->num_primary_guards = num_needed;
 
     const node_t *chosen_exit =
         state ? build_state_get_exit_node(state) : NULL;
@@ -1418,7 +1414,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
 //XXX Add tests
 static void
-fill_in_from_entrynodes(const or_options_t *options, guardlist_t *dest)
+fill_in_from_entrynodes(guard_selection_t *guard_selection, const or_options_t *options, guardlist_t *dest)
 {
     tor_assert(dest);
 
@@ -1445,8 +1441,8 @@ fill_in_from_entrynodes(const or_options_t *options, guardlist_t *dest)
 
     //XXX split up old guards into two list according to
     //USED_GUARDS (sure ?) list
-    if (entry_guard_selection && entry_guard_selection->used_guards) {
-        SMARTLIST_FOREACH(entry_guard_selection->used_guards->list,
+    if (guard_selection && guard_selection->used_guards) {
+        SMARTLIST_FOREACH(guard_selection->used_guards->list,
             entry_guard_t *, e, {
             if (smartlist_contains_digest(entry_fps, e->identity))
                 smartlist_add(old_entry_guards_on_list, e);
@@ -1541,7 +1537,7 @@ known_entry_bridge(void){
 void
 guard_selection_fill_in_from_entrynodes(const or_options_t *options)
 {
-    fill_in_from_entrynodes(options, sampled_guards);
+    fill_in_from_entrynodes(entry_guard_selection, options, sampled_guards);
 }
 
 //XXX Add tests
@@ -1665,8 +1661,9 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
     router_set_status(digest, succeeded);
 
   changed = update_entry_guards_connection_status(entry, succeeded, now);
-  should_continue = decide_if_should_continue(entry, succeeded, now);
-
+  should_continue = decide_if_should_continue(entry_guard_selection, entry, succeeded, now);
+  if (!should_continue)
+      tor_free(entry_guard_selection);
   if (changed)
     entry_guards_changed();
 

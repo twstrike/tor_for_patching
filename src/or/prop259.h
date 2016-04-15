@@ -51,7 +51,7 @@ guardlist_len(const guardlist_t *gl);
 
 void guardlist_free(guardlist_t*);
 
-void
+guard_selection_t *
 entry_guard_selection_init(void);
 
 #define GUARDLIST_FOREACH(a, b, c, d) \
