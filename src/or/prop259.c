@@ -46,12 +46,13 @@
 static const entry_guard_t *pending_guard = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
-static guardlist_t *used_guards = NULL;
 static guardlist_t *sampled_guards = NULL;
 static smartlist_t *bridges = NULL;
 
 static int used_guards_dirty = 0;
 static int sampled_guards_dirty = 0;
+
+const double SAMPLE_SET_THRESHOLD = 0.02;
 
 guardlist_t*
 guardlist_new(void)
@@ -599,19 +600,18 @@ guard_selection_free(guard_selection_t *guard_selection)
 
     if (guard_selection->remaining_guards)
         smartlist_free(guard_selection->remaining_guards);
+
+    guard_selection->started = 0;
 }
 
-STATIC guard_selection_t*
-choose_entry_guard_algo_start(guardlist_t *used_guards,
+STATIC void
+choose_entry_guard_algo_start(const guard_selection_t *guard_selection,
                               const guardlist_t *sampled_guards,
                               int n_primary_guards,
                               int for_directory)
 {
-    guard_selection_t *guard_selection = tor_malloc_zero(
-        sizeof(guard_selection_t));
     guard_selection->for_directory = for_directory;
     guard_selection->state = STATE_PRIMARY_GUARDS;
-    guard_selection->used_guards = used_guards;
     guard_selection->num_primary_guards = n_primary_guards;
 
     //XXX is sampled_guards a list of guard or node?
@@ -623,10 +623,9 @@ choose_entry_guard_algo_start(guardlist_t *used_guards,
         "- sampled_guards: %p,\n"
         "- n_primary_guards: %d,\n"
         "- for_directory: %d\n",
-        used_guards, sampled_guards,
+        guard_selection->used_guards, sampled_guards,
         n_primary_guards, for_directory);
-
-    return guard_selection;
+    guard_selection->started = 1;
 }
 
 /* dest is a list of guards */
@@ -698,23 +697,6 @@ fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *nodes,
         guardlist_add(sample, entry_guard_new(node));
     }
     smartlist_free(remaining);
-}
-
-static void
-fill_in_sampled_sets(const smartlist_t *utopic_nodes)
-{
-    //XXX Extract a configuration from this
-    const double sample_set_threshold = 0.02;
-
-    tor_assert(sampled_guards);
-    fill_in_sampled_guard_set(sampled_guards, utopic_nodes,
-        sample_set_threshold * smartlist_len(utopic_nodes));
-
-    //XXX do this only when it changed
-    sampled_guards_changed();
-
-    log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
-        guardlist_len(sampled_guards), smartlist_len(utopic_nodes));
 }
 
 //XXX Add tests
@@ -1226,7 +1208,7 @@ sampled_guards_update_state(or_state_t *state, guardlist_t *sampled_guards)
 }
 
 static int
-decide_if_should_continue(guard_selection_t *guard_selection,const entry_guard_t *guard, int succeeded,
+decide_if_should_continue(guard_selection_t *guard_selection, int succeeded,
                           time_t now)
 {
     int should_continue = 0;
@@ -1245,15 +1227,6 @@ decide_if_should_continue(guard_selection_t *guard_selection,const entry_guard_t
         guard_selection, succeeded, now, internet_likely_down_interval);
 
     log_warn(LD_CIRC, "Should continue? %d", should_continue);
-
-    if (!should_continue) {
-        choose_entry_guard_algo_end(guard_selection, guard);
-        guard_selection_free(guard_selection);
-    } else {
-        //XXX entry_guard_register_connect_status() is smarter and only calls
-        //it when any guard has changed. We will get there.
-        used_guards_changed();
-    }
 
     return should_continue;
 }
@@ -1288,32 +1261,18 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 }
 
 //XXX Add tests
-STATIC guard_selection_t *
-entry_guard_selection_init(void)
+STATIC void
+guard_selection_ensure(guard_selection_t **guard_selection)
 {
 #ifndef USE_PROP_259
-    return NULL; //do nothing
+    return; //do nothing
 #endif
-
-    const or_options_t *options = get_options();
-    if (!router_have_minimum_dir_info() && !options->UseBridges) {
-        log_warn(LD_CIRC, "Cant initialize without a consensus.");
-        return NULL;
+    //XXX we can init other list here so that start is only a function for filling something
+    if (!*guard_selection){
+        guard_selection_t *new_guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+        new_guard_selection->used_guards = guardlist_new();
+        *guard_selection = new_guard_selection;
     }
-
-    const int for_directory = 0; //XXX how to get this at this moment?
-    const int num_needed = decide_num_guards(options, for_directory);
-
-    //XXX Is this the right place to ensure it is loaded from state file?
-    if (!used_guards)
-        guard_selection_parse_used_guards_state(get_or_state(), 1, NULL);
-
-    if (!sampled_guards)
-        guard_selection_parse_sampled_guards_state(get_or_state(), 1, NULL);
-
-    return choose_entry_guard_algo_start(
-        used_guards, sampled_guards,
-        num_needed , for_directory);
 }
 
 //XXX Add tests
@@ -1342,13 +1301,31 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //entry guard selection context should be the same for this batch of
     //circuits. The same entry guard will be used for all the circuits in this
     //batch until it fails.
-    if (!entry_guard_selection)
-        entry_guard_selection = entry_guard_selection_init();
-
-    //We can not choose guards yet, probably due not having enough guards
-    //same as !router_have_minimum_dir_info()
-    if (!entry_guard_selection)
-        return NULL;
+    guard_selection_ensure(&entry_guard_selection);
+    if (!entry_guard_selection->started){
+        const or_options_t *options = get_options();
+        const int num_needed = decide_num_guards(options, for_directory);
+        if (!router_have_minimum_dir_info() && !options->UseBridges) {
+            log_warn(LD_CIRC, "Cant initialize without a consensus.");
+            return NULL;
+        }
+        //XXX for_directory = 0 when we don't want to filter while start
+        for_directory = 0;
+        char *err = NULL;
+        if (guard_selection_parse_used_guards_state(get_or_state(), 1, &err)<0) {
+            log_err(LD_GENERAL,"%s",err);
+            tor_free(err);
+        }
+        if (!sampled_guards)
+          if (guard_selection_parse_sampled_guards_state(get_or_state(), 1, &err)<0) {
+            log_err(LD_GENERAL,"%s",err);
+            tor_free(err);
+          }
+        choose_entry_guard_algo_start(entry_guard_selection,
+                                      sampled_guards,
+                                      num_needed ,
+                                      for_directory);
+    }
 
     //XXX choose_good_entry_server() ignores:
     // - routers in the same family as the exit node
@@ -1561,14 +1538,15 @@ prune_guardlist(const time_t now, guardlist_t *gl)
 void
 entry_guards_update_profiles(const or_options_t *options, const time_t now)
 {
+    guard_selection_ensure(&entry_guard_selection);
     log_warn(LD_CIRC, "Received a new consensus");
     if (entry_list_is_constrained(options)){
         //We make have new info about EntryNodes refill it if possible
         if (options->EntryNodes)
             guard_selection_fill_in_from_entrynodes(options);
     } else{
-        if (used_guards)
-            prune_guardlist(now, used_guards);
+        if (entry_guard_selection->used_guards)
+            prune_guardlist(now, entry_guard_selection->used_guards);
 
         if (sampled_guards)
             prune_guardlist(now, sampled_guards);
@@ -1577,10 +1555,14 @@ entry_guards_update_profiles(const or_options_t *options, const time_t now)
         //guards, because most of the entry guards will be directory in
         //the near ideal future.
         int for_directory = 0;
+        smartlist_t *all_guards = get_all_guards(for_directory);
+        fill_in_sampled_guard_set(sampled_guards, all_guards,
+                SAMPLE_SET_THRESHOLD * smartlist_len(all_guards));
+        log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
+                guardlist_len(sampled_guards), smartlist_len(all_guards));
+        sampled_guards_changed();
 
-        smartlist_t *utopic = get_all_guards(for_directory);
-        fill_in_sampled_sets(utopic);
-        smartlist_free(utopic);
+        smartlist_free(all_guards);
 
     }
 }
@@ -1661,9 +1643,17 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
     router_set_status(digest, succeeded);
 
   changed = update_entry_guards_connection_status(entry, succeeded, now);
-  should_continue = decide_if_should_continue(entry_guard_selection, entry, succeeded, now);
-  if (!should_continue)
-      tor_free(entry_guard_selection);
+  should_continue = decide_if_should_continue(entry_guard_selection, succeeded, now);
+
+  if (!should_continue) {
+      choose_entry_guard_algo_end(entry_guard_selection, entry);
+      guard_selection_free(entry_guard_selection);
+  } else {
+      //XXX entry_guard_register_connect_status() is smarter and only calls
+      //it when any guard has changed. We will get there.
+      used_guards_changed();
+  }
+
   if (changed)
     entry_guards_changed();
 
@@ -1677,7 +1667,7 @@ guard_selection_update_state(or_state_t *state, const or_options_t *options)
         return;
 
     if (used_guards_dirty)
-        used_guards_update_state(state, used_guards);
+        used_guards_update_state(state, entry_guard_selection->used_guards);
 
     if (sampled_guards_dirty)
         sampled_guards_update_state(state, sampled_guards);
@@ -1755,11 +1745,6 @@ guard_selection_parse_used_guards_state(const or_state_t *state, int set,
 {
     log_warn(LD_CIRC, "Will load used guards from state file.");
 
-    if (set) {
-        tor_assert(!used_guards);
-        used_guards = guardlist_new();
-    }
-
     smartlist_t *guards = set ? smartlist_new() : NULL;
     int ret = entry_guards_parse_state_backward(state, guards, msg);
     if (ret == 0) {
@@ -1767,13 +1752,13 @@ guard_selection_parse_used_guards_state(const or_state_t *state, int set,
     }
 
     if (set && ret == 1) {
+        guardlist_t *used_guards = entry_guard_selection->used_guards;
         guardlist_add_all_smarlist(used_guards, guards);
         /* We have made contact to all USED_GUARDS */
         GUARDLIST_FOREACH(used_guards, entry_guard_t *, entry,
             entry->made_contact = 1;
         );
     }
-
     //XXX Parse sampled set
     //Should we update their
 

@@ -23,6 +23,7 @@ typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
 
+    int started;
     int for_directory;
     int num_primary_guards;
     time_t last_success;
@@ -115,12 +116,9 @@ guard_selection_fill_in_from_entrynodes(const or_options_t *options);
 
 #ifdef PROP259_PRIVATE
 
-STATIC guard_selection_t *
-entry_guard_selection_init(void);
-
 STATIC guard_selection_t*
 choose_entry_guard_algo_start(
-        guardlist_t *used_guards,
+        guard_selection_t *guard_selection,
         const guardlist_t *sampled_utopic_guards,
         int n_primary_guards,
         int dir);
@@ -141,6 +139,9 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 STATIC smartlist_t *
 filter_set(const guardlist_t *guards, smartlist_t *all_guards,
 	   int min_filtered_sample_size, int max_sample_size_threshold);
+
+STATIC void
+guard_selection_ensure(guard_selection_t **guard_selection);
 
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection);
