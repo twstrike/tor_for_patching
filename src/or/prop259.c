@@ -605,7 +605,7 @@ guard_selection_free(guard_selection_t *guard_selection)
 }
 
 STATIC void
-choose_entry_guard_algo_start(const guard_selection_t *guard_selection,
+choose_entry_guard_algo_start(guard_selection_t *guard_selection,
                               const guardlist_t *sampled_guards,
                               int n_primary_guards,
                               int for_directory)

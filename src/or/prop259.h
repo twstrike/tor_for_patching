@@ -116,12 +116,11 @@ guard_selection_fill_in_from_entrynodes(const or_options_t *options);
 
 #ifdef PROP259_PRIVATE
 
-STATIC guard_selection_t*
-choose_entry_guard_algo_start(
-        guard_selection_t *guard_selection,
-        const guardlist_t *sampled_utopic_guards,
-        int n_primary_guards,
-        int dir);
+STATIC void
+choose_entry_guard_algo_start(guard_selection_t *guard_selection,
+                              const guardlist_t *sampled_guards,
+                              int n_primary_guards,
+                              int for_directory);
 
 MOCK_DECL(STATIC int,
 is_bad,(const entry_guard_t *guard));
