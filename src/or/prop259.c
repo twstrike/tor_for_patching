@@ -46,7 +46,6 @@
 static const entry_guard_t *pending_guard = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
-static guardlist_t *sampled_guards = NULL;
 static smartlist_t *bridges = NULL;
 
 static int used_guards_dirty = 0;
@@ -606,7 +605,6 @@ guard_selection_free(guard_selection_t *guard_selection)
 
 STATIC void
 choose_entry_guard_algo_start(guard_selection_t *guard_selection,
-                              const guardlist_t *sampled_guards,
                               int n_primary_guards,
                               int for_directory)
 {
@@ -615,7 +613,7 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
     guard_selection->num_primary_guards = n_primary_guards;
 
     //XXX is sampled_guards a list of guard or node?
-    fill_in_remaining_guards(guard_selection, sampled_guards);
+    fill_in_remaining_guards(guard_selection, guard_selection->sampled_guards);
     fill_in_primary_guards(guard_selection);
 
     log_warn(LD_CIRC, "Initializing guard_selection:\n"
@@ -623,7 +621,7 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
         "- sampled_guards: %p,\n"
         "- n_primary_guards: %d,\n"
         "- for_directory: %d\n",
-        guard_selection->used_guards, sampled_guards,
+        guard_selection->used_guards, guard_selection->sampled_guards,
         n_primary_guards, for_directory);
     guard_selection->started = 1;
 }
@@ -1271,6 +1269,7 @@ guard_selection_ensure(guard_selection_t **guard_selection)
     if (!*guard_selection){
         guard_selection_t *new_guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
         new_guard_selection->used_guards = guardlist_new();
+        new_guard_selection->sampled_guards = guardlist_new();
         *guard_selection = new_guard_selection;
     }
 }
@@ -1316,13 +1315,11 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
             log_err(LD_GENERAL,"%s",err);
             tor_free(err);
         }
-        if (!sampled_guards)
-          if (guard_selection_parse_sampled_guards_state(get_or_state(), 1, &err)<0) {
+        if (guard_selection_parse_sampled_guards_state(get_or_state(), 1, &err)<0) {
             log_err(LD_GENERAL,"%s",err);
             tor_free(err);
-          }
+        }
         choose_entry_guard_algo_start(entry_guard_selection,
-                                      sampled_guards,
                                       num_needed ,
                                       for_directory);
     }
@@ -1502,7 +1499,7 @@ add_an_entry_bridge(node_t *node){
     if (!bridges) bridges = smartlist_new();
     if (!smartlist_contains(bridges, node->identity))
         smartlist_add(bridges, node);
-    fill_in_from_bridges(sampled_guards);
+    fill_in_from_bridges(entry_guard_selection->sampled_guards);
 }
 
 int
@@ -1514,7 +1511,7 @@ known_entry_bridge(void){
 void
 guard_selection_fill_in_from_entrynodes(const or_options_t *options)
 {
-    fill_in_from_entrynodes(entry_guard_selection, options, sampled_guards);
+    fill_in_from_entrynodes(entry_guard_selection, options, entry_guard_selection->sampled_guards);
 }
 
 //XXX Add tests
@@ -1548,18 +1545,18 @@ entry_guards_update_profiles(const or_options_t *options, const time_t now)
         if (entry_guard_selection->used_guards)
             prune_guardlist(now, entry_guard_selection->used_guards);
 
-        if (sampled_guards)
-            prune_guardlist(now, sampled_guards);
+        if (entry_guard_selection->sampled_guards)
+            prune_guardlist(now, entry_guard_selection->sampled_guards);
 
         //We recreate the sample sets without restricting to directory
         //guards, because most of the entry guards will be directory in
         //the near ideal future.
         int for_directory = 0;
         smartlist_t *all_guards = get_all_guards(for_directory);
-        fill_in_sampled_guard_set(sampled_guards, all_guards,
+        fill_in_sampled_guard_set(entry_guard_selection->sampled_guards, all_guards,
                 SAMPLE_SET_THRESHOLD * smartlist_len(all_guards));
         log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
-                guardlist_len(sampled_guards), smartlist_len(all_guards));
+                guardlist_len(entry_guard_selection->sampled_guards), smartlist_len(all_guards));
         sampled_guards_changed();
 
         smartlist_free(all_guards);
@@ -1670,7 +1667,7 @@ guard_selection_update_state(or_state_t *state, const or_options_t *options)
         used_guards_update_state(state, entry_guard_selection->used_guards);
 
     if (sampled_guards_dirty)
-        sampled_guards_update_state(state, sampled_guards);
+        sampled_guards_update_state(state, entry_guard_selection->sampled_guards);
 
     if (!options->AvoidDiskWrites)
         or_state_mark_dirty(state, 0);
@@ -1722,16 +1719,12 @@ guard_selection_parse_sampled_guards_state(const or_state_t *state, int set,
 {
     log_warn(LD_CIRC, "Will load sample set from state file.");
 
-    if (set) {
-        tor_assert(!sampled_guards);
-        sampled_guards = guardlist_new();
-    }
-
     smartlist_t *guards = set ? smartlist_new() : NULL;
     int ret = sampled_guards_parse_state(state, guards, msg);
 
     if (set && ret == 1) {
         //XXX Should we mark them as made_contact if they are also in used?
+        guardlist_t *sampled_guards = entry_guard_selection->sampled_guards;
         guardlist_add_all_smarlist(sampled_guards, guards);
     }
 

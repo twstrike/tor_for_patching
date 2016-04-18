@@ -40,6 +40,7 @@ typedef struct {
     //guards
     smartlist_t *primary_guards;
     guardlist_t *used_guards;
+    guardlist_t *sampled_guards;
 } guard_selection_t;
 
 guardlist_t* guardlist_new(void);
@@ -118,7 +119,6 @@ guard_selection_fill_in_from_entrynodes(const or_options_t *options);
 
 STATIC void
 choose_entry_guard_algo_start(guard_selection_t *guard_selection,
-                              const guardlist_t *sampled_guards,
                               int n_primary_guards,
                               int for_directory);
 
