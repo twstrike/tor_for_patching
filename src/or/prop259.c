@@ -43,7 +43,6 @@
 //XXX Find the appropriate place for this global state
 
 /** Entry guard selection algorithm **/
-static const entry_guard_t *pending_guard = NULL;
 static guard_selection_t *entry_guard_selection = NULL;
 
 static smartlist_t *bridges = NULL;
@@ -1270,10 +1269,16 @@ guard_selection_ensure(guard_selection_t **guard_selection)
     //XXX we can init other list here so that start is only a function for filling something
     if (!*guard_selection){
         guard_selection_t *new_guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
-        new_guard_selection->used_guards = guardlist_new();
-        new_guard_selection->sampled_guards = guardlist_new();
+
         new_guard_selection->state = STATE_INIT;
         new_guard_selection->previous_state = STATE_INIT;
+
+        new_guard_selection->used_guards = guardlist_new();
+        new_guard_selection->sampled_guards = guardlist_new();
+
+        new_guard_selection->pending_guard = NULL;
+        new_guard_selection->pending_dir_guard = NULL;
+
         *guard_selection = new_guard_selection;
     }
 }
@@ -1283,14 +1288,14 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
-    (void) for_directory;
     //XXX This might not work. What guarantees we have that the previously
     //chosen guard meets all the constraints we have now. They can have
     //changed between last run and this run.
     //If pending_guard exist we keep using it until there is a feedback on
     //the connection.
-    if (pending_guard) {
-        const node_t *node = node_get_by_id(pending_guard->identity);
+    guard_selection_ensure(&entry_guard_selection);
+    if (!for_directory && entry_guard_selection->pending_guard) {
+        const node_t *node = node_get_by_id(entry_guard_selection->pending_guard->identity);
         if (node) {
             log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
                 node_describe(node));
@@ -1298,13 +1303,24 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
         }
 
         //XXX should it also restart the guard selection state?
-        pending_guard = NULL;
+        entry_guard_selection->pending_guard = NULL;
+    }
+
+    if (for_directory && entry_guard_selection->pending_dir_guard) {
+        const node_t *node = node_get_by_id(entry_guard_selection->pending_dir_guard->identity);
+        if (node) {
+            log_warn(LD_CIRC, "Reuse %s as dir entry guard for this circuit.",
+                node_describe(node));
+            return node;
+        }
+
+        //XXX should it also restart the guard selection state?
+        entry_guard_selection->pending_dir_guard = NULL;
     }
 
     //entry guard selection context should be the same for this batch of
     //circuits. The same entry guard will be used for all the circuits in this
     //batch until it fails.
-    guard_selection_ensure(&entry_guard_selection);
     if (entry_guard_selection->state == STATE_INIT){
         const or_options_t *options = get_options();
         const int num_needed = decide_num_guards(options, for_directory);
@@ -1365,6 +1381,10 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (!guard)
         goto retry;
 
+    //XXX for_directory and is_suitable have some duplication
+    if (for_directory && !guard->is_dir_cache)
+        goto retry;
+
     // Guard is not in the consensus anymore. Not sure if this is possible
     node = guard_to_node(guard);
     tor_assert(node);
@@ -1383,7 +1403,10 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (n_options_out)
         *n_options_out = 1;
 
-    pending_guard = guard;
+    if (for_directory)
+        entry_guard_selection->pending_dir_guard = guard;
+    else
+        entry_guard_selection->pending_guard = guard;
     return node;
 }
 
@@ -1621,19 +1644,20 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   int should_continue = 0;
   entry_guard_t *entry = NULL;
 
-  if (!pending_guard)
+  guard_selection_ensure(&entry_guard_selection);
+  if (!entry_guard_selection->pending_guard)
       return 0;
 
   // This is not the guard we are waiting for
-  if (!fast_memeq(pending_guard->identity, digest, DIGEST_LEN))
+  if (!fast_memeq(entry_guard_selection->pending_guard->identity, digest, DIGEST_LEN))
       return 0;
 
   /* Process the pending gaurd */
-  entry = (entry_guard_t*) pending_guard;
+  entry = (entry_guard_t*) entry_guard_selection->pending_guard;
 
   //XXX We need to find a way to clear this when this callback is not
   //invoked (when there is already a connection established to this guard)
-  pending_guard = NULL;
+  entry_guard_selection->pending_guard = NULL;
 
   log_warn(LD_CIRC, "Guard %s has succeeded = %d. Processing...",
       node_describe(guard_to_node(entry)), succeeded);
@@ -1727,6 +1751,7 @@ guard_selection_parse_sampled_guards_state(const or_state_t *state, int set,
     int ret = sampled_guards_parse_state(state, guards, msg);
 
     if (set && ret == 1) {
+        guard_selection_ensure(&entry_guard_selection);
         //XXX Should we mark them as made_contact if they are also in used?
         guardlist_t *sampled_guards = entry_guard_selection->sampled_guards;
         guardlist_add_all_smarlist(sampled_guards, guards);
@@ -1749,6 +1774,7 @@ guard_selection_parse_used_guards_state(const or_state_t *state, int set,
     }
 
     if (set && ret == 1) {
+        guard_selection_ensure(&entry_guard_selection);
         guardlist_t *used_guards = entry_guard_selection->used_guards;
         guardlist_add_all_smarlist(used_guards, guards);
         /* We have made contact to all USED_GUARDS */
