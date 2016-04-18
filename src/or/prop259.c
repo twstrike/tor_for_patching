@@ -255,7 +255,8 @@ mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 static void
 transition_to_previous_state_or_try_remaining(guard_selection_t *guard_selection)
 {
-    if (guard_selection->previous_state != STATE_INVALID) {
+    if (guard_selection->previous_state != STATE_INVALID &&
+        guard_selection->previous_state != STATE_INIT) {
         log_warn(LD_CIRC, "Going back to previous state");
         transition_to(guard_selection, guard_selection->previous_state);
     } else {
@@ -293,6 +294,9 @@ transition_to(guard_selection_t *guard_selection,
     switch (state) {
     case STATE_INVALID:
         log_warn(LD_CIRC, "Transitioned to INVALID_STATE.");
+        return;
+    case STATE_INIT:
+        log_warn(LD_CIRC, "Transitioned to INIT_STATE.");
         return;
     case STATE_PRIMARY_GUARDS:
         log_warn(LD_CIRC, "Transitioned to STATE_PRIMARY_GUARDS.");
@@ -491,6 +495,7 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 
     switch (guard_selection->state) {
     case STATE_INVALID:
+    case STATE_INIT:
         tor_assert(NULL); //XXX how to panic?
         return NULL;
     case STATE_PRIMARY_GUARDS:
@@ -600,7 +605,8 @@ guard_selection_free(guard_selection_t *guard_selection)
     if (guard_selection->remaining_guards)
         smartlist_free(guard_selection->remaining_guards);
 
-    guard_selection->started = 0;
+    guard_selection->state = STATE_INIT;
+    guard_selection->previous_state = STATE_INIT;
 }
 
 STATIC void
@@ -623,7 +629,6 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
         "- for_directory: %d\n",
         guard_selection->used_guards, guard_selection->sampled_guards,
         n_primary_guards, for_directory);
-    guard_selection->started = 1;
 }
 
 /* dest is a list of guards */
@@ -1262,14 +1267,13 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 STATIC void
 guard_selection_ensure(guard_selection_t **guard_selection)
 {
-#ifndef USE_PROP_259
-    return; //do nothing
-#endif
     //XXX we can init other list here so that start is only a function for filling something
     if (!*guard_selection){
         guard_selection_t *new_guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
         new_guard_selection->used_guards = guardlist_new();
         new_guard_selection->sampled_guards = guardlist_new();
+        new_guard_selection->state = STATE_INIT;
+        new_guard_selection->previous_state = STATE_INIT;
         *guard_selection = new_guard_selection;
     }
 }
@@ -1301,7 +1305,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //circuits. The same entry guard will be used for all the circuits in this
     //batch until it fails.
     guard_selection_ensure(&entry_guard_selection);
-    if (!entry_guard_selection->started){
+    if (entry_guard_selection->state == STATE_INIT){
         const or_options_t *options = get_options();
         const int num_needed = decide_num_guards(options, for_directory);
         if (!router_have_minimum_dir_info() && !options->UseBridges) {

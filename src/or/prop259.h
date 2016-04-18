@@ -10,7 +10,8 @@
 #ifndef TOR_GUARD_STATE_H
 #define TOR_GUARD_STATE_H
 typedef enum {
-    STATE_INVALID = 0,
+    STATE_INVALID = -1,
+    STATE_INIT,
     STATE_PRIMARY_GUARDS,
     STATE_TRY_REMAINING,
 } guard_selection_state_t;
