@@ -25,7 +25,6 @@ typedef struct {
     guard_selection_state_t previous_state;
 
     const entry_guard_t *pending_guard;
-    const entry_guard_t *pending_dir_guard;
 
     int started;
     int for_directory;

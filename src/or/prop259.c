@@ -1277,7 +1277,8 @@ guard_selection_ensure(guard_selection_t **guard_selection)
         new_guard_selection->sampled_guards = guardlist_new();
 
         new_guard_selection->pending_guard = NULL;
-        new_guard_selection->pending_dir_guard = NULL;
+        //XXX always require for_directory guards
+        new_guard_selection->for_directory = 1;
 
         *guard_selection = new_guard_selection;
     }
@@ -1294,7 +1295,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //If pending_guard exist we keep using it until there is a feedback on
     //the connection.
     guard_selection_ensure(&entry_guard_selection);
-    if (!for_directory && entry_guard_selection->pending_guard) {
+    if (entry_guard_selection->pending_guard) {
         const node_t *node = node_get_by_id(entry_guard_selection->pending_guard->identity);
         if (node) {
             log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
@@ -1304,18 +1305,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
         //XXX should it also restart the guard selection state?
         entry_guard_selection->pending_guard = NULL;
-    }
-
-    if (for_directory && entry_guard_selection->pending_dir_guard) {
-        const node_t *node = node_get_by_id(entry_guard_selection->pending_dir_guard->identity);
-        if (node) {
-            log_warn(LD_CIRC, "Reuse %s as dir entry guard for this circuit.",
-                node_describe(node));
-            return node;
-        }
-
-        //XXX should it also restart the guard selection state?
-        entry_guard_selection->pending_dir_guard = NULL;
     }
 
     //entry guard selection context should be the same for this batch of
@@ -1328,8 +1317,8 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
             log_warn(LD_CIRC, "Cant initialize without a consensus.");
             return NULL;
         }
-        //XXX for_directory = 0 when we don't want to filter while start
-        for_directory = 0;
+        //XXX for_directory = 1 when we do want to filter while start
+        for_directory = 1;
         char *err = NULL;
         if (guard_selection_parse_used_guards_state(get_or_state(), 1, &err)<0) {
             log_err(LD_GENERAL,"%s",err);
@@ -1381,10 +1370,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (!guard)
         goto retry;
 
-    //XXX for_directory and is_suitable have some duplication
-    if (for_directory && !guard->is_dir_cache)
-        goto retry;
-
     // Guard is not in the consensus anymore. Not sure if this is possible
     node = guard_to_node(guard);
     tor_assert(node);
@@ -1403,10 +1388,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (n_options_out)
         *n_options_out = 1;
 
-    if (for_directory)
-        entry_guard_selection->pending_dir_guard = guard;
-    else
-        entry_guard_selection->pending_guard = guard;
+    entry_guard_selection->pending_guard = guard;
     return node;
 }
 
@@ -1578,8 +1560,7 @@ entry_guards_update_profiles(const or_options_t *options, const time_t now)
         //We recreate the sample sets without restricting to directory
         //guards, because most of the entry guards will be directory in
         //the near ideal future.
-        int for_directory = 0;
-        smartlist_t *all_guards = get_all_guards(for_directory);
+        smartlist_t *all_guards = get_all_guards(entry_guard_selection->for_directory);
         fill_in_sampled_guard_set(entry_guard_selection->sampled_guards, all_guards,
                 SAMPLE_SET_THRESHOLD * smartlist_len(all_guards));
         log_warn(LD_CIRC, "We sampled %d from %d utopic guards",
