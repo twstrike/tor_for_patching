@@ -435,8 +435,18 @@ state_TRY_REMAINING_next(guard_selection_t *guard_selection)
 
     log_warn(LD_CIRC, "Will try REMAINING_REMAINING_GUARDS.");
 
+    if (guard_selection->pending_guard) {
+        const node_t *node = node_get_by_id(guard_selection->pending_guard->identity);
+        if (node) {
+            log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
+                node_describe(node));
+            return guard_selection->pending_guard;
+        }
+    }
+
     guard = each_remaining_guard_by_bandwidth(guard_selection);
     if (guard) {
+        guard_selection->pending_guard = guard;
         return guard;
     }
 
@@ -1304,17 +1314,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //If pending_guard exist we keep using it until there is a feedback on
     //the connection.
     guard_selection_ensure(&entry_guard_selection);
-    if (entry_guard_selection->pending_guard && entry_guard_selection->state == STATE_TRY_REMAINING) {
-        const node_t *node = node_get_by_id(entry_guard_selection->pending_guard->identity);
-        if (node) {
-            log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
-                node_describe(node));
-            return node;
-        }
-
-        //XXX should it also restart the guard selection state?
-        entry_guard_selection->pending_guard = NULL;
-    }
 
     //entry guard selection context should be the same for this batch of
     //circuits. The same entry guard will be used for all the circuits in this
@@ -1397,7 +1396,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     if (n_options_out)
         *n_options_out = 1;
 
-    entry_guard_selection->pending_guard = guard;
     return node;
 }
 

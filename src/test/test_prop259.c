@@ -609,12 +609,14 @@ test_TRY_REMAINING_returns_each_REMAINING_GUARD_by_bandwidth_weights(void *arg)
     tt_ptr_op(chosen, OP_EQ, g2);
 
     chosen->unreachable_since = 1;
+    guard_selection->pending_guard = NULL;
     chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(chosen, OP_EQ, g3);
     tt_assert(!smartlist_contains(guard_selection->remaining_guards,
         g2));
 
     chosen->unreachable_since = 1;
+    guard_selection->pending_guard = NULL;
     chosen = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(chosen, OP_EQ, NULL);
     tt_assert(!smartlist_contains(guard_selection->remaining_guards,
