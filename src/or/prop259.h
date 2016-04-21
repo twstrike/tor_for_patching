@@ -183,6 +183,10 @@ entry_guards_parse_state_backward(const or_state_t *state,
 STATIC void
 used_guards_update_state(or_state_t *state, guardlist_t *used_guards);
 
+MOCK_DECL(
+STATIC entry_guard_t*,
+find_guard_by_node,(smartlist_t *guards, const node_t *node));
+
 #endif
 
 #endif

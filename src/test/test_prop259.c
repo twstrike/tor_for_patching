@@ -91,10 +91,10 @@ is_live_mock(const entry_guard_t *guard)
 }
 
 static entry_guard_t*
-each_remaining_by_bandwidth_mock(smartlist_t *guards, int for_directory)
+find_guard_by_node_mock(smartlist_t *guards, const node_t *node)
 {
   (void) guards;
-  (void) for_directory;
+  (void) node;
 
   return tor_malloc_zero(sizeof(entry_guard_t));
 }
@@ -110,7 +110,7 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     guard_selection_t *guard_selection = NULL;
     (void) arg;
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     int n_primary_guards = 0;
@@ -124,7 +124,7 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
 
   done:
-    UNMOCK(each_remaining_by_bandwidth);
+    UNMOCK(find_guard_by_node);
     UNMOCK(is_live);
     guard_selection_free(guard_selection);
     tor_free(guard_selection);
@@ -271,7 +271,7 @@ test_fill_in_remaining_guards(void *arg)
     node_t *node2 = smartlist_get(our_nodelist, 1);
     node_t *node3 = smartlist_get(our_nodelist, 2);
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     g2 = entry_guard_new(node2);
@@ -297,7 +297,7 @@ test_fill_in_remaining_guards(void *arg)
 
   done:
     UNMOCK(is_live);
-    UNMOCK(each_remaining_by_bandwidth);
+    UNMOCK(find_guard_by_node);
     tor_free(g2);
     guardlist_free(used);
     guardlist_free(sampled);
@@ -314,7 +314,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
     int n_primary_guards = 0;
     int dir = 0;
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     guard_selection_ensure(&guard_selection);
@@ -329,7 +329,7 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 
   done:
     UNMOCK(is_live);
-    UNMOCK(each_remaining_by_bandwidth);
+    UNMOCK(find_guard_by_node);
     guard_selection_free(guard_selection);
     tor_free(guard_selection);
 }
@@ -399,7 +399,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
     (void) arg;
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_bad, is_bad_mock);
     MOCK(is_live, is_live_mock);
 
@@ -433,7 +433,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
   done:
     UNMOCK(is_live);
     UNMOCK(is_bad);
-    UNMOCK(each_remaining_by_bandwidth);
+    UNMOCK(find_guard_by_node);
     tor_free(entry1);
     tor_free(entry2);
     tor_free(options);
@@ -453,7 +453,7 @@ test_PRIMARY_GUARDS_transitions_to_TRY_REMAINING_when_theres_not_previous_state(
     int dir = 0;
 
     MOCK(is_live, is_live_mock);
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
 
     guard_selection_ensure(&guard_selection);
     choose_entry_guard_algo_start(
@@ -466,7 +466,7 @@ test_PRIMARY_GUARDS_transitions_to_TRY_REMAINING_when_theres_not_previous_state(
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_REMAINING);
 
   done:
-    UNMOCK(each_remaining_by_bandwidth);
+    UNMOCK(find_guard_by_node);
     UNMOCK(is_live);
     guard_selection_free(guard_selection);
     tor_free(guard_selection);
@@ -483,7 +483,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     int n_primary_guards = 0;
     int dir = 0;
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     guard_selection_ensure(&guard_selection);
@@ -498,7 +498,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     tt_int_op(guard_selection->state, OP_EQ, STATE_TRY_REMAINING);
 
   done:
-    UNMOCK(each_remaining_by_bandwidth);
+    UNMOCK(find_guard_by_node);
     UNMOCK(is_live);
     guard_selection_free(guard_selection);
     tor_free(guard_selection);
@@ -518,7 +518,7 @@ test_TRY_REMAINING_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
 
     MOCK(is_bad, is_bad_mock);
     MOCK(is_live, is_live_mock);
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
 
     g1 = tor_malloc_zero(sizeof(entry_guard_t));
     g2 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -555,7 +555,7 @@ test_TRY_REMAINING_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
   done:
     UNMOCK(is_live);
     UNMOCK(is_bad);
-    UNMOCK(each_remaining_by_bandwidth);
+    UNMOCK(find_guard_by_node);
     tor_free(g1);
     tor_free(g2);
     tor_free(g3);
@@ -1011,7 +1011,7 @@ test_should_filter_out_not_is_live_guard(void *arg)
     guardlist_add(guards, g1);
     guardlist_add(guards, g2);
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     smartlist_t *filteredset = filter_set(guards, smartlist_new(), 1, 1);
@@ -1019,7 +1019,7 @@ test_should_filter_out_not_is_live_guard(void *arg)
 
  done:
   UNMOCK(is_live);
-  UNMOCK(each_remaining_by_bandwidth);
+  UNMOCK(find_guard_by_node);
   tor_free(guards);
   tor_free(filteredset);
 }
@@ -1027,28 +1027,28 @@ test_should_filter_out_not_is_live_guard(void *arg)
 static void
 test_should_expand_when_filtered_guards_lower_than_min(void *arg)
 {
-    guardlist_t *guards = guardlist_new();
+    guardlist_t *sampled_guards = guardlist_new();
     entry_guard_t *g1 = tor_malloc_zero(sizeof(entry_guard_t));
     entry_guard_t *g2 = tor_malloc_zero(sizeof(entry_guard_t));
     smartlist_t *all_guards = smartlist_new();
     (void) arg;
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
-    guardlist_add(guards, g1);
-    guardlist_add(guards, g2);
+    guardlist_add(sampled_guards, g1);
+    guardlist_add(sampled_guards, g2);
 
     int min_sample_size = 3;
 
-    smartlist_t *filtered = filter_set(guards, all_guards, min_sample_size, 2 * guardlist_len(guards));
+    smartlist_t *filtered = filter_set(sampled_guards, all_guards, min_sample_size, 2 * guardlist_len(sampled_guards));
 
     tt_int_op(smartlist_len(filtered), OP_EQ, 3);
 
  done:
   UNMOCK(is_live);
-  UNMOCK(each_remaining_by_bandwidth);
-  tor_free(guards);
+  UNMOCK(find_guard_by_node);
+  tor_free(sampled_guards);
   smartlist_free(filtered);
   smartlist_free(all_guards);
 }
@@ -1062,7 +1062,7 @@ test_should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max(voi
     smartlist_t *all_guards = smartlist_new();
     (void) arg;
 
-    MOCK(each_remaining_by_bandwidth, each_remaining_by_bandwidth_mock);
+    MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     guardlist_add(guards, g1);
@@ -1079,7 +1079,7 @@ test_should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max(voi
 
  done:
   UNMOCK(is_live);
-  UNMOCK(each_remaining_by_bandwidth);
+  UNMOCK(find_guard_by_node);
   tor_free(guards);
   smartlist_free(filtered);
   smartlist_free(all_guards);

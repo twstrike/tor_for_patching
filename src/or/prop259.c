@@ -172,8 +172,10 @@ MOCK_IMPL(STATIC int,
 is_live,(const entry_guard_t *guard))
 {
     const char *msg = NULL;
-    //We ignored need_capacity and need_bandwidth and for_directory
-    return entry_is_live(guard, 0, &msg) == NULL ? 0 : 1;
+    entry_is_live_flags_t entry_flags = 0;
+    entry_flags |= ENTRY_NEED_UPTIME;
+    entry_flags |= ENTRY_NEED_CAPACITY;
+    return entry_is_live(guard, entry_flags, &msg) == NULL ? 0 : 1;
 }
 
 MOCK_IMPL(STATIC int,
@@ -385,13 +387,7 @@ MOCK_IMPL(STATIC entry_guard_t*, each_remaining_by_bandwidth,
         /** Find the guard (again) **/
         //XXX it is easier to go from guard to node than the other way around
         //because there is a global node list.
-        entry_guard_t *g = NULL;
-        SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-            if (fast_memeq(e->identity, node->identity, DIGEST_LEN)) {
-                g = e;
-                break;
-            }
-        } SMARTLIST_FOREACH_END(e);
+        entry_guard_t *g = find_guard_by_node(guards, node);
 
         tor_assert(g);
         choose_as_new_entry_guard((node_t*) node);
@@ -528,12 +524,17 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
             return NULL;
         }
 
-        guardlist_t *extended = guardlist_new();
-        guardlist_add_all_smarlist(extended, sampled_guards->list);
-        entry_guard_t *ng = each_remaining_by_bandwidth(all_guards, 0);
-        guardlist_add(extended, ng);
+        smartlist_t *all_nodes = smartlist_new();
+        smartlist_subtract(all_guards,sampled_guards->list);
+        guards_to_nodes(all_nodes, all_guards);
+
+        const node_t * node = next_node_by_bandwidth(all_nodes);
+        entry_guard_t *ng = find_guard_by_node(all_guards, node);
+        smartlist_add(sampled_guards->list, ng);
+        smartlist_free(all_nodes);
+
         return filter_set(
-                extended,
+                sampled_guards,
                 all_guards,
                 min_filtered_sample_size,
                 max_sample_size_threshold
@@ -670,16 +671,24 @@ next_primary_guard(guard_selection_t *guard_selection)
     choose_as_new_entry_guard((node_t*) node);
 
     /** Remove from remaining **/
+    entry_guard_t *guard = find_guard_by_node(
+            guard_selection->remaining_guards,
+            node);
+    smartlist_remove(guard_selection->remaining_guards, guard);
+
+    return guard;
+}
+
+MOCK_IMPL(
+STATIC entry_guard_t*,
+find_guard_by_node, (smartlist_t *guards, const node_t *node)){
     entry_guard_t *guard = NULL;
-    SMARTLIST_FOREACH_BEGIN(guard_selection->remaining_guards,
-        entry_guard_t *, e) {
+    SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
         if (fast_memeq(e->identity, node->identity, DIGEST_LEN)) {
             guard = e;
-            SMARTLIST_DEL_CURRENT(guard_selection->remaining_guards, e);
             break;
         }
     } SMARTLIST_FOREACH_END(e);
-
     return guard;
 }
 
@@ -1295,7 +1304,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //If pending_guard exist we keep using it until there is a feedback on
     //the connection.
     guard_selection_ensure(&entry_guard_selection);
-    if (entry_guard_selection->pending_guard) {
+    if (entry_guard_selection->pending_guard && entry_guard_selection->state == STATE_TRY_REMAINING) {
         const node_t *node = node_get_by_id(entry_guard_selection->pending_guard->identity);
         if (node) {
             log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
