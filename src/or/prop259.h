@@ -24,8 +24,6 @@ typedef struct {
     guard_selection_state_t state;
     guard_selection_state_t previous_state;
 
-    entry_guard_t *pending_guard;
-
     int started;
     int for_directory;
     int num_primary_guards;
@@ -130,9 +128,6 @@ is_bad,(const entry_guard_t *guard));
 
 MOCK_DECL(STATIC int,
 is_live,(const entry_guard_t *guard));
-
-MOCK_DECL(STATIC entry_guard_t*, each_remaining_by_bandwidth,
-	  (smartlist_t *guards, int for_directory));
 
 STATIC entry_guard_t *
 choose_entry_guard_algo_next(guard_selection_t *guard_selection,

@@ -62,10 +62,10 @@ guardlist_new(void)
 }
 
 static entry_guard_t*
-guardlist_get_by_digest(const guardlist_t *guards, const char *digest)
+get_guard_by_digest(const smartlist_t *guards, const char *digest)
 {
     //XXX This could benefit from a hashmap
-    GUARDLIST_FOREACH(guards, entry_guard_t *, entry,
+    SMARTLIST_FOREACH(guards, entry_guard_t *, entry,
         if (tor_memeq(digest, entry->identity, DIGEST_LEN))
             return entry;
     );
@@ -367,59 +367,34 @@ choose_as_new_entry_guard(node_t *node)
     log_info(LD_CIRC, "Chose %s as new entry guard.", node_describe(node));
 }
 
-MOCK_IMPL(STATIC entry_guard_t*, each_remaining_by_bandwidth,
-	  (smartlist_t *guards, int for_directory))
+static entry_guard_t*
+next_remaining_guard(guard_selection_t* guard_selection)
 {
     char buf[HEX_DIGEST_LEN+1];
     entry_guard_t *guard = NULL;
-    smartlist_t *remaining_nodes = smartlist_new();
 
-    log_warn(LD_CIRC, "There are %d candidates", smartlist_len(guards));
+    log_warn(LD_CIRC, "There are %d candidates", smartlist_len(guard_selection->remaining_guards));
 
-    guards_to_nodes(remaining_nodes, guards);
-
-    while (smartlist_len(remaining_nodes) > 0) {
-        //XXX It would be easier if it worked on a smartlist of guards
-        const node_t *node = next_node_by_bandwidth(remaining_nodes);
-        if (!node)
-            break;
-
-        /** Find the guard (again) **/
-        //XXX it is easier to go from guard to node than the other way around
-        //because there is a global node list.
-        entry_guard_t *g = find_guard_by_node(guards, node);
-
-        tor_assert(g);
-        choose_as_new_entry_guard((node_t*) node);
-
+    SMARTLIST_FOREACH_BEGIN(guard_selection->remaining_guards, entry_guard_t *, g) {
         base16_encode(buf, sizeof(buf), g->identity, DIGEST_LEN);
         log_warn(LD_CIRC, "Evaluating '%s' (%s)", g->nickname, buf);
 
         if (!is_live(g)) {
             log_warn(LD_CIRC, "  Removing (not live).");
-            smartlist_remove(guards, g);
+            SMARTLIST_DEL_CURRENT(guard_selection->remaining_guards, g);
             continue;
         }
 
-        if (!is_eligible(g, for_directory)) {
+        if (!is_eligible(g, guard_selection->for_directory)) {
             log_warn(LD_CIRC, "  Ignoring (not eligible).");
             continue;
         }
 
         guard = g;
         break;
-    }
+    } SMARTLIST_FOREACH_END(g);
 
-    tor_free(remaining_nodes);
     return guard;
-}
-
-static entry_guard_t*
-each_remaining_guard_by_bandwidth(guard_selection_t* guard_selection)
-{
-    return each_remaining_by_bandwidth(
-                   guard_selection->remaining_guards,
-                   guard_selection->for_directory);
 }
 
 static entry_guard_t*
@@ -435,18 +410,8 @@ state_TRY_REMAINING_next(guard_selection_t *guard_selection)
 
     log_warn(LD_CIRC, "Will try REMAINING_REMAINING_GUARDS.");
 
-    if (guard_selection->pending_guard) {
-        const node_t *node = node_get_by_id(guard_selection->pending_guard->identity);
-        if (node) {
-            log_warn(LD_CIRC, "Reuse %s as entry guard for this circuit.",
-                node_describe(node));
-            return guard_selection->pending_guard;
-        }
-    }
-
-    guard = each_remaining_guard_by_bandwidth(guard_selection);
+    guard = next_remaining_guard(guard_selection);
     if (guard) {
-        guard_selection->pending_guard = guard;
         return guard;
     }
 
@@ -1295,7 +1260,6 @@ guard_selection_ensure(guard_selection_t **guard_selection)
         new_guard_selection->used_guards = guardlist_new();
         new_guard_selection->sampled_guards = guardlist_new();
 
-        new_guard_selection->pending_guard = NULL;
         //XXX always require for_directory guards
         new_guard_selection->for_directory = 1;
 
@@ -1311,8 +1275,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //XXX This might not work. What guarantees we have that the previously
     //chosen guard meets all the constraints we have now. They can have
     //changed between last run and this run.
-    //If pending_guard exist we keep using it until there is a feedback on
-    //the connection.
     guard_selection_ensure(&entry_guard_selection);
 
     //entry guard selection context should be the same for this batch of
@@ -1633,20 +1595,10 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   entry_guard_t *entry = NULL;
 
   guard_selection_ensure(&entry_guard_selection);
-  if (!entry_guard_selection->pending_guard)
-      return 0;
 
-  // This is not the guard we are waiting for
-  if (!fast_memeq(entry_guard_selection->pending_guard->identity, digest, DIGEST_LEN))
-      return 0;
-
-  /* Process the pending gaurd */
-  entry = (entry_guard_t*) entry_guard_selection->pending_guard;
-
-  //XXX We need to find a way to clear this when this callback is not
-  //invoked (when there is already a connection established to this guard)
-  entry_guard_selection->pending_guard = NULL;
-
+  /* Find the guard by digest */
+  entry = get_guard_by_digest(get_all_guards(entry_guard_selection->for_directory), digest);
+  if(!entry) return 0;
   log_warn(LD_CIRC, "Guard %s has succeeded = %d. Processing...",
       node_describe(guard_to_node(entry)), succeeded);
 
@@ -1690,15 +1642,6 @@ guard_selection_update_state(or_state_t *state, const or_options_t *options)
 
     used_guards_dirty = 0;
     sampled_guards_dirty = 0;
-}
-
-entry_guard_t *
-used_guard_get_by_digest(const char *digest)
-{
-    if (!entry_guard_selection)
-        return NULL;
-
-    return guardlist_get_by_digest(entry_guard_selection->used_guards, digest);
 }
 
 void
@@ -1892,3 +1835,11 @@ remove_dead_guards(time_t now, smartlist_t* guards)
     return changed ? 1 : 0;
 }
 
+entry_guard_t *
+used_guard_get_by_digest(const char *digest)
+{
+    if (!entry_guard_selection)
+        return NULL;
+
+    return get_guard_by_digest(entry_guard_selection->used_guards->list, digest);
+}
