@@ -51,6 +51,7 @@ static int used_guards_dirty = 0;
 static int sampled_guards_dirty = 0;
 
 const double SAMPLE_SET_THRESHOLD = 0.02;
+const PRIMARY_GUARDS_RETRY_INTERVAL = 3;
 
 guardlist_t*
 guardlist_new(void)
@@ -445,7 +446,7 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
     return;
 
   int retry_interval = options->PrimaryGuardsRetryInterval ?
-    options->PrimaryGuardsRetryInterval : 3;
+    options->PrimaryGuardsRetryInterval : PRIMARY_GUARDS_RETRY_INTERVAL;
   time_t primary_retry_time = now - retry_interval * 60;
 
   const smartlist_t *guards = guard_selection->primary_guards;
@@ -468,7 +469,8 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
   switch (guard_selection->state) {
   case STATE_INVALID:
   case STATE_INIT:
-    tor_assert(NULL); //XXX how to panic?
+    log_err(LD_BUG, "Invalid state for guard selection.");
+    tor_assert(0);
     return NULL;
   case STATE_PRIMARY_GUARDS:
     return state_PRIMARY_GUARDS_next(guard_selection);

@@ -4477,6 +4477,7 @@ typedef struct {
   /** Autobool: Do we try to retain capabilities if we can? */
   int KeepBindCapabilities;
 
+  /** How long (minutes) do we wanna to wait before to try this guard again */
   int PrimaryGuardsRetryInterval;
 } or_options_t;
 
