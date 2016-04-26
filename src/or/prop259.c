@@ -1291,7 +1291,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
   //batch until it fails.
   if (entry_guard_selection->state == STATE_INIT) {
     const or_options_t *options = get_options();
-    const int num_needed = decide_num_guards(options, for_directory);
+    const int num_needed = entry_list_is_constrained(options) ? 1 : 3;
     if (!router_have_minimum_dir_info() && !options->UseBridges) {
       log_warn(LD_CIRC, "Cant initialize without a consensus.");
       return NULL;
@@ -1622,7 +1622,7 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   entry = get_guard_by_digest(guards, digest);
   smartlist_free(guards);
 
-  if (!entry) return 0;
+  if (!entry || !guard_to_node(entry)) return 0;
   log_warn(LD_CIRC, "Guard %s has succeeded = %d. Processing...",
       node_describe(guard_to_node(entry)), succeeded);
 
