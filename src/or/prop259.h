@@ -135,7 +135,7 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
 
 STATIC smartlist_t *
 filter_set(const guardlist_t *guards, smartlist_t *all_guards,
-	   int min_filtered_sample_size, int max_sample_size_threshold);
+int min_filtered_sample_size, int max_sample_size_threshold);
 
 STATIC void
 guard_selection_ensure(guard_selection_t **guard_selection);

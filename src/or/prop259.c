@@ -252,7 +252,8 @@ mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 }
 
 static void
-transition_to_previous_state_or_try_remaining(guard_selection_t *guard_selection)
+transition_to_previous_state_or_try_remaining(
+                                            guard_selection_t *guard_selection)
 {
   if (guard_selection->previous_state != STATE_INVALID &&
     guard_selection->previous_state != STATE_INIT) {
@@ -371,9 +372,11 @@ next_remaining_guard(guard_selection_t* guard_selection)
   char buf[HEX_DIGEST_LEN+1];
   entry_guard_t *guard = NULL;
 
-  log_warn(LD_CIRC, "There are %d candidates", smartlist_len(guard_selection->remaining_guards));
+  log_warn(LD_CIRC, "There are %d candidates",
+          smartlist_len(guard_selection->remaining_guards));
 
-  SMARTLIST_FOREACH_BEGIN(guard_selection->remaining_guards, entry_guard_t *, g) {
+  SMARTLIST_FOREACH_BEGIN(guard_selection->remaining_guards,
+                          entry_guard_t *, g) {
     base16_encode(buf, sizeof(buf), g->identity, DIGEST_LEN);
     log_warn(LD_CIRC, "Evaluating '%s' (%s)", g->nickname, buf);
 
@@ -487,7 +490,7 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
       smartlist_add(filtered, guard);
   } GUARDLIST_FOREACH_END(guard);
 
-  if (smartlist_len(filtered) < min_filtered_sample_size){
+  if (smartlist_len(filtered) < min_filtered_sample_size) {
     log_warn(LD_CIRC,
             "size of sampled_guards %d\n",
             guardlist_len(sampled_guards));
@@ -523,7 +526,7 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
 
 static smartlist_t*
 filter_sampled(guard_selection_t *guard_selection,
-		 const guardlist_t *sampled_guards)
+              const guardlist_t *sampled_guards)
 {
   int min_filtered_guards = guard_selection->min_filtered_sample_size > 0
       ? guard_selection->min_filtered_sample_size
@@ -546,12 +549,14 @@ fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_guards)
 {
   guard_selection->remaining_guards = smartlist_new();
-  if (entry_list_is_constrained(get_options())){
-    smartlist_add_all(guard_selection->remaining_guards, sampled_guards->list);
+  if (entry_list_is_constrained(get_options())) {
+    smartlist_add_all(guard_selection->remaining_guards,
+                      sampled_guards->list);
   } else {
     smartlist_t *filtered = filter_sampled(guard_selection, sampled_guards);
     smartlist_subtract(filtered, guard_selection->used_guards->list);
-    if(filtered) smartlist_add_all(guard_selection->remaining_guards, filtered);
+    if (filtered)
+      smartlist_add_all(guard_selection->remaining_guards, filtered);
   }
 }
 
@@ -656,7 +661,8 @@ next_primary_guard(guard_selection_t *guard_selection)
 }
 
 MOCK_IMPL(STATIC entry_guard_t*,
-find_guard_by_node, (smartlist_t *guards, const node_t *node)){
+find_guard_by_node,(smartlist_t *guards, const node_t *node))
+{
   entry_guard_t *guard = NULL;
   SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
     if (fast_memeq(e->identity, node->identity, DIGEST_LEN)) {
@@ -1251,9 +1257,11 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 STATIC void
 guard_selection_ensure(guard_selection_t **guard_selection)
 {
-  //XXX we can init other list here so that start is only a function for filling something
-  if (!*guard_selection){
-    guard_selection_t *new_guard_selection = tor_malloc_zero(sizeof(guard_selection_t));
+  //XXX we can init other list here so that start is only a function for
+  //filling something
+  if (!*guard_selection) {
+    guard_selection_t *new_guard_selection = tor_malloc_zero(
+        sizeof(guard_selection_t));
 
     new_guard_selection->state = STATE_INIT;
     new_guard_selection->previous_state = STATE_INIT;
@@ -1281,7 +1289,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
   //entry guard selection context should be the same for this batch of
   //circuits. The same entry guard will be used for all the circuits in this
   //batch until it fails.
-  if (entry_guard_selection->state == STATE_INIT){
+  if (entry_guard_selection->state == STATE_INIT) {
     const or_options_t *options = get_options();
     const int num_needed = decide_num_guards(options, for_directory);
     if (!router_have_minimum_dir_info() && !options->UseBridges) {
@@ -1291,11 +1299,14 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     //XXX for_directory = 1 when we do want to filter while start
     for_directory = 1;
     char *err = NULL;
-    if (guard_selection_parse_used_guards_state(get_or_state(), 1, &err)<0) {
+    if (guard_selection_parse_used_guards_state(get_or_state(), 1, &err) < 0) {
       log_err(LD_GENERAL,"%s",err);
       tor_free(err);
     }
-    if (guard_selection_parse_sampled_guards_state(get_or_state(), 1, &err)<0) {
+
+    int result = guard_selection_parse_sampled_guards_state(get_or_state(),
+                                                            1, &err);
+    if (result < 0) {
       log_err(LD_GENERAL,"%s",err);
       tor_free(err);
     }
@@ -1367,7 +1378,8 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
 //XXX Add tests
 static void
-fill_in_from_entrynodes(guard_selection_t *guard_selection, const or_options_t *options, guardlist_t *dest)
+fill_in_from_entrynodes(guard_selection_t *guard_selection,
+                        const or_options_t *options, guardlist_t *dest)
 {
   tor_assert(dest);
 
@@ -1453,7 +1465,8 @@ fill_in_from_entrynodes(guard_selection_t *guard_selection, const or_options_t *
 }
 
 static void
-fill_in_from_bridges(guardlist_t *dest){
+fill_in_from_bridges(guardlist_t *dest)
+{
   tor_assert(dest);
   smartlist_t *sample = smartlist_new();
   if (bridges) {
@@ -1474,7 +1487,8 @@ fill_in_from_bridges(guardlist_t *dest){
 }
 
 void
-add_an_entry_bridge(node_t *node){
+add_an_entry_bridge(node_t *node)
+{
   if (!bridges) bridges = smartlist_new();
 
   if (!smartlist_contains(bridges, node->identity))
@@ -1483,7 +1497,8 @@ add_an_entry_bridge(node_t *node){
 }
 
 int
-known_entry_bridge(void){
+known_entry_bridge(void)
+{
   if (bridges && smartlist_len(bridges)) return 1;
 
   return 0;
@@ -1519,11 +1534,11 @@ entry_guards_update_profiles(const or_options_t *options, const time_t now)
 {
   guard_selection_ensure(&entry_guard_selection);
   log_warn(LD_CIRC, "Received a new consensus");
-  if (entry_list_is_constrained(options)){
+  if (entry_list_is_constrained(options)) {
     //We make have new info about EntryNodes refill it if possible
     if (options->EntryNodes)
         guard_selection_fill_in_from_entrynodes(options);
-  } else{
+  } else {
     if (entry_guard_selection->used_guards)
       prune_guardlist(now, entry_guard_selection->used_guards);
 
@@ -1603,8 +1618,11 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   guard_selection_ensure(&entry_guard_selection);
 
   /* Find the guard by digest */
-  entry = get_guard_by_digest(get_all_guards(entry_guard_selection->for_directory), digest);
-  if(!entry) return 0;
+  smartlist_t *guards = get_all_guards(entry_guard_selection->for_directory);
+  entry = get_guard_by_digest(guards, digest);
+  smartlist_free(guards);
+
+  if (!entry) return 0;
   log_warn(LD_CIRC, "Guard %s has succeeded = %d. Processing...",
       node_describe(guard_to_node(entry)), succeeded);
 
@@ -1614,7 +1632,8 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
     router_set_status(digest, succeeded);
 
   changed = update_entry_guards_connection_status(entry, succeeded, now);
-  should_continue = decide_if_should_continue(entry_guard_selection, succeeded, now);
+  should_continue = decide_if_should_continue(entry_guard_selection,
+                                              succeeded, now);
 
   if (!should_continue) {
     choose_entry_guard_algo_end(entry_guard_selection, entry);
@@ -1847,3 +1866,4 @@ used_guard_get_by_digest(const char *digest)
 
   return get_guard_by_digest(entry_guard_selection->used_guards->list, digest);
 }
+
