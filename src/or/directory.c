@@ -405,9 +405,10 @@ directory_pick_generic_dirserver(dirinfo_type_t type, int pds_flags,
 
   if (should_use_directory_guards(options)) {
     const node_t *node = choose_random_dirguard(type);
-    if (node){
-        log_warn(LD_DIR, "We got a guard for dir and will use it to connect dirserver.");
-        rs = node->rs;
+    if (node) {
+      log_warn(LD_DIR,
+        "We got a guard for dir and will use it to connect dirserver.");
+      rs = node->rs;
     }
   } else {
     /* anybody with a non-zero dirport will do */

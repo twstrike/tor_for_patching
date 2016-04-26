@@ -442,8 +442,7 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
 }
 
 static void
-test_PRIMARY_GUARDS_transitions_to_TRY_REMAINING_when_theres_not_previous_state(
-                                                                    void *arg)
+test_transitions_to_TRY_REMAINING_when_theres_not_previous_state(void *arg)
 {
     or_options_t *options = tor_malloc_zero(sizeof(or_options_t));
     (void) arg;
@@ -1041,7 +1040,8 @@ test_should_expand_when_filtered_guards_lower_than_min(void *arg)
 
     int min_sample_size = 3;
 
-    smartlist_t *filtered = filter_set(sampled_guards, all_guards, min_sample_size, 2 * guardlist_len(sampled_guards));
+    smartlist_t *filtered = filter_set(sampled_guards, all_guards,
+        min_sample_size, 2 * guardlist_len(sampled_guards));
 
     tt_int_op(smartlist_len(filtered), OP_EQ, 3);
 
@@ -1054,7 +1054,7 @@ test_should_expand_when_filtered_guards_lower_than_min(void *arg)
 }
 
 static void
-test_should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max(void *arg)
+test_should_not_expand_when_sampled_guards_reaches_max(void *arg)
 {
     guardlist_t *guards = guardlist_new();
     entry_guard_t *g1 = tor_malloc_zero(sizeof(entry_guard_t));
@@ -1119,8 +1119,8 @@ struct testcase_t entrynodes_new_tests[] = {
     { "STATE_PRIMARY_GUARDS_transitions_to_previous_state",
         test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one,
         0, NULL, NULL },
-    { "STATE_PRIMARY_GUARDS_transitions_to_STATE_TRY_REMAINING",
-  test_PRIMARY_GUARDS_transitions_to_TRY_REMAINING_when_theres_not_previous_state,
+    { "transitions_to_TRY_REMAINING_when_theres_not_previous_state",
+        test_transitions_to_TRY_REMAINING_when_theres_not_previous_state,
         0, NULL, NULL },
     { "STATE_TRY_REMAINING_returns_USED_NOT_PRIMARY",
         test_TRY_REMAINING_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS,
@@ -1149,9 +1149,10 @@ struct testcase_t entrynodes_new_tests[] = {
     { "should_expand_when_filtered_guards_lower_than_min",
       test_should_expand_when_filtered_guards_lower_than_min,
       0, NULL, NULL },
-    { "should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max",
-      test_should_not_expand_when_filtered_guards_lower_and_guards_higher_than_max,
+    { "test_should_not_expand_when_sampled_guards_reaches_max",
+      test_should_not_expand_when_sampled_guards_reaches_max,
       0, NULL, NULL },
 
     END_OF_TESTCASES
-};
+}
+
