@@ -79,7 +79,7 @@ update_entry_guards_connection_status(entry_guard_t *entry,
 
 int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
-          int succeeded, time_t now, int internet_likely_down_interval);
+                                        int succeeded, time_t now);
 
 int
 guard_selection_parse_used_guards_state(const or_state_t *state, int set,

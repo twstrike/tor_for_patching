@@ -673,7 +673,7 @@ test_choose_entry_guard_algo_should_continue_when_circuit_fails(void *arg)
     (void) arg;
 
     int should_continue = choose_entry_guard_algo_should_continue
-        (guard_selection, succeeded, now, 5);
+        (guard_selection, succeeded, now);
 
     tt_int_op(should_continue, OP_EQ, 1);
 
@@ -692,7 +692,7 @@ test_should_not_continue_when_circuit_succeeds_for_first_time(void *arg)
     (void) arg;
 
     int should_continue = choose_entry_guard_algo_should_continue
-        (guard_selection, succeeded, now, 5);
+        (guard_selection, succeeded, now);
 
     tt_int_op(should_continue, OP_EQ, 0);
 
@@ -712,9 +712,9 @@ test_should_continue_when_last_sucess_was_before_likely_down_interval(
     (void) arg;
 
     guard_selection->primary_guards = smartlist_new();
-    guard_selection->last_success = now - 61;
+    guard_selection->last_success = now - 301;
     int should_continue = choose_entry_guard_algo_should_continue
-        (guard_selection, succeeded, now, 1);
+        (guard_selection, succeeded, now);
 
     tt_int_op(should_continue, OP_EQ, 1);
 
@@ -736,7 +736,7 @@ test_should_not_continue_when_last_success_was_after_likely_down_interval(
     guard_selection->used_guards = guardlist_new();
     guard_selection->last_success = now - 60;
     int should_continue = choose_entry_guard_algo_should_continue
-        (guard_selection, succeeded, now, 1);
+        (guard_selection, succeeded, now);
 
     tt_int_op(should_continue, OP_EQ, 0);
 

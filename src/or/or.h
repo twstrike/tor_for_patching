@@ -4477,8 +4477,13 @@ typedef struct {
   /** Autobool: Do we try to retain capabilities if we can? */
   int KeepBindCapabilities;
 
-  /** How long (minutes) do we wanna to wait before to try this guard again */
+  /** How long (minutes) do we wanna to wait before to try to connect to a
+   * primary guard again? */
   int PrimaryGuardsRetryInterval;
+
+  /** How long (minutes) do we wanna to wait before to try another guard to
+   * build circuit? */
+  int InternetLikelyDownInterval;
 } or_options_t;
 
 /** Persistent state for an onion router, as saved to disk. */

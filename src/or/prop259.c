@@ -51,7 +51,8 @@ static int used_guards_dirty = 0;
 static int sampled_guards_dirty = 0;
 
 const double SAMPLE_SET_THRESHOLD = 0.02;
-const PRIMARY_GUARDS_RETRY_INTERVAL = 3;
+const int PRIMARY_GUARDS_RETRY_INTERVAL = 3;
+const int INTERNET_LIKELY_DOWN_INTERNAL= 5;
 
 guardlist_t*
 guardlist_new(void)
@@ -113,10 +114,9 @@ guardlist_free(guardlist_t *gl)
 #define FAST_GUARD_STATE_FLUSH_TIME 30
 
 static void
-used_guards_changed(void)
+guards_mark_dirty(void)
 {
   time_t when;
-  used_guards_dirty = 1;
 
   if (get_options()->AvoidDiskWrites)
     when = time(NULL) + SLOW_GUARD_STATE_FLUSH_TIME;
@@ -128,18 +128,17 @@ used_guards_changed(void)
 }
 
 static void
+used_guards_changed(void)
+{
+  used_guards_dirty = 1;
+  guards_mark_dirty();
+}
+
+static void
 sampled_guards_changed(void)
 {
-  time_t when;
   sampled_guards_dirty = 1;
-
-  if (get_options()->AvoidDiskWrites)
-    when = time(NULL) + SLOW_GUARD_STATE_FLUSH_TIME;
-  else
-    when = time(NULL) + FAST_GUARD_STATE_FLUSH_TIME;
-
-  /* or_state_save() will call guard_selection_update_state(). */
-  or_state_mark_dirty(get_or_state(), when);
+  guards_mark_dirty();
 }
 
 //XXX review if this is the right way of doing this
@@ -226,9 +225,9 @@ is_eligible(const entry_guard_t* guard, int for_directory)
 static void
 mark_for_retry(const smartlist_t *guards)
 {
-  SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
-    e->can_retry = 1;
-  } SMARTLIST_FOREACH_END(e);
+  SMARTLIST_FOREACH(guards, entry_guard_t *, e, {
+      e->can_retry = 1;
+  });
 }
 
 static void
@@ -1162,7 +1161,6 @@ guards_update_state(config_line_t **next, const guardlist_t *guards,
 }
 
 //XXX Add test
-//XXX Make it able to also save SampledGuards
 STATIC void
 used_guards_update_state(or_state_t *state, guardlist_t *used_guards)
 {
@@ -1200,16 +1198,13 @@ decide_if_should_continue(guard_selection_t *guard_selection, int succeeded,
 
   //XXX Is this possible?
   if (!guard_selection) {
-    log_warn(LD_CIRC, "We have no guard_selection algo."
+    log_warn(LD_BUG, "We have no guard_selection algo."
         " Should not continue.");
     return 0;
   }
 
-  //XXX add this to options
-  int internet_likely_down_interval = 5;
-
-  should_continue = choose_entry_guard_algo_should_continue(
-    guard_selection, succeeded, now, internet_likely_down_interval);
+  should_continue = choose_entry_guard_algo_should_continue(guard_selection,
+                                                            succeeded, now);
 
   log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
@@ -1221,7 +1216,7 @@ decide_if_should_continue(guard_selection_t *guard_selection, int succeeded,
 
 int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
-          int succeeded, time_t now, int internet_likely_down_interval)
+                                        int succeeded, time_t now)
 {
   if (!succeeded) {
     log_warn(LD_CIRC, "Did not succeeded.");
@@ -1230,6 +1225,11 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
 
   int should_continue = 0;
   time_t last_success = guard_selection->last_success;
+
+  const or_options_t *options = get_options();
+  int internet_likely_down_interval = options->InternetLikelyDownInterval
+    ? options->InternetLikelyDownInterval : INTERNET_LIKELY_DOWN_INTERNAL;
+
   if (last_success &&
     now - last_success > internet_likely_down_interval * 60) {
     log_warn(LD_CIRC, "Discarding circuit after %d minutes without "
@@ -1260,7 +1260,7 @@ guard_selection_ensure(guard_selection_t **guard_selection)
     new_guard_selection->used_guards = guardlist_new();
     new_guard_selection->sampled_guards = guardlist_new();
 
-    //XXX always require for_directory guards
+    //We are going to use only directory guards
     new_guard_selection->for_directory = 1;
 
     *guard_selection = new_guard_selection;
@@ -1277,11 +1277,12 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
   //changed between last run and this run.
   guard_selection_ensure(&entry_guard_selection);
 
+  const or_options_t *options = get_options();
+
   //entry guard selection context should be the same for this batch of
   //circuits. The same entry guard will be used for all the circuits in this
   //batch until it fails.
   if (entry_guard_selection->state == STATE_INIT) {
-    const or_options_t *options = get_options();
     const int num_needed = entry_list_is_constrained(options) ? 1 : 3;
     if (!router_have_minimum_dir_info() && !options->UseBridges) {
       log_warn(LD_CIRC, "Cant initialize without a consensus.");
@@ -1313,7 +1314,6 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
 
   log_warn(LD_CIRC, "Using proposal 259 to choose entry guards.");
 
-  const or_options_t *options = get_options();
   const node_t *node = NULL;
   const entry_guard_t* guard = NULL;
   time_t now = time(NULL);
