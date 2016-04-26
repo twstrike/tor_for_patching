@@ -508,7 +508,7 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
 
     const node_t * node = next_node_by_bandwidth(all_nodes);
     entry_guard_t *ng = find_guard_by_node(all_guards, node);
-    guardlist_add(sampled_guards, ng);
+    smartlist_add(sampled_guards->list, ng);
     smartlist_free(all_nodes);
 
     return filter_set(sampled_guards,
