@@ -1154,5 +1154,5 @@ struct testcase_t entrynodes_new_tests[] = {
       0, NULL, NULL },
 
     END_OF_TESTCASES
-}
+};
 
