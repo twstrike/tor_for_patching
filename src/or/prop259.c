@@ -1272,9 +1272,6 @@ const node_t *
 choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
     dirinfo_type_t dirinfo_type, int *n_options_out)
 {
-  //XXX This might not work. What guarantees we have that the previously
-  //chosen guard meets all the constraints we have now. They can have
-  //changed between last run and this run.
   guard_selection_ensure(&entry_guard_selection);
 
   const or_options_t *options = get_options();
