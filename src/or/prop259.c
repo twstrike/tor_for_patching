@@ -51,8 +51,11 @@ static int used_guards_dirty = 0;
 static int sampled_guards_dirty = 0;
 
 const double SAMPLE_SET_THRESHOLD = 0.02;
-const int PRIMARY_GUARDS_RETRY_INTERVAL = 3;
 const int INTERNET_LIKELY_DOWN_INTERNAL= 5;
+//We restrict the number of guards that is going to be used more often
+const int PRIMARY_GUARDS_SIZE = 3;
+const int PRIMARY_GUARDS_SIZE_CONSTRAINED  = 1;
+const int PRIMARY_GUARDS_RETRY_INTERVAL = 3;
 
 guardlist_t*
 guardlist_new(void)
@@ -175,6 +178,9 @@ is_live,(const entry_guard_t *guard))
   entry_is_live_flags_t entry_flags = 0;
   entry_flags |= ENTRY_NEED_UPTIME;
   entry_flags |= ENTRY_NEED_CAPACITY;
+
+  //All Guards are Fast.
+  //About 95% of Guards are Stable (this will become 100% with #18624)
   return entry_is_live(guard, entry_flags, &msg) == NULL ? 0 : 1;
 }
 
@@ -594,6 +600,9 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
                               int for_directory)
 {
   guard_selection->for_directory = for_directory;
+  //Whe are using only dirguards
+  //About 80% of Guards are V2Dir/dirguards (this will become 100% with #12538)
+  guard_selection->for_directory = 1;
   guard_selection->state = STATE_PRIMARY_GUARDS;
   guard_selection->num_primary_guards = n_primary_guards;
 
@@ -1280,8 +1289,11 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
   //circuits. The same entry guard will be used for all the circuits in this
   //batch until it fails.
   if (entry_guard_selection->state == STATE_INIT) {
-    const int num_needed = entry_list_is_constrained(options) ? 1 : 3;
-    if (!router_have_minimum_dir_info() && !options->UseBridges) {
+    const int is_constrained = entry_list_is_constrained(options);
+    const int num_needed = is_constrained ? PRIMARY_GUARDS_SIZE_CONSTRAINED
+      : PRIMARY_GUARDS_SIZE;
+
+    if (!router_have_minimum_dir_info() && !is_constrained) {
       log_warn(LD_CIRC, "Cant initialize without a consensus.");
       return NULL;
     }
