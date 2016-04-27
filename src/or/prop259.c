@@ -596,10 +596,8 @@ guard_selection_free(guard_selection_t *guard_selection)
 
 STATIC void
 choose_entry_guard_algo_start(guard_selection_t *guard_selection,
-                              int n_primary_guards,
-                              int for_directory)
+                              int n_primary_guards)
 {
-  guard_selection->for_directory = for_directory;
   //Whe are using only dirguards
   //About 80% of Guards are V2Dir/dirguards (this will become 100% with #12538)
   guard_selection->for_directory = 1;
@@ -614,12 +612,10 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
           "Initializing guard_selection:\n"
           "- used: %p,\n"
           "- sampled_guards: %p,\n"
-          "- n_primary_guards: %d,\n"
-          "- for_directory: %d\n",
+          "- n_primary_guards: %d,\n",
           guard_selection->used_guards,
           guard_selection->sampled_guards,
-          n_primary_guards,
-          for_directory);
+          n_primary_guards);
 }
 
 /* dest is a list of guards */
@@ -1278,8 +1274,8 @@ guard_selection_ensure(guard_selection_t **guard_selection)
 
 //XXX Add tests
 const node_t *
-choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
-    dirinfo_type_t dirinfo_type, int *n_options_out)
+choose_random_entry_prop259(cpath_build_state_t *state,
+                            dirinfo_type_t dirinfo_type, int *n_options_out)
 {
   guard_selection_ensure(&entry_guard_selection);
 
@@ -1297,8 +1293,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
       log_warn(LD_CIRC, "Cant initialize without a consensus.");
       return NULL;
     }
-    //XXX for_directory = 1 when we do want to filter while start
-    for_directory = 1;
+
     char *err = NULL;
     if (guard_selection_parse_used_guards_state(get_or_state(), 1, &err) < 0) {
       log_err(LD_GENERAL,"%s",err);
@@ -1311,9 +1306,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
       log_err(LD_GENERAL,"%s",err);
       tor_free(err);
     }
-    choose_entry_guard_algo_start(entry_guard_selection,
-                                  num_needed ,
-                                  for_directory);
+    choose_entry_guard_algo_start(entry_guard_selection, num_needed);
   }
 
   //XXX choose_good_entry_server() ignores:
@@ -1327,14 +1320,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int for_directory,
   const entry_guard_t* guard = NULL;
   time_t now = time(NULL);
 
-  /* const node_t *chosen_exit = */
-  /*     state ? build_state_get_exit_node(state) : NULL; */
-  /* int need_uptime = state ? state->need_uptime : 0; */
-  /* int need_capacity = state ? state->need_capacity : 0; */
-  /* (void) chosen_exit; */
   (void) dirinfo_type;
-  /* (void) need_uptime; */
-  /* (void) need_capacity; */
 
   if (n_options_out)
     *n_options_out = 0;

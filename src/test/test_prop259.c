@@ -114,12 +114,10 @@ test_STATE_PRIMARY_GUARD_is_initial_state(void *arg)
     MOCK(is_live, is_live_mock);
 
     int n_primary_guards = 0;
-    int dir = 0;
     guard_selection_ensure(&guard_selection);
     choose_entry_guard_algo_start(
         guard_selection,
-        n_primary_guards,
-        dir);
+        n_primary_guards);
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
 
@@ -312,16 +310,12 @@ test_state_machine_should_use_new_state_as_current_state(void *arg)
 
     guard_selection_t *guard_selection = NULL;
     int n_primary_guards = 0;
-    int dir = 0;
 
     MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     guard_selection_ensure(&guard_selection);
-    choose_entry_guard_algo_start(
-        guard_selection,
-        n_primary_guards,
-        dir);
+    choose_entry_guard_algo_start(guard_selection, n_primary_guards);
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
     transition_to(guard_selection, STATE_TRY_REMAINING);
@@ -404,16 +398,14 @@ test_PRIMARY_GUARDS_returns_PRIMARY_GUARDS_in_order(void *arg)
     MOCK(is_live, is_live_mock);
 
     int n_primary_guards = 0;
-    int dir = 0;
 
     guard_selection_ensure(&guard_selection);
-    choose_entry_guard_algo_start(
-        guard_selection,
-        n_primary_guards,
-        dir);
+    choose_entry_guard_algo_start(guard_selection, n_primary_guards);
 
     entry1 = tor_malloc_zero(sizeof(entry_guard_t));
+    entry1->is_dir_cache = 1;
     entry2 = tor_malloc_zero(sizeof(entry_guard_t));
+    entry2->is_dir_cache = 1;
     smartlist_add(guard_selection->primary_guards, entry1);
     smartlist_add(guard_selection->primary_guards, entry2);
 
@@ -449,16 +441,12 @@ test_transitions_to_TRY_REMAINING_when_theres_not_previous_state(void *arg)
 
     guard_selection_t *guard_selection = NULL;
     int n_primary_guards = 0;
-    int dir = 0;
 
     MOCK(is_live, is_live_mock);
     MOCK(find_guard_by_node, find_guard_by_node_mock);
 
     guard_selection_ensure(&guard_selection);
-    choose_entry_guard_algo_start(
-        guard_selection,
-        n_primary_guards,
-        dir);
+    choose_entry_guard_algo_start(guard_selection, n_primary_guards);
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
     choose_entry_guard_algo_next(guard_selection, options, 0);
@@ -480,16 +468,12 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
 
     guard_selection_t *guard_selection = NULL;
     int n_primary_guards = 0;
-    int dir = 0;
 
     MOCK(find_guard_by_node, find_guard_by_node_mock);
     MOCK(is_live, is_live_mock);
 
     guard_selection_ensure(&guard_selection);
-    choose_entry_guard_algo_start(
-        guard_selection,
-        n_primary_guards,
-        dir);
+    choose_entry_guard_algo_start(guard_selection, n_primary_guards);
 
     tt_int_op(guard_selection->state, OP_EQ, STATE_PRIMARY_GUARDS);
     guard_selection->previous_state = STATE_TRY_REMAINING;
