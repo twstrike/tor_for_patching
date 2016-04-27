@@ -1604,9 +1604,8 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   guard_selection_ensure(&entry_guard_selection);
 
   /* Find the guard by digest */
-  smartlist_t *guards = get_all_guards(entry_guard_selection->for_directory);
-  entry = get_guard_by_digest(guards, digest);
-  smartlist_free(guards);
+  entry = get_guard_by_digest(entry_guard_selection->sampled_guards->list, digest);
+  if (!entry) entry = get_guard_by_digest(entry_guard_selection->used_guards->list, digest);
 
   if (!entry || !guard_to_node(entry)) return 0;
   log_warn(LD_CIRC, "Guard %s has succeeded = %d. Processing...",
