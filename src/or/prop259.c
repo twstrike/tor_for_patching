@@ -200,6 +200,13 @@ is_live,(const entry_guard_t *guard))
   return entry_is_live(guard, entry_flags, &msg) == NULL ? 0 : 1;
 }
 
+/*
+ * Note. This is not Tor definition. bad_since is related to
+ * becoming unusable according to the directory or the user configuration, as
+ * mentioned in the C Appendix. entry_is_live() verifies part of this "now" as
+ * opposed to waiting until entry_guard_set_status() changes bad_since - which
+ * happens only when a new consensus arrives.
+*/
 MOCK_IMPL(STATIC int,
 is_bad,(const entry_guard_t *guard))
 {
