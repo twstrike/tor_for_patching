@@ -180,6 +180,13 @@ is_related_to_exit(const node_t *node, const node_t *chosen_exit)
   return retval;
 }
 
+// Note. need_uptime and need_capacity was ignored. See node_is_unreliable()
+/* Note. conditions involving UseBridges were ignored because they are
+ * probably there to fit the existing code to this option.
+ * If we completely skip our guard selection when UseBridges is set, we
+ * also need to only choose live guards that also satisfy the ignored
+ * conditions
+ */
 MOCK_IMPL(STATIC int,
 is_live,(const entry_guard_t *guard))
 {
