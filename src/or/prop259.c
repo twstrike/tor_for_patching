@@ -356,19 +356,11 @@ next_node_by_bandwidth(smartlist_t *nodes)
 static entry_guard_t*
 each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 {
-  char buf[HEX_DIGEST_LEN+1];
-
   GUARDLIST_FOREACH_BEGIN(guard_selection->used_guards, entry_guard_t *, e) {
     if (smartlist_contains(guard_selection->primary_guards, e)) {
       continue;
     }
-
-    base16_encode(buf, sizeof(buf), e->identity, DIGEST_LEN);
-    log_warn(LD_CIRC, "Evaluating '%s' (%s)", e->nickname, buf);
-
-    if (is_eligible(e, guard_selection->for_directory))
-      return e;
-
+    return e;
   } GUARDLIST_FOREACH_END(e);
 
   return NULL;
@@ -382,7 +374,7 @@ choose_as_new_entry_guard(node_t *node)
 }
 
 static entry_guard_t*
-next_remaining_guard(guard_selection_t* guard_selection)
+next_eligible_remaining_guard(guard_selection_t* guard_selection)
 {
   char buf[HEX_DIGEST_LEN+1];
   entry_guard_t *guard = NULL;
@@ -426,7 +418,7 @@ state_TRY_REMAINING_next(guard_selection_t *guard_selection)
 
   log_warn(LD_CIRC, "Will try REMAINING_REMAINING_GUARDS.");
 
-  guard = next_remaining_guard(guard_selection);
+  guard = next_eligible_remaining_guard(guard_selection);
   if (guard) {
     return guard;
   }

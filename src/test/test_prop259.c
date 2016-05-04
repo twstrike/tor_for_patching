@@ -486,9 +486,7 @@ test_PRIMARY_GUARDS_transitions_to_previous_state_when_theres_one(void *arg)
     guard_selection_free(guard_selection);
     tor_free(guard_selection);
     tor_free(options);
-}
-
-static void
+}static void
 test_TRY_REMAINING_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
 {
     entry_guard_t* guard = NULL;
@@ -523,15 +521,6 @@ test_TRY_REMAINING_returns_each_USED_GUARDS_not_in_PRIMARY_GUARDS(void *arg)
     guard_selection->used_guards = used_guards;
     guard_selection->primary_guards = primary_guards;
 
-    guard = choose_entry_guard_algo_next(guard_selection, options, 0);
-    tt_ptr_op(guard, OP_EQ, g2);
-
-    g2->unreachable_since = 1;
-    guard = choose_entry_guard_algo_next(guard_selection, options, 0);
-    tt_ptr_op(guard, OP_EQ, g3);
-
-    //XXX this seems to be unrealistic
-    g2->unreachable_since = 0;
     guard = choose_entry_guard_algo_next(guard_selection, options, 0);
     tt_ptr_op(guard, OP_EQ, g2);
 
