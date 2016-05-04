@@ -1,8 +1,17 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2015, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file prop259.c
+ * \brief Implementation for proposal 259: New Guard Selection Behaviour.
+ *
+ * Entry nodes are selected as guards in such a way they require as less input
+ * from the user as possible and potentially exposing an OR to the smaller
+ * amount of said nodes.
+ **/
 
 #define PROP259_PRIVATE
 
