@@ -92,7 +92,7 @@ get_guard_index_by_digest(const smartlist_t *guards, const char *digest)
 {
   SMARTLIST_FOREACH(guards, entry_guard_t *, entry,
   if (tor_memeq(digest, entry->identity, DIGEST_LEN))
-    return e_sl_idx;
+    return entry_sl_idx;
   );
 
   return -1;
@@ -1221,27 +1221,6 @@ sampled_guards_update_state(or_state_t *state, guardlist_t *sampled_guards)
   guards_update_state(next, sampled_guards, "SampledGuard");
 }
 
-static int
-decide_if_should_continue(guard_selection_t *guard_selection, int succeeded,
-                          time_t now)
-{
-  int should_continue = 0;
-
-  //XXX Is this possible?
-  if (!guard_selection) {
-    log_warn(LD_BUG, "We have no guard_selection algo."
-        " Should not continue.");
-    return 0;
-  }
-
-  should_continue = choose_entry_guard_algo_should_continue(guard_selection,
-                                                            succeeded, now);
-
-  log_warn(LD_CIRC, "Should continue? %d", should_continue);
-
-  return should_continue;
-}
-
 //These functions adapt our proposal to current tor code
 // PUBLIC INTERFACE ----------------------------------------
 
@@ -1638,6 +1617,7 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   int should_continue = 0;
   entry_guard_t *entry = NULL;
   int idx = -1;
+  char buf[HEX_DIGEST_LEN+1];
 
   guard_selection_ensure(&entry_guard_selection);
 
@@ -1655,8 +1635,11 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   if (mark_relay_status)
     router_set_status(digest, succeeded);
 
-  should_continue = decide_if_should_continue(entry_guard_selection,
-                                              succeeded, now);
+  /* Decide if we should keep the same status for the guard selection or if it
+   * should be finished */
+  should_continue = choose_entry_guard_algo_should_continue(
+      entry_guard_selection, succeeded, now);
+  log_warn(LD_CIRC, "Should continue? %d", should_continue);
 
   if (!should_continue) {
     choose_entry_guard_algo_end(entry_guard_selection, entry);
@@ -1664,7 +1647,7 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   } else {
     //XXX What is missing from entry_guard_register_connect_status()
 
-    if (!succeeded && !entry-made_contact) {
+    if (!succeeded && !entry->made_contact) {
       /* We've never connected to this one. */
       log_info(LD_CIRC,
                "Connection to never-contacted entry guard '%s' (%s) failed. "
@@ -1684,8 +1667,6 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
         smartlist_del_keeporder(entry_guard_selection->sampled_guards->list,
             idx);
       }
-
-      log_entry_guards(LOG_INFO);
 
       changed = 1;
     }

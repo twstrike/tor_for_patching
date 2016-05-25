@@ -95,6 +95,9 @@ guard_selection_update_state(or_state_t *state, const or_options_t *options);
 entry_guard_t*
 guard_get_by_digest(const char *digest, const smartlist_t *guards);
 
+int
+get_guard_index_by_digest(const smartlist_t *guards, const char *digest);
+
 entry_guard_t *
 used_guard_get_by_digest(const char *digest);
 
