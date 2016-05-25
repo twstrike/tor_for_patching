@@ -1674,7 +1674,7 @@ update_entry_guards_connection_status(entry_guard_t *entry,
  *
  * If <b>mark_relay_status</b>, also call router_set_status() on this relay.
  *
- * If the OR is an entry, change that entry's up/down status.
+ * Changes entry's up/down status.
  *
  * Return 0 normally, or -1 if we want to try find out a new guard
  */
