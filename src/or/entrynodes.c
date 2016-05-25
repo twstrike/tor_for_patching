@@ -688,18 +688,22 @@ entry_guard_register_connect_status(const char *digest, int succeeded,
     return 0;
 
   //Specific to the old behavior
-  if (!succeeded && !entry->made_contact) {
-      /* We've never connected to this one. */
-      log_info(LD_CIRC,
-               "Connection to never-contacted entry guard '%s' (%s) failed. "
-               "Removing from the list. %d/%d entry guards usable/new.",
-               entry->nickname, buf,
-               num_live_entry_guards(0)-1, smartlist_len(entry_guards)-1);
-      control_event_guard(entry->nickname, entry->identity, "DROPPED");
-      entry_guard_free(entry);
-      smartlist_del_keeporder(entry_guards, idx);
-      log_entry_guards(LOG_INFO);
-      changed = 1;
+  if (!entry->made_contact) {
+      if (succeeded) {
+        first_contact = 1;
+      } else {
+        /* We've never connected to this one. */
+        log_info(LD_CIRC,
+                 "Connection to never-contacted entry guard '%s' (%s) failed. "
+                 "Removing from the list. %d/%d entry guards usable/new.",
+                 entry->nickname, buf,
+                 num_live_entry_guards(0)-1, smartlist_len(entry_guards)-1);
+        control_event_guard(entry->nickname, entry->identity, "DROPPED");
+        entry_guard_free(entry);
+        smartlist_del_keeporder(entry_guards, idx);
+        log_entry_guards(LOG_INFO);
+        changed = 1;
+      }
   }
 
   changed = update_entry_guards_connection_status(entry, succeeded, now)

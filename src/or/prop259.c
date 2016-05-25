@@ -88,6 +88,17 @@ get_guard_by_digest(const smartlist_t *guards, const char *digest)
 }
 
 int
+get_guard_index_by_digest(const smartlist_t *guards, const char *digest)
+{
+  SMARTLIST_FOREACH(guards, entry_guard_t *, entry,
+  if (tor_memeq(digest, entry->identity, DIGEST_LEN))
+    return e_sl_idx;
+  );
+
+  return -1;
+}
+
+int
 guardlist_len(const guardlist_t *gl)
 {
   if (!gl)
@@ -1608,6 +1619,17 @@ update_entry_guards_connection_status(entry_guard_t *entry,
   return changed;
 }
 
+
+/** Called when a connection to an entry guard with the identity digest
+ * <b>digest</b> is estabilished (<b>succeeded</b>==1) or has failed
+ * (<b>succeeded</b>==0).
+ *
+ * If <b>mark_relay_status</b>, also call router_set_status() on this relay.
+ *
+ * If the OR is an entry, change that entry's up/down status.
+ *
+ * Return 0 normally, or -1 if we want to try find out a new guard
+ */
 int
 guard_selection_register_connect_status(const char *digest, int succeeded,
                                         int mark_relay_status, time_t now)
@@ -1615,6 +1637,7 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   int changed = 0;
   int should_continue = 0;
   entry_guard_t *entry = NULL;
+  int idx = -1;
 
   guard_selection_ensure(&entry_guard_selection);
 
@@ -1623,6 +1646,7 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   if (!entry) entry = get_guard_by_digest(entry_guard_selection->used_guards->list, digest);
 
   if (!entry || !guard_to_node(entry)) return 0;
+
   log_warn(LD_CIRC, "Guard %s has succeeded = %d. Processing...",
       node_describe(guard_to_node(entry)), succeeded);
 
@@ -1631,7 +1655,6 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   if (mark_relay_status)
     router_set_status(digest, succeeded);
 
-  changed = update_entry_guards_connection_status(entry, succeeded, now);
   should_continue = decide_if_should_continue(entry_guard_selection,
                                               succeeded, now);
 
@@ -1639,10 +1662,37 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
     choose_entry_guard_algo_end(entry_guard_selection, entry);
     guard_selection_free(entry_guard_selection);
   } else {
-    //XXX entry_guard_register_connect_status() is smarter and only calls
-    //it when any guard has changed. We will get there.
-    used_guards_changed();
+    //XXX What is missing from entry_guard_register_connect_status()
+
+    if (!succeeded && !entry-made_contact) {
+      /* We've never connected to this one. */
+      log_info(LD_CIRC,
+               "Connection to never-contacted entry guard '%s' (%s) failed. "
+               "Removing from the list.", entry->nickname, buf);
+      control_event_guard(entry->nickname, entry->identity, "DROPPED");
+      entry_guard_free(entry);
+
+
+      idx = get_guard_index_by_digest(
+            entry_guard_selection->sampled_guards->list, digest);
+      smartlist_del_keeporder(entry_guard_selection->sampled_guards->list,
+            idx);
+
+      if (idx == -1) {
+        idx = get_guard_index_by_digest(
+            entry_guard_selection->used_guards->list, digest);
+        smartlist_del_keeporder(entry_guard_selection->sampled_guards->list,
+            idx);
+      }
+
+      log_entry_guards(LOG_INFO);
+
+      changed = 1;
+    }
   }
+
+  changed = update_entry_guards_connection_status(entry, succeeded, now)
+    || changed;
 
   if (changed)
     entry_guards_changed();
