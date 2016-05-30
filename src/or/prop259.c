@@ -11,6 +11,31 @@
  * Entry nodes are selected as guards in such a way they require as less input
  * from the user as possible and potentially exposing an OR to the smaller
  * amount of said nodes.
+ *
+ * \details
+ * Each managed guard is represented by a <b>entry_guard_t</b>.
+ * Each managed guard list is constructed by a <b>guardlist_t</b>.
+ *
+ * ::entry_guard_selection guard_selection_t manage all states this tor
+ * instance knows about guards and selection algorithm.
+ *
+ * In every run_scheduled_event() tick, we attempt to select a guard
+ * using choose_random_entry to prepare entryguard to build new circuit.
+ * choose_random_entry_prop259() is just doing this according to different
+ * state.
+ *
+ * When entry_guard_selection is in STATE_INIT state, we init the algo with
+ * choose_entry_guard_algo_start().
+ * When entry_guard_selection is other state, we do a selection with
+ * choose_entry_guard_algo_next() and dispatch two ways of selection:
+ *  if entry_guard_selection is in STATE_PRIMARY_GUARDS state, choose from
+ *  primary_guards.
+ *  if entry_guard_selection is in STATE_TRY_REMAINING state, choose from
+ *  used_guards or remaining_guards
+ *
+ * <b>In a little more detail:</b>
+ *
+ * XXX Explain some more details
  **/
 
 #define PROP259_PRIVATE
