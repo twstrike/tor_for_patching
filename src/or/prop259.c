@@ -31,11 +31,23 @@
  *  if entry_guard_selection is in STATE_PRIMARY_GUARDS state, choose from
  *  primary_guards.
  *  if entry_guard_selection is in STATE_TRY_REMAINING state, choose from
- *  used_guards or remaining_guards
+ *  used_guards, then remaining_guards in turn.
  *
  * <b>In a little more detail:</b>
  *
- * XXX Explain some more details
+ * In choose_entry_guard_algo_start() we would initialize the algorithm
+ * by setting state as STATE_PRIMARY_GUARDS, and filling the primary_guards
+ * and remaining_guards with a filter function filter_sampled().
+ *
+ * In filter_sampled function, the remaining_guard list will be filtered
+ * according to different options specified, if the list size gets too small
+ * smaller than MINIMUM_FILTERED_SAMPLE_SIZE after filter, it can be extended
+ * by next_node_by_bandwidth() until reaches MAXIMUM_SAMPLE_SIZE_THRESHOLD.
+ *
+ * When new consensus desc comes, sampled_guards and used_guards will be
+ * updated in entry_guards_update_profiles(). The number of sampled_guards
+ * is based on SAMPLE_SET_THRESHOLD, and these two lists will be persisted
+ * in state file during running.
  **/
 
 #define PROP259_PRIVATE
