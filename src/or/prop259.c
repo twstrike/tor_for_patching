@@ -93,16 +93,21 @@ static guard_selection_t *entry_guard_selection = NULL;
 
 static smartlist_t *bridges = NULL;
 
+/** used_guards_dirty is marked for saving used_guards into state file **/
 static int used_guards_dirty = 0;
+/** sampled_guards_dirty is marked for saving sampled_guards into state file **/
 static int sampled_guards_dirty = 0;
 
+/** SAMPLE_SET_THRESHOLD is the maximum rate of all guards filled into sampled_guards **/
 const double SAMPLE_SET_THRESHOLD = 0.02;
+/** INTERNET_LIKELY_DOWN_INTERNAL is the interval time of minutes that we should choose again **/
 const int INTERNET_LIKELY_DOWN_INTERNAL= 5;
-//We restrict the number of guards that is going to be used more often
+/** We restrict the number of guards that is going to be used more often **/
 const int PRIMARY_GUARDS_SIZE = 3;
 const int PRIMARY_GUARDS_SIZE_CONSTRAINED  = 1;
 const int PRIMARY_GUARDS_RETRY_INTERVAL = 3;
 
+/** Create a new guard instance **/
 guardlist_t*
 guardlist_new(void)
 {
@@ -112,6 +117,7 @@ guardlist_new(void)
   return gl;
 }
 
+/** Get a guard from smartlist of guards by its digest **/
 static entry_guard_t*
 get_guard_by_digest(const smartlist_t *guards, const char *digest)
 {
@@ -124,6 +130,7 @@ get_guard_by_digest(const smartlist_t *guards, const char *digest)
   return NULL;
 }
 
+/** Get a guard's index from smartlist of guards by its digest **/
 int
 get_guard_index_by_digest(const smartlist_t *guards, const char *digest)
 {
@@ -135,6 +142,7 @@ get_guard_index_by_digest(const smartlist_t *guards, const char *digest)
   return -1;
 }
 
+/** Get the size of guardlist_t **/
 int
 guardlist_len(const guardlist_t *gl)
 {
@@ -144,18 +152,21 @@ guardlist_len(const guardlist_t *gl)
   return smartlist_len(gl->list);
 }
 
+/** Add a entry_guard_t to guardlist_t **/
 void
 guardlist_add(guardlist_t *gl, entry_guard_t *e)
 {
   smartlist_add(gl->list, e);
 }
 
+/** Add all entry_guard_t of a smartlist_t to guardlist_t **/
 static void
 guardlist_add_all_smarlist(guardlist_t *gl, const smartlist_t *sl)
 {
   smartlist_add_all(gl->list, sl);
 }
 
+/** Free a guardlist_t **/
 void
 guardlist_free(guardlist_t *gl)
 {
@@ -173,6 +184,7 @@ guardlist_free(guardlist_t *gl)
  * when we are not trying to avoid disk writes? */
 #define FAST_GUARD_STATE_FLUSH_TIME 30
 
+/** Mark the state file to be saved according to options **/
 static void
 guards_mark_dirty(void)
 {
@@ -187,6 +199,7 @@ guards_mark_dirty(void)
   or_state_mark_dirty(get_or_state(), when);
 }
 
+/** Mark the used_guards to be saved in state file **/
 static void
 used_guards_changed(void)
 {
@@ -194,6 +207,7 @@ used_guards_changed(void)
   guards_mark_dirty();
 }
 
+/** Mark the sampled_guards to be saved in state file **/
 static void
 sampled_guards_changed(void)
 {
