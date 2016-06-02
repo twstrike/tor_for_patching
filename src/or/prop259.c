@@ -323,6 +323,7 @@ is_eligible(const entry_guard_t* guard, int for_directory)
     !should_ignore(guard, for_directory);
 }
 
+/** Mark a smartlist_t of guards as can_retry **/
 static void
 mark_for_retry(const smartlist_t *guards)
 {
@@ -331,6 +332,8 @@ mark_for_retry(const smartlist_t *guards)
   });
 }
 
+/** Mark all primary_guards of guard_selection as can_retry and
+ * transit the guard_selection to STATE_PRIMARY_GUARDS state **/
 static void
 retry_primary_guards(guard_selection_t *guard_selection)
 {
@@ -338,6 +341,8 @@ retry_primary_guards(guard_selection_t *guard_selection)
   transition_to(guard_selection, STATE_PRIMARY_GUARDS);
 }
 
+/** Mark all used_guards which are not in primary_guards of
+ * guard_selection as can_retry **/
 static void
 mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 {
@@ -352,6 +357,9 @@ mark_remaining_used_for_retry(guard_selection_t *guard_selection)
   } GUARDLIST_FOREACH_END(e);
 }
 
+/** Transit the guard_selection to previous_state unless previous_state
+ * is STATE_INVALID or STATE_INIT, otherwise transit the guard_selection
+ * to STATE_TRY_REMAINING state **/
 static void
 transition_to_previous_state_or_try_remaining(
                                             guard_selection_t *guard_selection)
