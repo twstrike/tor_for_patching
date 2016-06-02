@@ -215,6 +215,7 @@ sampled_guards_changed(void)
   guards_mark_dirty();
 }
 
+/** Convert a entry_guard_t to node_t by getting node by its identity **/
 //XXX review if this is the right way of doing this
 static const node_t*
 guard_to_node(const entry_guard_t *guard)
@@ -222,6 +223,7 @@ guard_to_node(const entry_guard_t *guard)
   return node_get_by_id(guard->identity);
 }
 
+/** Check if a node_t is related with another chosen_exit node_t **/
 static int
 is_related_to_exit(const node_t *node, const node_t *chosen_exit)
 {
@@ -279,6 +281,8 @@ is_bad,(const entry_guard_t *guard))
  * revisit this.
  **/
 
+/** Check if an entry_guard_t should be tried according to
+ * can_try or (is_live & !is_bad) **/
 static int
 should_try(const entry_guard_t* guard)
 {
@@ -288,6 +292,8 @@ should_try(const entry_guard_t* guard)
   return (is_live(guard) && !is_bad(guard));
 }
 
+/** Check if an entry_guard_t is_suitable according to
+ * !is_live or (for_directory && !is_dir_cache) **/
 static int
 is_suitable(const entry_guard_t *entry, int for_directory)
 {
@@ -300,12 +306,16 @@ is_suitable(const entry_guard_t *entry, int for_directory)
   return 1;
 }
 
+/** Check if an entry_guard_t should_ignore according to
+ * !is_suitable **/
 static int
 should_ignore(const entry_guard_t *guard, int for_directory)
 {
   return !is_suitable(guard, for_directory);
 }
 
+/** Check if an entry_guard_t should_ignore according to
+ * should_try && !should_ignore **/
 static int
 is_eligible(const entry_guard_t* guard, int for_directory)
 {
