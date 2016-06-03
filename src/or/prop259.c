@@ -1442,17 +1442,19 @@ choose_random_entry_prop259(cpath_build_state_t *state,
 /** Called when consensus arrives and if entry_list_is_constrained() returns
  * true.
  *
- * It will check if have maybe received info about configured or_options
- * <b>options</b>->EntryNodes in the consensus.
+ * It will fill <b>guard_selection</b>->sampled_guards with configuraded
+ * <b>options</b>->EntryNodes, following this priority:
  *
- * If used guards of current <b>guard_selection</b> is in this list they are going to bee 1
- *
+ * 1- Ones that are in both, used_guards and entry_nodes
+ * 2- Scrambled entry_nodes exluding worse_entry_node (where its node is not
+ *    a possible guard
+ * 3- Scranbled worse_entry_nodes
  * XXX Add tests */
 static void
-fill_in_from_entrynodes(guard_selection_t *guard_selection,
-                        const or_options_t *options, guardlist_t *dest)
+fill_sampled_guards_from_entrynodes(guard_selection_t *guard_selection,
+                                    const or_options_t *options)
 {
-  tor_assert(dest);
+  tor_assert(guard_selection->sampled_guards);
 
   smartlist_t *entry_nodes, *worse_entry_nodes, *entry_fps;
   smartlist_t *old_entry_guards_on_list, *old_entry_guards_not_on_list;
@@ -1515,19 +1517,14 @@ fill_in_from_entrynodes(guard_selection_t *guard_selection,
   SMARTLIST_FOREACH(old_entry_guards_not_on_list, entry_guard_t *, e,
     entry_guard_free(e));
 
-  //XXX update_node_guard_status();
-
   /** Fill in ignoring sample size  **/
-  fill_in_sampled_guard_set(dest, sample,
+  fill_in_sampled_guard_set(guard_selection->sampled_guards, sample,
     smartlist_len(sample));
 
-  //XXX do this only when it changed
   sampled_guards_changed();
-  if smartlist_len(old_entry_guards_on_list) > 0
-    used_guards_changed()
 
   log_warn(LD_CIRC, "We sampled %d from %d EntryNodes",
-    guardlist_len(dest), smartlist_len(sample));
+    guardlist_len(guard_selection->sampled_guards), smartlist_len(sample));
 
   smartlist_free(old_entry_guards_on_list);
   smartlist_free(old_entry_guards_not_on_list);
@@ -1580,8 +1577,7 @@ known_entry_bridge(void)
 void
 guard_selection_fill_in_from_entrynodes(const or_options_t *options)
 {
-  fill_in_from_entrynodes(entry_guard_selection, options,
-    entry_guard_selection->sampled_guards);
+  fill_sampled_guards_from_entrynodes(entry_guard_selection, options);
 }
 
 //XXX Add tests
