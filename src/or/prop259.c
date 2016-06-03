@@ -1290,9 +1290,15 @@ sampled_guards_update_state(or_state_t *state, guardlist_t *sampled_guards)
   guards_update_state(next, sampled_guards, "SampledGuard");
 }
 
-//These functions adapt our proposal to current tor code
-// PUBLIC INTERFACE ----------------------------------------
-
+/** Called when the <b>guard_selection</b> is notified that an entry guard
+ * connection was estabilished (<b>succeeded</b>==1) or has failed
+ * (<b>succeeded</b>==0) in the order to check if we should keep looking for a
+ * new entry guard or not.
+ *
+ * Return 0 always when <b>succeeded</b>==1 unless this connection was the
+ * first one estabilished after <b>INTERNET_LIKELY_DOWN_INTERVAL</b> minutes
+ * (5 as default). In that case we also set the state to STATE_PRIMARY_GUARDS
+ * and return 1 */
 int
 choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
                                         int succeeded, time_t now)
@@ -1667,7 +1673,6 @@ update_entry_guards_connection_status(entry_guard_t *entry,
   return changed;
 }
 
-
 /** Called when a connection to an entry guard with the identity digest
  * <b>digest</b> is estabilished (<b>succeeded</b>==1) or has failed
  * (<b>succeeded</b>==0).
@@ -1704,8 +1709,8 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   if (mark_relay_status)
     router_set_status(digest, succeeded);
 
-  /* Decide if we should keep the same status for the guard selection or if it
-   * should be finished */
+  /* Should do it keep looking for a new entry guard?
+   * It checks if needs to end or not the algorithm */
   should_continue = choose_entry_guard_algo_should_continue(
       entry_guard_selection, succeeded, now);
   log_warn(LD_CIRC, "Should continue? %d", should_continue);
