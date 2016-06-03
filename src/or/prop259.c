@@ -1439,10 +1439,15 @@ choose_random_entry_prop259(cpath_build_state_t *state,
   return node;
 }
 
-//XXX We need something like entry_guards_compute_status()
-//which should also calls used_guards_changed()
-
-//XXX Add tests
+/** Called when consensus arrives and if entry_list_is_constrained() returns
+ * true.
+ *
+ * It will check if have maybe received info about configured or_options
+ * <b>options</b>->EntryNodes in the consensus.
+ *
+ * If used guards of current <b>guard_selection</b> is in this list they are going to bee 1
+ *
+ * XXX Add tests */
 static void
 fill_in_from_entrynodes(guard_selection_t *guard_selection,
                         const or_options_t *options, guardlist_t *dest)
@@ -1518,6 +1523,8 @@ fill_in_from_entrynodes(guard_selection_t *guard_selection,
 
   //XXX do this only when it changed
   sampled_guards_changed();
+  if smartlist_len(old_entry_guards_on_list) > 0
+    used_guards_changed()
 
   log_warn(LD_CIRC, "We sampled %d from %d EntryNodes",
     guardlist_len(dest), smartlist_len(sample));
@@ -1601,7 +1608,7 @@ entry_guards_update_profiles(const or_options_t *options, const time_t now)
   guard_selection_ensure(&entry_guard_selection);
   log_warn(LD_CIRC, "Received a new consensus");
   if (entry_list_is_constrained(options)) {
-    //We make have new info about EntryNodes refill it if possible
+    //We mabe have new info about EntryNodes, refill it if possible
     if (options->EntryNodes)
         guard_selection_fill_in_from_entrynodes(options);
   } else {
