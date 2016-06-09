@@ -404,6 +404,8 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
   return NULL;
 }
 
+/** Transits <b>guard_selection</b>'s state to a <b>state</b> when it's valid
+ * **/
 STATIC void
 transition_to(guard_selection_t *guard_selection,
               guard_selection_state_t state)
