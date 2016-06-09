@@ -374,6 +374,14 @@ transition_to_previous_state_or_try_remaining(
   }
 }
 
+/** Called when <b>guard_selection</b> is in the state PRIMARY_GUARD and needs
+ * a guard.
+ *
+ * Return the first item from <b>guard_selection</b>->primary_guards if
+ * is_eligible() returns true.
+ *
+ * Returns NULL when do not have eligible guard and transate
+ * <b>guard_selection</b>'s state **/
 static entry_guard_t*
 state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
 {
