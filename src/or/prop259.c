@@ -465,6 +465,10 @@ next_node_by_bandwidth(smartlist_t *nodes)
   return node;
 }
 
+/** Called when <b>guard_selection</b> is in TRY_REMAINING state.
+ * Returns the first entry guard that is in <b>guard_selection</b> used_guard
+ * but not in <b>guard_selection</b> primary_guards, if none found returns
+ * NULL **/
 static entry_guard_t*
 each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 {
@@ -478,6 +482,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
   return NULL;
 }
 
+/** Called to sign that a node <b>node</b> was used as a guard**/
 static void
 choose_as_new_entry_guard(node_t *node)
 {
@@ -485,6 +490,10 @@ choose_as_new_entry_guard(node_t *node)
   log_info(LD_CIRC, "Chose %s as new entry guard.", node_describe(node));
 }
 
+/** Called when <b>guard_selection</b> is in TRY_REMAINING state.
+ * Returns the first live eligible entry guard that is in
+ * <b>guard_selection</b> remaining_guards, if none found returns NULL.
+ * Also, if entry guard is not live, removes it from remaining_guards**/
 static entry_guard_t*
 next_eligible_remaining_guard(guard_selection_t* guard_selection)
 {
@@ -517,6 +526,12 @@ next_eligible_remaining_guard(guard_selection_t* guard_selection)
   return guard;
 }
 
+/** Called when a entry guard is needed and <b>guard_selection</b> is in
+ * TRY_REMAINING state.
+ * Returns the first entry guard from used_guards that is not in primary_guards
+ * if none found, try to pick the fist live and eligible from remaining_guards.
+ * If still none, then transition <b>guard_selection</b> to
+ * STATE_PRIMARY_GUARDS and returns NULL.**/
 static entry_guard_t*
 state_TRY_REMAINING_next(guard_selection_t *guard_selection)
 {
