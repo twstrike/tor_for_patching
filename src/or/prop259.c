@@ -106,6 +106,10 @@ const int INTERNET_LIKELY_DOWN_INTERNAL= 5;
 const int PRIMARY_GUARDS_SIZE = 3;
 const int PRIMARY_GUARDS_SIZE_CONSTRAINED  = 1;
 const int PRIMARY_GUARDS_RETRY_INTERVAL = 3;
+/** We restrict the sample set lenght that is going to be used **/
+const int MINIMUM_FILTERED_SAMPLE_SIZE = 20
+const int MAXIMUM_SAMPLE_SIZE_THRESHOLD = 1.03
+const int MAXIMUM_RETRIES = 10
 
 /** Create a new guard instance **/
 guardlist_t*
@@ -675,11 +679,11 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
   return filtered;
 }
 
-//XXX define the values for this
-#define MINIMUM_FILTERED_SAMPLE_SIZE 20
-#define MAXIMUM_SAMPLE_SIZE_THRESHOLD 1.03
-#define MAXIMUM_RETRIES 10
-
+/** Fills and returns smartlist <b>sampled_guards</b>.
+ * Its lenght should be the minimum lenght configured in <b>guard_selection</b>
+ * (default values is 20), and not bigger than the configured
+ * max_sample_size_threshold. Default value is 1.03
+ * **/
 static smartlist_t*
 filter_sampled(guard_selection_t *guard_selection,
               const guardlist_t *sampled_guards)
