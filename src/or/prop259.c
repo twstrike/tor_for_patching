@@ -428,6 +428,9 @@ transition_to(guard_selection_t *guard_selection,
   guard_selection->state = state;
 }
 
+/** Called when seems like was without connection during too much time.
+ * Saves the current <b>guard_selection</b> state into previous_state and
+ * sinalize to try primary_guards first when a guard is needed. **/
 static void
 save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
 {
@@ -435,6 +438,7 @@ save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
   retry_primary_guards(guard_selection);
 }
 
+/** Converts a smartlist_t <b>guards</b> into a smartlist_t <b>nodes</b>.**/
 static void
 guards_to_nodes(smartlist_t *nodes, const smartlist_t *guards)
 {
@@ -447,6 +451,10 @@ guards_to_nodes(smartlist_t *nodes, const smartlist_t *guards)
   } SMARTLIST_FOREACH_END(e);
 }
 
+
+/** Returns the first <b>node</b> from a <b>nodes</b> smartlist_t
+ * based on WEIGHT_FOR_GUARD.
+ * If a <b>node</b> is found, remove it from <b>nodes</b>. **/
 STATIC const node_t*
 next_node_by_bandwidth(smartlist_t *nodes)
 {
