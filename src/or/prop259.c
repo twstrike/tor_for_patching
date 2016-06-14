@@ -555,22 +555,31 @@ state_TRY_REMAINING_next(guard_selection_t *guard_selection)
   return NULL;
 }
 
+/** Returns 1 if any guard in smartlist <b>guards</b> have been tried before,
+ * when its last_attempted is smaller or equal than the <b>time<b/> otherwise
+ * returns 0.**/
 static int
 has_any_been_tried_before(const smartlist_t *guards, time_t time)
 {
-  SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+  SMARTLIST_FOREACH(guards, entry_guard_t *, e, {
     //last_attempted is probably better because it is updated
     //on subsequent failures. But keep in mind it is only updated
     //if we have made contact before.
-    if (e->last_attempted && e->last_attempted <= time) {
+    if (e->last_attempted && e->last_attempted <= time)
       return 1;
-    }
-  } SMARTLIST_FOREACH_END(e);
+  });
 
   return 0;
 }
 
-//XXX Add tests
+/** Called when needs to choose a entry guard, to check if
+ * <b>guard_selection</b> should retry primary guards first.
+ * This is going to happen if any of the primary guards have been tried before
+ * N interval, where is time <b>now</b> - configured PrimaryGuardsRetryInterval
+ * If not configured, it's going to be 3 minutes.
+ *
+ * If need to retry, transition <b>guard_selection</b> to PRIMARY_GUARDS state.
+ * XXX Add tests**/
 static void
 check_primary_guards_retry_interval(guard_selection_t *guard_selection,
                                     const or_options_t *options, time_t now)
