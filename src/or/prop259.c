@@ -602,6 +602,9 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
   }
 }
 
+/** Called when <b>guard_selection</b> needs an entry guard.
+ * First its checks if needs to retry primary guards, then call next() for
+ * <b>guard_selection</b> state. **/
 STATIC entry_guard_t *
 choose_entry_guard_algo_next(guard_selection_t *guard_selection,
                               const or_options_t *options, time_t now)
@@ -623,16 +626,25 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
   return NULL;
 }
 
+/** Returns a smartlist, the filtered live guards from a set
+ * <b>sampled_guards</b>.
+ *
+ * If this set don't have the minimun <b>min_filtered_sample_size</b>
+ * lenght required, then expand it, filling with the next guard by bandwidth,
+ * from the consensus (<b>all_guards</b>).
+ *
+ * If in this process to expand, the filtered set reaches
+ * <b>max_sample_size_threshold</b>, warn the user and returns NULL.**/
 STATIC smartlist_t *
 filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
         int min_filtered_sample_size, int max_sample_size_threshold)
 {
   smartlist_t *filtered = smartlist_new();
 
-  GUARDLIST_FOREACH_BEGIN(sampled_guards, entry_guard_t *, guard) {
+  GUARDLIST_FOREACH(sampled_guards, entry_guard_t *, guard, {
     if (is_live(guard))
       smartlist_add(filtered, guard);
-  } GUARDLIST_FOREACH_END(guard);
+  });
 
   if (smartlist_len(filtered) < min_filtered_sample_size) {
     log_warn(LD_CIRC,
