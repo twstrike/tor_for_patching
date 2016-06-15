@@ -690,8 +690,7 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
 /** Fills and returns smartlist <b>sampled_guards</b>.
  * Its lenght should be the minimum lenght configured in <b>guard_selection</b>
  * (default values is 20), and not bigger than the configured
- * max_sample_size_threshold. Default value is 1.03
- * **/
+ * max_sample_size_threshold. Default value is 1.03 **/
 static smartlist_t*
 filter_sampled(guard_selection_t *guard_selection,
               const guardlist_t *sampled_guards)
@@ -712,6 +711,10 @@ filter_sampled(guard_selection_t *guard_selection,
                     sampled_guards_threshold);
 }
 
+/** Called when is starting <b>guard_selection</b>, to init remaining guards.
+ * If we are in a constrained mode (entry_list_is_constrained() is true) then
+ * remaining guards is going to be <b>sampled_guards</b> otherwise remaining
+ * guards is going to be the sampled set, excluing the used guards. **/
 STATIC void
 fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_guards)
@@ -728,6 +731,12 @@ fill_in_remaining_guards(guard_selection_t *guard_selection,
   }
 }
 
+/** Called when is starting <b>guard_selection</b>, to init primary guards.
+ * While primary guards don't reaches the minimum lenght required is going to
+ * add the guard result of next_primary_guard().
+ *
+ * This minimum length normally is 3, when we are in constrained mode is going
+ * to be 1. **/
 STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection)
 {
@@ -742,6 +751,9 @@ fill_in_primary_guards(guard_selection_t *guard_selection)
   }
 }
 
+/** Called when <b>guard_selection</b> should be finished.
+ * This frees primary and remaining guards. Also sets the current and previous
+ * <b>guard_selection</b> state to init. **/
 STATIC void
 guard_selection_free(guard_selection_t *guard_selection)
 {
