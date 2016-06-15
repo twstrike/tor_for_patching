@@ -108,7 +108,7 @@ const int PRIMARY_GUARDS_SIZE_CONSTRAINED  = 1;
 const int PRIMARY_GUARDS_RETRY_INTERVAL = 3;
 /** We restrict the sample set lenght that is going to be used **/
 const int MINIMUM_FILTERED_SAMPLE_SIZE = 20;
-const int MAXIMUM_SAMPLE_SIZE_THRESHOLD = 1.03;
+const double MAXIMUM_SAMPLE_SIZE_THRESHOLD = 1.03;
 const int MAXIMUM_RETRIES = 10;
 
 /** Create a new guard instance **/
