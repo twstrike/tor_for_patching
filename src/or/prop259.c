@@ -95,12 +95,12 @@ static smartlist_t *bridges = NULL;
 
 /** used_guards_dirty is marked for saving used_guards into state file **/
 static int used_guards_dirty = 0;
-/** sampled_guards_dirty is marked for saving sampled_guards into state file **/
+/** Flag to sinalize that sampled_guards should be saved into state file **/
 static int sampled_guards_dirty = 0;
 
-/** SAMPLE_SET_THRESHOLD is the maximum rate of all guards filled into sampled_guards **/
+/** The maximum rate of all guards filled into sampled_guards **/
 const double SAMPLE_SET_THRESHOLD = 0.02;
-/** INTERNET_LIKELY_DOWN_INTERNAL is the interval time of minutes that we should choose again **/
+/** The interval time of minutes that we should choose again **/
 const int INTERNET_LIKELY_DOWN_INTERNAL= 5;
 /** We restrict the number of guards that is going to be used more often **/
 const int PRIMARY_GUARDS_SIZE = 3;
@@ -454,7 +454,6 @@ guards_to_nodes(smartlist_t *nodes, const smartlist_t *guards)
     smartlist_add(nodes, (node_t*) node);
   } SMARTLIST_FOREACH_END(e);
 }
-
 
 /** Returns the first <b>node</b> from a <b>nodes</b> smartlist_t
  * based on WEIGHT_FOR_GUARD.
@@ -1766,8 +1765,11 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   guard_selection_ensure(&entry_guard_selection);
 
   /* Find the guard by digest */
-  entry = get_guard_by_digest(entry_guard_selection->sampled_guards->list, digest);
-  if (!entry) entry = get_guard_by_digest(entry_guard_selection->used_guards->list, digest);
+  entry = get_guard_by_digest(entry_guard_selection->sampled_guards->list,
+                              digest);
+  if (!entry)
+    entry = get_guard_by_digest(entry_guard_selection->used_guards->list,
+                                digest);
 
   if (!entry || !guard_to_node(entry)) return 0;
 
@@ -1798,7 +1800,6 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
                "Removing from the list.", entry->nickname, buf);
       control_event_guard(entry->nickname, entry->identity, "DROPPED");
       entry_guard_free(entry);
-
 
       idx = get_guard_index_by_digest(
             entry_guard_selection->sampled_guards->list, digest);
