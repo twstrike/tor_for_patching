@@ -661,19 +661,28 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
       return NULL;
     }
 
-    smartlist_t *all_nodes = smartlist_new();
-    smartlist_subtract(all_guards, sampled_guards->list);
-    guards_to_nodes(all_nodes, all_guards);
+    //We wanna to provide a sampled set with a rasonable minimum of guards
+    //that can be used as entry.
+    //If sampled_guards don't have the minimun required and also didn't reaches
+    //the maximum threshold, so filter out all guards, removing the ones that
+    //are in sampled_guards then pick the next one by bandwidth, adds it to
+    //sampled_guards and call again filter_set() with this sampled set and
+    //all_guards
+    {
+      smartlist_t *all_nodes = smartlist_new();
+      smartlist_subtract(all_guards, sampled_guards->list);
+      guards_to_nodes(all_nodes, all_guards);
 
-    const node_t * node = next_node_by_bandwidth(all_nodes);
-    entry_guard_t *ng = find_guard_by_node(all_guards, node);
-    smartlist_add(sampled_guards->list, ng);
-    smartlist_free(all_nodes);
+      const node_t * node = next_node_by_bandwidth(all_nodes);
+      entry_guard_t *ng = find_guard_by_node(all_guards, node);
+      smartlist_add(sampled_guards->list, ng);
+      smartlist_free(all_nodes);
 
-    return filter_set(sampled_guards,
-                    all_guards,
-                    min_filtered_sample_size,
-                    max_sample_size_threshold);
+      return filter_set(sampled_guards,
+                      all_guards,
+                      min_filtered_sample_size,
+                      max_sample_size_threshold);
+    }
   }
 
   return filtered;
