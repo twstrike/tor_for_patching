@@ -767,6 +767,12 @@ guard_selection_free(guard_selection_t *guard_selection)
   guard_selection->previous_state = STATE_INIT;
 }
 
+/** Called when <b>guard_selection</b> should be initilized.
+ * It is going to set the limit (<b>n_primary_guards</b>) of primary guards
+ * that can be exposed.
+ * All the guards that we are goint to use should be signed for directory as
+ * true.
+ * Initilizes remaining and primary guards. **/
 STATIC void
 choose_entry_guard_algo_start(guard_selection_t *guard_selection,
                               int n_primary_guards)
@@ -777,7 +783,6 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
   guard_selection->state = STATE_PRIMARY_GUARDS;
   guard_selection->num_primary_guards = n_primary_guards;
 
-  //XXX is sampled_guards a list of guard or node?
   fill_in_remaining_guards(guard_selection, guard_selection->sampled_guards);
   fill_in_primary_guards(guard_selection);
 
@@ -791,7 +796,8 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
           n_primary_guards);
 }
 
-/* dest is a list of guards */
+/** Filters out the used and primary guards from <b>guard_selection</b>
+ * remaining guards and adds this filtered set to <b>guards</b>.*/
 static void
 remaining_guards_for_next_primary(guard_selection_t *guard_selection,
                                   smartlist_t *guards)
@@ -801,6 +807,15 @@ remaining_guards_for_next_primary(guard_selection_t *guard_selection,
   smartlist_subtract(guards, guard_selection->primary_guards);
 }
 
+/** Called when is setting up primary guards, to initialize
+ * <b>guard_selection</b>.
+ * Returns first guard in used guards that is not in used guards also was
+ * listed in the laste (not is_bad()).
+ *
+ * If we dont have more candidates in used guards, pick the next node by
+ * bandwidth from remaining guards, excluing the used and the primary ones.
+ *
+ * Returns NULL if not found a valid node. **/
 STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection)
 {
