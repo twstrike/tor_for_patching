@@ -111,6 +111,9 @@ const int MINIMUM_FILTERED_SAMPLE_SIZE = 20;
 const double MAXIMUM_SAMPLE_SIZE_THRESHOLD = 1.03;
 const int MAXIMUM_RETRIES = 10;
 
+/** Largest amount that we'll backdate entry_guard_chosen_on_date */
+const int CHOSEN_ON_DATE_SLOP = (3600*24*30);
+
 /** Create a new guard instance **/
 guardlist_t*
 guardlist_new(void)
@@ -828,7 +831,7 @@ next_primary_guard(guard_selection_t *guard_selection)
       return e;
   } GUARDLIST_FOREACH_END(e);
 
-  { /** Get next remaining guard **/
+  { /** Get next remaining guard by bandwidth **/
     smartlist_t *remaining_guards = smartlist_new();
     smartlist_t *remaining_nodes = smartlist_new();
 
@@ -853,20 +856,23 @@ next_primary_guard(guard_selection_t *guard_selection)
   return guard;
 }
 
+/** Returns the guard associated with the node <b>node</b>, from the list of
+ * <b>guards</b>.**/
 MOCK_IMPL(STATIC entry_guard_t*,
 find_guard_by_node,(smartlist_t *guards, const node_t *node))
 {
   entry_guard_t *guard = NULL;
-  SMARTLIST_FOREACH_BEGIN(guards, entry_guard_t *, e) {
+  SMARTLIST_FOREACH(guards, entry_guard_t *, e,
     if (fast_memeq(e->identity, node->identity, DIGEST_LEN)) {
       guard = e;
       break;
-    }
-  } SMARTLIST_FOREACH_END(e);
+  });
   return guard;
 }
 
-/** returns a list of GUARDS **/
+/** Called when we receive a consensus, to fill sampled set <b>sample</b> with
+ * the passed <b>nodes</b>, picking each node by bandwidth and adds it to the
+ * sampled set until it reaches the expected <b>size</b>. **/
 STATIC void
 fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *nodes,
                           const int size)
@@ -884,7 +890,11 @@ fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *nodes,
   smartlist_free(remaining);
 }
 
-//XXX Add tests
+/** Called when should to finish the <b>guard_selection</b>.
+ * Checks if the used entry guard <b>guard</b> is currently in the used guards
+ * set, if not adds it and calls used_guards_changed() to update the file.
+ *
+ * XXX Add tests **/
 STATIC void
 choose_entry_guard_algo_end(guard_selection_t *guard_selection,
                             const entry_guard_t *guard)
@@ -905,9 +915,8 @@ choose_entry_guard_algo_end(guard_selection_t *guard_selection,
   smartlist_free(fps);
 }
 
-/** Largest amount that we'll backdate chosen_on_date */
-#define CHOSEN_ON_DATE_SLOP (3600*24*30)
-
+/** Called when parse state file.
+ * Returns the time to be set up in the node. **/
 static time_t
 entry_guard_chosen_on_date(const time_t now)
 {
@@ -919,6 +928,16 @@ entry_guard_chosen_on_date(const time_t now)
   return crypto_rand_time_range(now - CHOSEN_ON_DATE_SLOP, now);
 }
 
+/** Called when needs to parse guards from state file into set <b>guards</b>.
+ * It is going to look for guards of type <b>config_name</b> inside of the file
+ * lines <b>line</b>.
+ * If some of parsed guard was save in a different Tor version
+ * <b>state_version</b>, notify the user.
+ *
+ * Uses <b>msg</b> to store error message.
+ *
+ * Returns normally 1 if all guards was successful parsed, otherwhise returns
+ * -1 if find an error or 0 if none guard is found. **/
 static int
 guards_parse_state(config_line_t *line, const char *state_version,
                    const char* config_name, smartlist_t *guards,
