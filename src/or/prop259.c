@@ -937,7 +937,9 @@ entry_guard_chosen_on_date(const time_t now)
  * Uses <b>msg</b> to store error message.
  *
  * Returns normally 1 if all guards was successful parsed, otherwhise returns
- * -1 if find an error or 0 if none guard is found. **/
+ * -1 if find an error or 0 if none guard is found.
+ *
+ * This is basically a copy of entry_guards_parse_state() **/
 static int
 guards_parse_state(config_line_t *line, const char *state_version,
                    const char* config_name, smartlist_t *guards,
@@ -1248,6 +1250,9 @@ guards_parse_state(config_line_t *line, const char *state_version,
   return *msg ? -1 : changed;
 }
 
+/** Parses SampledGuards from state file <b>state</b> into the set
+ * <b>sample</b>.
+ * If it gots some error, is going to be saved in <b>msg</b>. **/
 static int
 sampled_guards_parse_state(const or_state_t *state, smartlist_t *sample,
                            char **msg)
@@ -1256,6 +1261,9 @@ sampled_guards_parse_state(const or_state_t *state, smartlist_t *sample,
                             "SampledGuard", sample, msg);
 }
 
+/** Parses UseedGuards from state file <b>state</b> into the set
+ * <b>used_guards</b>.
+ * If it gots some error, is going to be saved in <b>msg</b>. **/
 STATIC int
 used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                         char **msg)
@@ -1264,6 +1272,11 @@ used_guards_parse_state(const or_state_t *state, smartlist_t *used_guards,
                             "UsedGuard", used_guards, msg);
 }
 
+/** Parses EntryGuards from state file <b>state</b> into the set
+ * <b>entry_guards</b>.
+ * In the case of been succefull parsed, trigers used_guards_changed() to
+ * sinalize that stored used guards should be updated.
+ * If it gots some error, is going to be saved in <b>msg</b>. **/
 STATIC int
 entry_guards_parse_state_backward(const or_state_t *state,
                                   smartlist_t *entry_guards, char **msg)
