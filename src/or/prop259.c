@@ -95,26 +95,36 @@ static smartlist_t *bridges = NULL;
 
 /** used_guards_dirty is marked for saving used_guards into state file **/
 static int used_guards_dirty = 0;
-/** Flag to sinalize that sampled_guards should be saved into state file **/
+/** Flag to mark sampled_guards to be saved into state file **/
 static int sampled_guards_dirty = 0;
 
 /** The maximum rate of all guards filled into sampled_guards **/
 const double SAMPLE_SET_THRESHOLD = 0.02;
-/** The interval time of minutes that we should choose again **/
+/** The number of minutes that we wait until we retry using primary guards **/
 const int INTERNET_LIKELY_DOWN_INTERNAL= 5;
 /** We restrict the number of guards that is going to be used more often **/
 const int PRIMARY_GUARDS_SIZE = 3;
+/** When user has EntryNodes or Bridges configured
+ * (entry_list_is_constrained()) then we are in constrained mode **/
 const int PRIMARY_GUARDS_SIZE_CONSTRAINED  = 1;
 const int PRIMARY_GUARDS_RETRY_INTERVAL = 3;
-/** We restrict the sample set lenght that is going to be used **/
+/** We restrict the sample set length that is going to be used **/
 const int MINIMUM_FILTERED_SAMPLE_SIZE = 20;
 const double MAXIMUM_SAMPLE_SIZE_THRESHOLD = 1.03;
-const int MAXIMUM_RETRIES = 10;
 
 /** Largest amount that we'll backdate entry_guard_chosen_on_date */
 const int CHOSEN_ON_DATE_SLOP = (3600*24*30);
 
-/** Create a new guard instance **/
+/** XXX
+ * How long will we let a change in our guard nodes stay un-saved
+ * when we are trying to avoid disk writes? */
+const int SLOW_GUARD_STATE_FLUSH_TIME = 600;
+/** XXX
+ * How long will we let a change in our guard nodes stay un-saved
+ * when we are not trying to avoid disk writes? */
+const int FAST_GUARD_STATE_FLUSH_TIME = 30;
+
+/** Returns new guard instance **/
 guardlist_t*
 guardlist_new(void)
 {
@@ -124,7 +134,7 @@ guardlist_new(void)
   return gl;
 }
 
-/** Get a guard from smartlist of guards by its digest **/
+/** Returns a entry guard from smartlist of guards by its digest **/
 static entry_guard_t*
 get_guard_by_digest(const smartlist_t *guards, const char *digest)
 {
@@ -137,7 +147,8 @@ get_guard_by_digest(const smartlist_t *guards, const char *digest)
   return NULL;
 }
 
-/** Get a guard's index from smartlist of guards by its digest **/
+/** Return guard's index from smartlist of guards by its digest.
+ * If guard not found, returns -1.**/
 int
 get_guard_index_by_digest(const smartlist_t *guards, const char *digest)
 {
@@ -149,7 +160,7 @@ get_guard_index_by_digest(const smartlist_t *guards, const char *digest)
   return -1;
 }
 
-/** Get the size of guardlist_t **/
+/** Returns the length of guardlist_t **/
 int
 guardlist_len(const guardlist_t *gl)
 {
@@ -159,21 +170,21 @@ guardlist_len(const guardlist_t *gl)
   return smartlist_len(gl->list);
 }
 
-/** Add a entry_guard_t to guardlist_t **/
+/** Add a entry guard <b>e</b> to guard list <b>gl</b>. **/
 void
 guardlist_add(guardlist_t *gl, entry_guard_t *e)
 {
   smartlist_add(gl->list, e);
 }
 
-/** Add all entry_guard_t of a smartlist_t to guardlist_t **/
+/** Add all items of a smartlist <b>sl</b> into guard list <b>gl</b>. **/
 static void
 guardlist_add_all_smarlist(guardlist_t *gl, const smartlist_t *sl)
 {
   smartlist_add_all(gl->list, sl);
 }
 
-/** Free a guardlist_t **/
+/** Free a guard list <b>gl</b>. **/
 void
 guardlist_free(guardlist_t *gl)
 {
@@ -183,13 +194,6 @@ guardlist_free(guardlist_t *gl)
   smartlist_free(gl->list);
   tor_free(gl);
 }
-
-/** How long will we let a change in our guard nodes stay un-saved
- * when we are trying to avoid disk writes? */
-#define SLOW_GUARD_STATE_FLUSH_TIME 600
-/** How long will we let a change in our guard nodes stay un-saved
- * when we are not trying to avoid disk writes? */
-#define FAST_GUARD_STATE_FLUSH_TIME 30
 
 /** Mark the state file to be saved according to options **/
 static void
@@ -222,15 +226,17 @@ sampled_guards_changed(void)
   guards_mark_dirty();
 }
 
-/** Convert a entry_guard_t to node_t by getting node by its identity **/
-//XXX review if this is the right way of doing this
+/** Convert a entry guard <b>guard</b> into a node.
+ * Returns the found node using guard's identity
+ * XXX review if this is the right way of doing this **/
 static const node_t*
 guard_to_node(const entry_guard_t *guard)
 {
   return node_get_by_id(guard->identity);
 }
 
-/** Check if a node_t is related with another chosen_exit node_t **/
+/** Returns 1 if node <b>node</b> is related with a <b>chosen_exit</b>
+ * otherwise returns 0. **/
 static int
 is_related_to_exit(const node_t *node, const node_t *chosen_exit)
 {
@@ -284,12 +290,11 @@ is_bad,(const entry_guard_t *guard))
   return (node_get_by_id(guard->identity) == NULL);
 }
 
-/** XXX Now we have a clear vision of what is "bad" vs "unlisted" we should
- * revisit this.
- **/
-
-/** Check if an entry_guard_t should be tried according to
- * can_try or (is_live & !is_bad) **/
+/** XXX Now we have a clear vision of when a guard is "bad" vs "unlisted", we
+ * should revisit this.
+ *
+ * Check if an entry guard <b>guard</b> should be tried according to
+ * can_retry or if its live AND not bad. **/
 static int
 should_try(const entry_guard_t* guard)
 {
@@ -636,7 +641,7 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
  * <b>sampled_guards</b>.
  *
  * If this set don't have the minimun <b>min_filtered_sample_size</b>
- * lenght required, then expand it, filling with the next guard by bandwidth,
+ * length required, then expand it, filling with the next guard by bandwidth,
  * from the consensus (<b>all_guards</b>).
  *
  * If in this process to expand, the filtered set reaches
@@ -691,7 +696,7 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
 }
 
 /** Fills and returns smartlist <b>sampled_guards</b>.
- * Its lenght should be the minimum lenght configured in <b>guard_selection</b>
+ * Its length should be the minimum length configured in <b>guard_selection</b>
  * (default values is 20), and not bigger than the configured
  * max_sample_size_threshold. Default value is 1.03 **/
 static smartlist_t*
@@ -735,7 +740,7 @@ fill_in_remaining_guards(guard_selection_t *guard_selection,
 }
 
 /** Called when is starting <b>guard_selection</b>, to init primary guards.
- * While primary guards don't reaches the minimum lenght required is going to
+ * While primary guards don't reaches the minimum length required is going to
  * add the guard result of next_primary_guard().
  *
  * This minimum length normally is 3, when we are in constrained mode is going
@@ -924,7 +929,7 @@ entry_guard_chosen_on_date(const time_t now)
    * is to a) spread out when Tor clients rotate their guards, so they
    * don't all select them on the same day, and b) avoid leaving a
    * precise timestamp in the state file about when we first picked
-   * this guard. For details, see the Jan 2010 or-dev thread. */
+   * this guard. For details, see the Jan 2010 tor-dev thread. */
   return crypto_rand_time_range(now - CHOSEN_ON_DATE_SLOP, now);
 }
 
