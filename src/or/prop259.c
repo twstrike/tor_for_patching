@@ -1290,6 +1290,9 @@ entry_guards_parse_state_backward(const or_state_t *state,
   return ret;
 }
 
+/** Called when we are notified that a <b>guards</b> list was changed and
+ * should save each item into the each <b>line</b> of the configuration file,
+ * based on guards type (<b>config_name</b>). **/
 static void
 guards_update_state(config_line_t **next, const guardlist_t *guards,
                     const char* config_name)
@@ -1577,11 +1580,12 @@ choose_random_entry_prop259(cpath_build_state_t *state, int *n_options_out)
   return node;
 }
 
-/** Called when consensus arrives and if entry_list_is_constrained() returns
- * true.
+/** Called when consensus arrives and we are in constrained mode
+ * (entry_list_is_constrained() returns true).
  *
- * It will fill <b>guard_selection</b>->sampled_guards with configuraded
- * <b>options</b>->EntryNodes, following this priority:
+ * It will fills <b>guard_selection</b> sampled guards with configuraded
+ * EntryNodes from users configuration (<b>options</b>), following this
+ * priority:
  *
  * 1- Ones that are in both, used_guards and entry_nodes
  * 2- Scrambled entry_nodes exluding worse_entry_node (where its node is not
@@ -1672,6 +1676,9 @@ fill_sampled_guards_from_entrynodes(guard_selection_t *guard_selection,
   smartlist_free(sample);
 }
 
+/** Fills sampled set <b>dest</b> with loaded bridges.
+ * If we are in bridge mode, our sampled set will be only these bridges and we
+ * are not going to expand this set with guards from consensus. **/
 static void
 fill_in_from_bridges(guardlist_t *dest)
 {
@@ -1694,6 +1701,8 @@ fill_in_from_bridges(guardlist_t *dest)
   smartlist_free(sample);
 }
 
+/** Called when receives bridge descriptor to add <b>node</b> to our bridges
+ * list if is not there also updates sampled set with the bridge list. **/
 void
 add_an_entry_bridge(node_t *node)
 {
@@ -1704,6 +1713,7 @@ add_an_entry_bridge(node_t *node)
   fill_in_from_bridges(entry_guard_selection->sampled_guards);
 }
 
+/** Returns 1 if we have bridges to be used or 0 if not.**/
 int
 known_entry_bridge(void)
 {
@@ -1712,13 +1722,19 @@ known_entry_bridge(void)
   return 0;
 }
 
+/** Called when consensus arrives and we are in constrained mode.
+ *
+ * It will fills sampled guards with configuraded EntryNodes from users
+ * configuration (<b>options</b>). **/
 void
 guard_selection_fill_in_from_entrynodes(const or_options_t *options)
 {
   fill_sampled_guards_from_entrynodes(entry_guard_selection, options);
 }
 
-//XXX Add tests
+/** Removes dead and obsoletes guards from a guards list <b>gl</b>, having in
+ * consideration the current time <b>now</b>.
+ * XXX Add tests **/
 static void
 prune_guardlist(const time_t now, guardlist_t *gl)
 {
@@ -1769,6 +1785,10 @@ entry_guards_update_profiles(const or_options_t *options, const time_t now)
   }
 }
 
+/** Called when we are notified about the connection result of an picked
+ * <b>entry</b> to updates when its was tried (<b>now</b>) also if was a
+ * successful (<b>succeeded</b>=1) or not (<b>succeeded</b>=0).
+ * Returns 1 when guard state changed or 0 when not.**/
 int
 update_entry_guards_connection_status(entry_guard_t *entry,
                                       const int succeeded, const time_t now)
