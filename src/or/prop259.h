@@ -63,8 +63,7 @@ void guardlist_free(guardlist_t*);
 #define GUARDLIST_FOREACH_END(a) SMARTLIST_FOREACH_END(a)
 
 const node_t *
-choose_random_entry_prop259(cpath_build_state_t *state,
-                           dirinfo_type_t dirinfo_type, int *n_options_out);
+choose_random_entry_prop259(cpath_build_state_t *state, int *n_options_out);
 
 void
 entry_guards_update_profiles(const or_options_t *options, const time_t now);

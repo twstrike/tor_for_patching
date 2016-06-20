@@ -1482,10 +1482,16 @@ guard_selection_ensure(guard_selection_t **guard_selection)
   }
 }
 
-//XXX Add tests
+/** Public interface to start guard selection.
+ *
+ * Called by choose_random_entry() to choose an entry guard to build a circuit.
+ * Its receives user <b>state</b> file to look for stored guards;
+ * Returns normally an entry guard, in the case of consensus is not available
+ * yet, returns NULL.
+ *
+ * XXX Add tests **/
 const node_t *
-choose_random_entry_prop259(cpath_build_state_t *state,
-                            dirinfo_type_t dirinfo_type, int *n_options_out)
+choose_random_entry_prop259(cpath_build_state_t *state, int *n_options_out)
 {
   guard_selection_ensure(&entry_guard_selection);
 
@@ -1529,8 +1535,6 @@ choose_random_entry_prop259(cpath_build_state_t *state,
   const node_t *node = NULL;
   const entry_guard_t* guard = NULL;
   time_t now = time(NULL);
-
-  (void) dirinfo_type;
 
   if (n_options_out)
     *n_options_out = 0;
