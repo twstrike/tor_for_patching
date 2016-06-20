@@ -747,7 +747,6 @@ fill_in_remaining_guards(guard_selection_t *guard_selection,
 STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection)
 {
-  guard_selection->primary_guards = smartlist_new();
   smartlist_t *primary = guard_selection->primary_guards;
   while (smartlist_len(primary) < guard_selection->num_primary_guards) {
     entry_guard_t *guard = next_primary_guard(guard_selection);
@@ -1473,6 +1472,7 @@ guard_selection_ensure(guard_selection_t **guard_selection)
     new_guard_selection->state = STATE_INIT;
     new_guard_selection->previous_state = STATE_INIT;
 
+    new_guard_selection->primary_guards = smartlist_new();
     new_guard_selection->remaining_guards = smartlist_new();
     new_guard_selection->used_guards = guardlist_new();
     new_guard_selection->sampled_guards = guardlist_new();
