@@ -727,7 +727,6 @@ STATIC void
 fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_guards)
 {
-  guard_selection->remaining_guards = smartlist_new();
   if (entry_list_is_constrained(get_options())) {
     smartlist_add_all(guard_selection->remaining_guards,
                       sampled_guards->list);
@@ -1474,6 +1473,7 @@ guard_selection_ensure(guard_selection_t **guard_selection)
     new_guard_selection->state = STATE_INIT;
     new_guard_selection->previous_state = STATE_INIT;
 
+    new_guard_selection->remaining_guards = smartlist_new();
     new_guard_selection->used_guards = guardlist_new();
     new_guard_selection->sampled_guards = guardlist_new();
 
@@ -1919,6 +1919,7 @@ guard_selection_update_state(or_state_t *state, const or_options_t *options)
   sampled_guards_dirty = 0;
 }
 
+/** Called to print out guards' information **/
 void
 log_guards(int severity, const smartlist_t *guards)
 {
@@ -1945,6 +1946,10 @@ log_guards(int severity, const smartlist_t *guards)
   tor_free(s);
 }
 
+/** Parses stored sampled guards from <b>state</b> file.
+ * Sets the parsed guards into guard selection sampled set when it receives
+ * <b>set</b>.
+ * If any error occur, it will be saved in <b>msg</b>. **/
 int
 guard_selection_parse_sampled_guards_state(const or_state_t *state, int set,
                                            char **msg)
@@ -1965,6 +1970,10 @@ guard_selection_parse_sampled_guards_state(const or_state_t *state, int set,
   return ret;
 }
 
+/** Parses stored used guards from <b>state</b> file.
+ * Sets the parsed guards into guard selection sampled set when it receives
+ * <b>set</b>.
+ * If any error occur, it will be saved in <b>msg</b>. **/
 int
 guard_selection_parse_used_guards_state(const or_state_t *state, int set,
                                         char **msg)
@@ -2108,6 +2117,7 @@ remove_dead_guards(time_t now, smartlist_t* guards)
   return changed ? 1 : 0;
 }
 
+/** Get an entry guard by its <b>digest</b>. **/
 entry_guard_t *
 used_guard_get_by_digest(const char *digest)
 {
