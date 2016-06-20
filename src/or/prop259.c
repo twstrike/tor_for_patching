@@ -785,9 +785,6 @@ STATIC void
 choose_entry_guard_algo_start(guard_selection_t *guard_selection,
                               int n_primary_guards)
 {
-  //Whe are using only dirguards
-  //About 80% of Guards are V2Dir/dirguards (this will become 100% with #12538)
-  guard_selection->for_directory = 1;
   guard_selection->state = STATE_PRIMARY_GUARDS;
   guard_selection->num_primary_guards = n_primary_guards;
 
@@ -1390,7 +1387,9 @@ guards_update_state(config_line_t **next, const guardlist_t *guards,
   tor_free(path_bias_config_name);
 }
 
-//XXX Add test
+/** Called to update <b>used_guards</b> list, stored in <b>state</b> file.
+ * Also frees stored entry guards to be replaced by used guards.
+ * XXX Add test **/
 STATIC void
 used_guards_update_state(or_state_t *state, guardlist_t *used_guards)
 {
@@ -1408,6 +1407,8 @@ used_guards_update_state(or_state_t *state, guardlist_t *used_guards)
   guards_update_state(next, used_guards, "UsedGuard");
 }
 
+/** Called to update <b>sampled_guards</b> list, stored in <b>state</b> file.
+ * XXX Add test **/
 static void
 sampled_guards_update_state(or_state_t *state, guardlist_t *sampled_guards)
 {
@@ -1459,7 +1460,8 @@ choose_entry_guard_algo_should_continue(guard_selection_t *guard_selection,
   return should_continue;
 }
 
-//XXX Add tests
+/** Called to certify <b>guard_selection</b> initialization.
+ * XXX Add tests **/
 STATIC void
 guard_selection_ensure(guard_selection_t **guard_selection)
 {
@@ -1475,7 +1477,9 @@ guard_selection_ensure(guard_selection_t **guard_selection)
     new_guard_selection->used_guards = guardlist_new();
     new_guard_selection->sampled_guards = guardlist_new();
 
-    //We are going to use only directory guards
+    //We are using only directory guards
+    //About 80% of Guards are V2Dir/dirguards
+    //(this will become 100% with #12538)
     new_guard_selection->for_directory = 1;
 
     *guard_selection = new_guard_selection;
@@ -1894,6 +1898,8 @@ guard_selection_register_connect_status(const char *digest, int succeeded,
   return should_continue ? -1 : 0;
 }
 
+/** Called by or_state_save() to save used and sampled guards into <b>state</b>
+ * file based on the user configuration (<b>options</b>) **/
 void
 guard_selection_update_state(or_state_t *state, const or_options_t *options)
 {
