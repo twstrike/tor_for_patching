@@ -134,7 +134,7 @@ guardlist_new(void)
   return gl;
 }
 
-/** Returns a entry guard from smartlist of guards by its digest **/
+/** Gets an entry guard from <b>guards</b> lists by its digest **/
 static entry_guard_t*
 get_guard_by_digest(const smartlist_t *guards, const char *digest)
 {
@@ -160,7 +160,7 @@ get_guard_index_by_digest(const smartlist_t *guards, const char *digest)
   return -1;
 }
 
-/** Returns the length of guardlist_t **/
+/** Returns the length of a guards list <b>gl</b>. **/
 int
 guardlist_len(const guardlist_t *gl)
 {
@@ -170,14 +170,14 @@ guardlist_len(const guardlist_t *gl)
   return smartlist_len(gl->list);
 }
 
-/** Add a entry guard <b>e</b> to guard list <b>gl</b>. **/
+/** Adds an entry guard <b>e</b> to guard list <b>gl</b>. **/
 void
 guardlist_add(guardlist_t *gl, entry_guard_t *e)
 {
   smartlist_add(gl->list, e);
 }
 
-/** Add all items of a smartlist <b>sl</b> into guard list <b>gl</b>. **/
+/** Adds all items of a smartlist <b>sl</b> into guard list <b>gl</b>. **/
 static void
 guardlist_add_all_smarlist(guardlist_t *gl, const smartlist_t *sl)
 {
@@ -195,7 +195,7 @@ guardlist_free(guardlist_t *gl)
   tor_free(gl);
 }
 
-/** Mark the state file to be saved according to options **/
+/** Mark the state file to be saved according to user options **/
 static void
 guards_mark_dirty(void)
 {
@@ -210,7 +210,7 @@ guards_mark_dirty(void)
   or_state_mark_dirty(get_or_state(), when);
 }
 
-/** Mark the used_guards to be saved in state file **/
+/** Mark the used guards to be saved in state file **/
 static void
 used_guards_changed(void)
 {
@@ -218,7 +218,7 @@ used_guards_changed(void)
   guards_mark_dirty();
 }
 
-/** Mark the sampled_guards to be saved in state file **/
+/** Mark the sampled guards to be saved in state file **/
 static void
 sampled_guards_changed(void)
 {
@@ -226,8 +226,9 @@ sampled_guards_changed(void)
   guards_mark_dirty();
 }
 
-/** Convert a entry guard <b>guard</b> into a node.
- * Returns the found node using guard's identity
+/** Converts an entry guard <b>guard</b> into a node.
+ * Using guard's identity, look through the nodes lists and returns the found
+ * node.
  * XXX review if this is the right way of doing this **/
 static const node_t*
 guard_to_node(const entry_guard_t *guard)
@@ -235,10 +236,10 @@ guard_to_node(const entry_guard_t *guard)
   return node_get_by_id(guard->identity);
 }
 
-/** Returns 1 if node <b>node</b> is related with a <b>chosen_exit</b>
+/** Returns 1 if node <b>node</b> is related with a node <b>chosen_exit</b>,
  * otherwise returns 0. **/
 static int
-is_related_to_exit(const node_t *node, const node_t *chosen_exit)
+is_related_to_choosen_exit(const node_t *node, const node_t *chosen_exit)
 {
   int retval = 0;
   smartlist_t *exit_family = smartlist_new();
@@ -283,6 +284,9 @@ is_live,(const entry_guard_t *guard))
  * mentioned in the C Appendix. entry_is_live() verifies part of this "now" as
  * opposed to waiting until entry_guard_set_status() changes bad_since - which
  * happens only when a new consensus arrives.
+ *
+ * For us, a not bad guard meets the condition of what is_suitable.
+ * Look to Appendix C.
 */
 MOCK_IMPL(STATIC int,
 is_bad,(const entry_guard_t *guard))
@@ -1565,7 +1569,7 @@ choose_random_entry_prop259(cpath_build_state_t *state, int *n_options_out)
 
   // This is another part of IS_SUITABLE. It's here to avoid
   // passing the exit node to the guard_selection_t
-  if (is_related_to_exit(node, chosen_exit))
+  if (is_related_to_choosen_exit(node, chosen_exit))
     goto retry;
 
   log_warn(LD_CIRC, "Chose %s as entry guard for this circuit.",
