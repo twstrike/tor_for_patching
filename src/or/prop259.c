@@ -339,7 +339,7 @@ is_eligible(const entry_guard_t* guard, int for_directory)
     !should_ignore(guard, for_directory);
 }
 
-/** Mark a smartlist_t of guards as can_retry **/
+/** Mark all items of <b>guards</b> list as can retry. **/
 static void
 mark_for_retry(const smartlist_t *guards)
 {
@@ -348,8 +348,8 @@ mark_for_retry(const smartlist_t *guards)
   });
 }
 
-/** Mark all primary_guards of guard_selection as can_retry and
- * transit the guard_selection to STATE_PRIMARY_GUARDS state **/
+/** Mark all primary guards of <b>guard_selection</b> as can retry and
+ * transit the <b>guard_selection</b> state to STATE_PRIMARY_GUARDS. **/
 static void
 retry_primary_guards(guard_selection_t *guard_selection)
 {
@@ -357,8 +357,8 @@ retry_primary_guards(guard_selection_t *guard_selection)
   transition_to(guard_selection, STATE_PRIMARY_GUARDS);
 }
 
-/** Mark all used_guards which are not in primary_guards of
- * guard_selection as can_retry **/
+/** Mark all used guards which are not in primary guards of
+ * <b>guard_selection</b> as can retry. **/
 static void
 mark_remaining_used_for_retry(guard_selection_t *guard_selection)
 {
@@ -373,8 +373,8 @@ mark_remaining_used_for_retry(guard_selection_t *guard_selection)
   } GUARDLIST_FOREACH_END(e);
 }
 
-/** Transit the guard_selection to previous_state unless previous_state
- * is STATE_INVALID or STATE_INIT, otherwise transit the guard_selection
+/** Transit the <b>guard_selection</b> to previous state unless it is
+ * STATE_INVALID or STATE_INIT, otherwise transit the <b>guard_selection</b>
  * to STATE_TRY_REMAINING state **/
 static void
 transition_to_previous_state_or_try_remaining(
@@ -393,10 +393,10 @@ transition_to_previous_state_or_try_remaining(
 /** Called when <b>guard_selection</b> is in the state PRIMARY_GUARD and needs
  * a guard.
  *
- * Return the first item from <b>guard_selection</b>->primary_guards if
- * is_eligible() returns true.
+ * Returns the first item from primary guards in <b>guard_selection</b> if the
+ * guard is eligible.
  *
- * Returns NULL when do not have eligible guard and transate
+ * Returns NULL when do not have eligible guard and transit
  * <b>guard_selection</b>'s state **/
 static entry_guard_t*
 state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
@@ -420,8 +420,7 @@ state_PRIMARY_GUARDS_next(guard_selection_t *guard_selection)
   return NULL;
 }
 
-/** Transits <b>guard_selection</b>'s state to a <b>state</b> when it's valid
- * **/
+/** Transits <b>guard_selection</b>'s state to a <b>state</b> when it's valid*/
 STATIC void
 transition_to(guard_selection_t *guard_selection,
               guard_selection_state_t state)
@@ -444,9 +443,11 @@ transition_to(guard_selection_t *guard_selection,
   guard_selection->state = state;
 }
 
-/** Called when seems like was without connection during too much time.
- * Saves the current <b>guard_selection</b> state into previous_state and
- * sinalize to try primary_guards first when a guard is needed. **/
+/** Called when we are checking if we need to try primary guards first instead
+ * of trying the remaining guards.
+ *
+ * Saves the current <b>guard_selection</b> state and marks primary guards to be
+ * tried. **/
 static void
 save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
 {
@@ -454,7 +455,7 @@ save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
   retry_primary_guards(guard_selection);
 }
 
-/** Converts a smartlist_t <b>guards</b> into a smartlist_t <b>nodes</b>.**/
+/** Converts all <b>guards</b> into <b>nodes</b>.**/
 static void
 guards_to_nodes(smartlist_t *nodes, const smartlist_t *guards)
 {
@@ -467,9 +468,9 @@ guards_to_nodes(smartlist_t *nodes, const smartlist_t *guards)
   } SMARTLIST_FOREACH_END(e);
 }
 
-/** Returns the first <b>node</b> from a <b>nodes</b> smartlist_t
- * based on WEIGHT_FOR_GUARD.
- * If a <b>node</b> is found, remove it from <b>nodes</b>. **/
+/** Returns the first <b>node</b> from <b>nodes</b> list based on
+ * WEIGHT_FOR_GUARD.
+ * If <b>node</b> is found, remove it from <b>nodes</b>. **/
 STATIC const node_t*
 next_node_by_bandwidth(smartlist_t *nodes)
 {
@@ -481,9 +482,9 @@ next_node_by_bandwidth(smartlist_t *nodes)
 }
 
 /** Called when <b>guard_selection</b> is in TRY_REMAINING state.
- * Returns the first entry guard that is in <b>guard_selection</b> used_guard
- * but not in <b>guard_selection</b> primary_guards, if none found returns
- * NULL **/
+ * Returns the first guard in <b>guard_selection</b> used guards but not in
+ * primary guards.
+ * If no guards are found returns NULL **/
 static entry_guard_t*
 each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
 {
@@ -497,7 +498,7 @@ each_used_guard_not_in_primary_guards(guard_selection_t *guard_selection)
   return NULL;
 }
 
-/** Called to sign that a node <b>node</b> was used as a guard**/
+/** Marks a node <b>node</b> that was used as a guard**/
 static void
 choose_as_new_entry_guard(node_t *node)
 {
@@ -507,8 +508,10 @@ choose_as_new_entry_guard(node_t *node)
 
 /** Called when <b>guard_selection</b> is in TRY_REMAINING state.
  * Returns the first live eligible entry guard that is in
- * <b>guard_selection</b> remaining_guards, if none found returns NULL.
- * Also, if entry guard is not live, removes it from remaining_guards**/
+ * <b>guard_selection</b> remaining guards.
+ * If none are found returns NULL.
+ *
+ * If guard is not live, removes it from remaining guards. **/
 static entry_guard_t*
 next_eligible_remaining_guard(guard_selection_t* guard_selection)
 {
@@ -541,10 +544,10 @@ next_eligible_remaining_guard(guard_selection_t* guard_selection)
   return guard;
 }
 
-/** Called when a entry guard is needed and <b>guard_selection</b> is in
+/** Called when an entry guard is needed and <b>guard_selection</b> is in
  * TRY_REMAINING state.
- * Returns the first entry guard from used_guards that is not in primary_guards
- * if none found, try to pick the fist live and eligible from remaining_guards.
+ * Returns the first entry guard from used guards that is not in primary guards.
+ * If none are found, try to pick the first eligible from remaining guards.
  * If still none, then transition <b>guard_selection</b> to
  * STATE_PRIMARY_GUARDS and returns NULL.**/
 static entry_guard_t*
@@ -570,9 +573,9 @@ state_TRY_REMAINING_next(guard_selection_t *guard_selection)
   return NULL;
 }
 
-/** Returns 1 if any guard in smartlist <b>guards</b> have been tried before,
- * when its last_attempted is smaller or equal than the <b>time<b/> otherwise
- * returns 0.**/
+/** Returns 1 if any guard in <b>guards</b> list has been tried before,
+ * when last_attempted is smaller or equal than the <b>time<b/>.
+ * Otherwise returns 0.**/
 static int
 has_any_been_tried_before(const smartlist_t *guards, time_t time)
 {
@@ -587,13 +590,13 @@ has_any_been_tried_before(const smartlist_t *guards, time_t time)
   return 0;
 }
 
-/** Called when needs to choose a entry guard, to check if
+/** Called when a circuit needs to choose an entry guard, to check if
  * <b>guard_selection</b> should retry primary guards first.
- * This is going to happen if any of the primary guards have been tried before
- * N interval, where is time <b>now</b> - configured PrimaryGuardsRetryInterval
- * If not configured, it's going to be 3 minutes.
+ * We will retry primary guards if any of these guards were tried before N
+ * interval.
  *
- * If need to retry, transition <b>guard_selection</b> to PRIMARY_GUARDS state.
+ * If need to retry, save current state and transit <b>guard_selection</b> to
+ * PRIMARY_GUARDS state.
  * XXX Add tests**/
 static void
 check_primary_guards_retry_interval(guard_selection_t *guard_selection,
@@ -618,7 +621,7 @@ check_primary_guards_retry_interval(guard_selection_t *guard_selection,
 }
 
 /** Called when <b>guard_selection</b> needs an entry guard.
- * First its checks if needs to retry primary guards, then call next() for
+ * First it checks if needs to retry primary guards, then calls next() for
  * <b>guard_selection</b> state. **/
 STATIC entry_guard_t *
 choose_entry_guard_algo_next(guard_selection_t *guard_selection,
@@ -641,15 +644,14 @@ choose_entry_guard_algo_next(guard_selection_t *guard_selection,
   return NULL;
 }
 
-/** Returns a smartlist, the filtered live guards from a set
- * <b>sampled_guards</b>.
+/** Returns filtered live guards from <b>sampled_guards</b> set.
  *
- * If this set don't have the minimun <b>min_filtered_sample_size</b>
+ * If this set doesn't have the minimum <b>min_filtered_sample_size</b>
  * length required, then expand it, filling with the next guard by bandwidth,
  * from the consensus (<b>all_guards</b>).
  *
- * If in this process to expand, the filtered set reaches
- * <b>max_sample_size_threshold</b>, warn the user and returns NULL.**/
+ * If we expand the filtered set to <b>max_sample_size_threshold</b>,
+ * warn the user and returns NULL.**/
 STATIC smartlist_t *
 filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
         int min_filtered_sample_size, int max_sample_size_threshold)
@@ -701,7 +703,7 @@ filter_set(const guardlist_t *sampled_guards, smartlist_t *all_guards,
 
 /** Fills and returns smartlist <b>sampled_guards</b>.
  * Its length should be the minimum length configured in <b>guard_selection</b>
- * (default values is 20), and not bigger than the configured
+ * (default value is 20), and not bigger than the configured
  * max_sample_size_threshold. Default value is 1.03 **/
 static smartlist_t*
 filter_sampled(guard_selection_t *guard_selection,
@@ -715,6 +717,7 @@ filter_sampled(guard_selection_t *guard_selection,
       : MAXIMUM_SAMPLE_SIZE_THRESHOLD;
 
   int sampled_len = guardlist_len(sampled_guards);
+  //XXX What happen if sampled_guards_threshold is 0?
   double sampled_guards_threshold = sampled_guards_ratio * sampled_len;
 
   return filter_set(sampled_guards,
@@ -723,10 +726,12 @@ filter_sampled(guard_selection_t *guard_selection,
                     sampled_guards_threshold);
 }
 
-/** Called when is starting <b>guard_selection</b>, to init remaining guards.
+/** Called when is starting <b>guard_selection</b>, to initialize remaining
+ * guards.
  * If we are in a constrained mode (entry_list_is_constrained() is true) then
- * remaining guards is going to be <b>sampled_guards</b> otherwise remaining
- * guards is going to be the sampled set, excluing the used guards. **/
+ * remaining guards is going to be <b>sampled_guards</b>.
+ * Otherwise remaining guards is going to be the <b>sampled_guards</b>,
+ * excluing the used guards. **/
 STATIC void
 fill_in_remaining_guards(guard_selection_t *guard_selection,
                          const guardlist_t *sampled_guards)
@@ -742,12 +747,14 @@ fill_in_remaining_guards(guard_selection_t *guard_selection,
   }
 }
 
-/** Called when is starting <b>guard_selection</b>, to init primary guards.
- * While primary guards don't reaches the minimum length required is going to
- * add the guard result of next_primary_guard().
+/** Called when is starting <b>guard_selection</b>, to initialize primary
+ * guards.
  *
- * This minimum length normally is 3, when we are in constrained mode is going
- * to be 1. **/
+ * Adds a guard from next_primary_guard while primary guards set is less than
+ * the minimum length required.
+ *
+ * This minimum length normally is 3, when we are in constrained mode the
+ * length is 1. **/
 STATIC void
 fill_in_primary_guards(guard_selection_t *guard_selection)
 {
@@ -780,8 +787,7 @@ guard_selection_free(guard_selection_t *guard_selection)
 /** Called when <b>guard_selection</b> should be initilized.
  * It is going to set the limit (<b>n_primary_guards</b>) of primary guards
  * that can be exposed.
- * All the guards that we are goint to use should be signed for directory as
- * true.
+ * All the guards that we are going to use should be directory cache.
  * Initilizes remaining and primary guards. **/
 STATIC void
 choose_entry_guard_algo_start(guard_selection_t *guard_selection,
@@ -803,8 +809,8 @@ choose_entry_guard_algo_start(guard_selection_t *guard_selection,
           n_primary_guards);
 }
 
-/** Filters out the used and primary guards from <b>guard_selection</b>
- * remaining guards and adds this filtered set to <b>guards</b>.*/
+/** Filters out the used and primary guards from remaining guards of
+ * <b>guard_selection</b> and adds the result to <b>guards</b> set.*/
 static void
 remaining_guards_for_next_primary(guard_selection_t *guard_selection,
                                   smartlist_t *guards)
@@ -816,13 +822,13 @@ remaining_guards_for_next_primary(guard_selection_t *guard_selection,
 
 /** Called when is setting up primary guards, to initialize
  * <b>guard_selection</b>.
- * Returns first guard in used guards that is not in used guards also was
- * listed in the laste (not is_bad()).
+ * Returns first guard in used guards that is not in primary guards and was
+ * listed in the last consensus.
  *
  * If we dont have more candidates in used guards, pick the next node by
  * bandwidth from remaining guards, excluing the used and the primary ones.
  *
- * Returns NULL if not found a valid node. **/
+ * Returns NULL if guard is not found. **/
 STATIC entry_guard_t*
 next_primary_guard(guard_selection_t *guard_selection)
 {
@@ -875,8 +881,9 @@ find_guard_by_node,(smartlist_t *guards, const node_t *node))
 }
 
 /** Called when we receive a consensus, to fill sampled set <b>sample</b> with
- * the passed <b>nodes</b>, picking each node by bandwidth and adds it to the
- * sampled set until it reaches the expected <b>size</b>. **/
+ * <b>nodes</b>.
+ * Picks each node by bandwidth and adds it to the sampled set until it reaches
+ * the expected <b>size</b>. **/
 STATIC void
 fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *nodes,
                           const int size)
@@ -894,9 +901,11 @@ fill_in_sampled_guard_set(guardlist_t *sample, const smartlist_t *nodes,
   smartlist_free(remaining);
 }
 
-/** Called when should to finish the <b>guard_selection</b>.
+/** Called to finish the <b>guard_selection</b>.
  * Checks if the used entry guard <b>guard</b> is currently in the used guards
- * set, if not adds it and calls used_guards_changed() to update the file.
+ * set.
+ * If the guard is not in the set, add it and call used_guards_changed() to
+ * update the state file.
  *
  * XXX Add tests **/
 STATIC void
