@@ -446,8 +446,8 @@ transition_to(guard_selection_t *guard_selection,
 /** Called when we are checking if we need to try primary guards first instead
  * of trying the remaining guards.
  *
- * Saves the current <b>guard_selection</b> state and marks primary guards to be
- * tried. **/
+ * Saves the current <b>guard_selection</b> state and marks primary guards to
+ * be tried. **/
 static void
 save_state_and_retry_primary_guards(guard_selection_t *guard_selection)
 {
@@ -546,7 +546,8 @@ next_eligible_remaining_guard(guard_selection_t* guard_selection)
 
 /** Called when an entry guard is needed and <b>guard_selection</b> is in
  * TRY_REMAINING state.
- * Returns the first entry guard from used guards that is not in primary guards.
+ * Returns the first entry guard from used guards that is not in primary
+ * guards.
  * If none are found, try to pick the first eligible from remaining guards.
  * If still none, then transition <b>guard_selection</b> to
  * STATE_PRIMARY_GUARDS and returns NULL.**/
