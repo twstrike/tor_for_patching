@@ -212,6 +212,7 @@ test_fill_in_primary_guards(void *arg)
 
     guard_selection->used_guards = used_guards;
     guard_selection->num_primary_guards = 2;
+    guard_selection->primary_guards = smartlist_new();
 
     fill_in_primary_guards(guard_selection);
 
@@ -279,6 +280,7 @@ test_fill_in_remaining_guards(void *arg)
     guardlist_add(used, g2);
 
     guard_selection->used_guards = used;
+    guard_selection->remaining_guards = smartlist_new();
     guard_selection->min_filtered_sample_size = 3;
     fill_in_remaining_guards(guard_selection, sampled);
 

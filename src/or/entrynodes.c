@@ -899,7 +899,7 @@ const node_t *
 choose_random_entry(cpath_build_state_t *state)
 {
 #ifdef USE_PROP_259
-  return choose_random_entry_prop259(state, NO_DIRINFO, NULL);
+  return choose_random_entry_prop259(state, NULL);
 #else
   return choose_random_entry_impl(state, 0, NO_DIRINFO, NULL);
 #endif
@@ -911,7 +911,8 @@ const node_t *
 choose_random_dirguard(dirinfo_type_t type)
 {
 #ifdef USE_PROP_259
-  return choose_random_entry_prop259(NULL, type, NULL);
+  (void) type;
+  return choose_random_entry_prop259(NULL, NULL);
 #else
   return choose_random_entry_impl(NULL, 1, type, NULL);
 #endif
